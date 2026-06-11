@@ -201,6 +201,7 @@
   line-height: 1.08;
   text-transform: uppercase;
   margin-bottom: 0.75rem;
+  user-select: none;
 }
 
 .hero-tagline {
