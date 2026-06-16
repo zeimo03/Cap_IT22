@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { FaCalendarAlt, FaTrophy, FaPaperPlane, FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
-import "./LandingPage.css";
+import "./LandingPage.css";<link href="https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic" rel="stylesheet" />
 
 const LEVELS = ["Elementary", "High School", "College"];
 
@@ -76,25 +76,11 @@ function LandingPage() {
 
       {/* ── Hero — full viewport, no separate navbar ── */}
       <section className="hero">
-        {/*
-          TODO: Add your background photo.
-          In LandingPage.css find .hero and set:
-            background-image: url('/src/assets/hero-bg.jpg');
-          Place the school photo at: src/assets/hero-bg.jpg
-          SRCLogo.png is already in /public — use it in the school identity block below.
-        */}
         <div className="hero-overlay" />
 
         {/* ── Top bar — floats inside hero ── */}
         <div className="hero-topbar">
           {/* School identity — logo + name inside hero */}
-          <div className="school-identity">
-            <img src="/SRCLogo.png" alt="SRC Logo" className="school-logo" />
-            <div className="school-name">
-              <span className="school-name-main">SANTA RITA COLLEGE</span>
-              <span className="school-name-sub">OF PAMPANGA, INC.</span>
-            </div>
-          </div>
 
           {/* Right controls */}
           <div className="header-controls">
@@ -134,17 +120,26 @@ function LandingPage() {
 
         {/* ── Hero body ── */}
         <div className="hero-body">
-          {/* Left — headline + CTA */}
           <div className="hero-left">
             <h1 className="hero-headline">
-              WHERE CHAMPIONS<br />ARE MADE.
+              <div className="school-identity">
+            <img src="/SRCLogo.png" alt="SRC Logo" className="school-logo" />
+            <div className="school-name">
+              <span className="school-name-main">SANTA RITA COLLEGE OF PAMPANGA, INC.</span>
+
+            </div>
+          </div>
+          <div className="hero-headline">WHERE CHAMPIONS<br />ARE MADE.</div>
+              
             </h1>
+            
+            <div className="line"></div>
             <p className="hero-tagline">PERFORMANCE. TALENTS. SKILLS.</p>
             <p className="hero-copy">
-              Sports is not just a <strong>GAME</strong>;<br />
-              it is a <strong>PASSION</strong>.<br />
-              it is not just a <strong>SPORT</strong>;<br />
-              it is a way of <strong>LIFE</strong>.
+              Sports is not just a GAME;<br />
+              it is a PASSION.<br />
+              it is not just a SPORT;<br />
+              it is a way of LIFE.
             </p>
             <div className="hero-cta-row">
               <button className="cta-btn cta-primary">

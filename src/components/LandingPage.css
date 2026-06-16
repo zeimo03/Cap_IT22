@@ -1,4 +1,11 @@
 /* ── Wrapper ── */
+@import url(https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic);
+@import url(https://fonts.googleapis.com/css?family=Poppins:100,100italic,200,200italic,300,300italic,regular,italic,500,500italic,600,600italic,700,700italic,800,800italic,900,900italic);
+
+* {
+  box-sizing: border-box;
+}
+
 .landing-wrapper {
   display: flex;
   flex-direction: column;
@@ -14,7 +21,8 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-image: url("../components/img/SRCBackground.png");
+  border-bottom: 1px solid #000;
+  background: url("../components/img/SRCBackground.png") lightgray 0px -0.223px / 115.497% 115.549% no-repeat;
   background-size: cover;
   background-position: center top;
   overflow: hidden;
@@ -25,9 +33,9 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(to right,
-      rgba(0, 18, 45, 0.78) 0%,
-      rgba(0, 18, 45, 0.5) 55%,
-      rgba(0, 18, 45, 0.18) 100%);
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(255, 255, 255, 0.6) 30%,
+      rgba(255, 255, 255, 0) 60%);
   pointer-events: none;
   z-index: 1;
 }
@@ -37,56 +45,48 @@
   position: relative;
   z-index: 10;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  justify-content: flex-end;
   padding: 1.25rem 2rem;
 }
 
 .school-identity {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  display: inline-grid;
+  width: 38.23813rem;
+  row-gap: 0.89806rem;
+  column-gap: 14.369px;
+  grid-template-rows: repeat(1, fit-content(100%));
+  grid-template-columns: repeat(2, fit-content(100%));
+  grid-auto-flow: row;
 }
 
-/* Remove once real logo is added */
-.school-logo-placeholder {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 0.8rem;
-  flex-shrink: 0;
-}
 
 .school-logo {
-  width: 52px;
-  height: 52px;
-  object-fit: contain;
+  width: 7.22725rem;
+  height: 7.22725rem;
+  line-height: normal;
+  letter-spacing: 0.07044rem;
+  grid-area: 1 / 1 / 2 / 2;
 }
 
 .school-name {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
+  color: #0A1D52;
+  font-family: "Inter", sans-serif;
+  font-size: 2.34738rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: normal;
+  letter-spacing: 0.07044rem;
 }
 
 .school-name-main {
-  font-weight: 800;
-  font-size: 1rem;
-  color: #fff;
-  letter-spacing: 0.02em;
-}
-
-.school-name-sub {
-  font-weight: 500;
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: #0A1D52;
+  font-family: "Inter", sans-serif;
+  font-size: 2.34738rem;
+  font-style: normal;
+  font-weight: 900;
+  line-height: normal;
+  letter-spacing: 0.07044rem;
 }
 
 /* Right controls */
@@ -185,7 +185,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 2.5rem 3rem;
-  gap: 2rem;
+  gap: 1.87794rem;
 }
 
 /* Left */
@@ -195,27 +195,34 @@
 }
 
 .hero-headline {
-  font-size: clamp(2.2rem, 4.5vw, 3.2rem);
-  font-weight: 900;
-  color: #fff;
-  line-height: 1.08;
-  text-transform: uppercase;
-  margin-bottom: 0.75rem;
-  user-select: none;
+  color: #0A1D52;
+  font-family: "Poppins", sans-serif;
+  font-size: 3.29438rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: normal;
 }
 
 .hero-tagline {
-  font-size: 0.82rem;
+  font-size: 1.62388rem;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: #f5c842;
+  color: rgba(10, 29, 82, 0.53);
   margin-bottom: 1.1rem;
   text-transform: uppercase;
 }
 
+.line {
+  width: 22.87675rem;
+  height: 0.38031rem;
+  background: #FCBF19;
+  margin-bottom: 1.1rem;
+}
+
 .hero-copy {
-  font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.88);
+  font-size: 1.70725rem;
+  color: #0A1D52;
+  font-weight: 600;
   line-height: 1.75;
   margin-bottom: 2rem;
 }
@@ -241,9 +248,9 @@
 }
 
 .cta-primary {
-  background: transparent;
+  border-radius: 0.58919rem;
+  background: #0A1D52;
   color: #fff;
-  border: 2px solid #fff;
 }
 
 .cta-primary:hover {
@@ -253,13 +260,13 @@
 
 .cta-secondary {
   background: transparent;
-  color: #fff;
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  color: #0A1D52;
+  border: 2px solid #0A1D52;
 }
 
 .cta-secondary:hover {
-  border-color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  border-color: #001a3a;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 /* ── Match card ── */
