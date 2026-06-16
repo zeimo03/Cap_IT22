@@ -10,7 +10,7 @@ const MATCHES = [
     sport: "Basketball",
     date: "June 9, 2026",
     time: "3:00 PM",
-    venue: "Covert Court",
+    venue: "Covered Court",
     teamA: {
       name: "Yellow Vipers",
       logo: null, // TODO: set to "/src/assets/teams/yellow-vipers.png"
