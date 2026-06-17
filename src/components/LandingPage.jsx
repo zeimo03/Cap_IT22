@@ -125,7 +125,9 @@ function LandingPage() {
               <div className="school-identity">
             <img src="/SRCLogo.png" alt="SRC Logo" className="school-logo" />
             <div className="school-name">
-              <span className="school-name-main">SANTA RITA COLLEGE OF PAMPANGA, INC.</span>
+              <span className="school-name-main">SANTA RITA COLLEGE
+                <br />
+                 OF PAMPANGA, INC.</span>
 
             </div>
           </div>
