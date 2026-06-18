@@ -162,7 +162,9 @@ function LandingPage() {
               <span className="vs-label">VS</span>
               <TeamBadge team={currentMatch.teamB} />
             </div>
-
+              <div className="linespace">
+                
+              </div>
             <div className="match-info">
               <FaCalendarAlt className="match-info-icon" />
               <span>{currentMatch.date}</span>

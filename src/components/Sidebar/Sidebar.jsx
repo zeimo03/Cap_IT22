@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FaBars, FaUserCircle, FaHome } from "react-icons/fa";
+import { FaBars, FaTimes, FaUserCircle, FaHome } from "react-icons/fa";
 import "./Sidebar.css";
 
 function Sidebar() {
@@ -12,21 +12,25 @@ function Sidebar() {
         {/* ALL buttons stacked at top so they line up with the slide-out panel */}
         <div className="sidebar-top">
           <button
-            className="sidebar-btn"
-            aria-label="Open Menu"
+            className="sidebar-btn menu-btn"
+            aria-label={panelOpen ? "Close Menu" : "Open Menu"}
             onClick={() => setPanelOpen((prev) => !prev)}
           >
-            <FaBars />
+            <span className={`menu-icon ${panelOpen ? "open" : ""}`}>
+              <FaBars className="menu-icon-bars" />
+              <FaTimes className="menu-icon-close" />
+            </span>
           </button>
 
-          <div className="sidebar-divider" />
-
-          <button className="sidebar-btn" aria-label="View Profile">
-            <FaUserCircle />
-          </button>
-          <button className="sidebar-btn active" aria-label="Go to Dashboard">
-            <FaHome />
-          </button>
+          <div className={`sidebar-extra ${panelOpen ? "collapsed" : ""}`}>
+            <div className="sidebar-divider" />
+            <button className="sidebar-btn" aria-label="View Profile">
+              <FaUserCircle />
+            </button>
+            <button className="sidebar-btn active" aria-label="Go to Dashboard">
+              <FaHome />
+            </button>
+          </div>
         </div>
       </aside>
 
