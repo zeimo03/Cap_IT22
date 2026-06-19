@@ -12,7 +12,26 @@
   flex-direction: column;
   flex: 1;
   height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.landing-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.landing-wrapper::-webkit-scrollbar-track {
+  background: #001529;
+}
+
+.landing-wrapper::-webkit-scrollbar-thumb {
+  background: #1a3a6e;
+  border-radius: 999px;
+}
+
+.landing-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #2a4f8e;
 }
 
 /* ── Hero — full height, no navbar above it ── */
@@ -20,6 +39,7 @@
   position: relative;
   width: 100%;
   height: 100vh;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid #000;
@@ -425,4 +445,293 @@
   position: fixed;
   inset: 0;
   z-index: 400;
+}
+/* ══════════════════════════════════════════════
+   NEW — Content section below the hero (scrollable)
+   ══════════════════════════════════════════════ */
+.content-section {
+  position: relative;
+  background: #001529;
+  padding: 0 2.5rem 4rem;
+  padding-top: 3.5rem
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin: 3.5rem 0 2rem;
+}
+
+.heading-line {
+  flex: 1;
+  max-width: 80px;
+  height: 1px;
+  background:#FCBF19;
+}
+
+.heading-text {
+  font-family: 'Lalezar', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: #fff;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── Info cards ── */
+.info-cards-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: -0.1rem;
+  position: relative;
+  z-index: 20;
+}
+
+.info-card {
+  background: #fff;
+  border-radius: 0px;
+  padding: 1.5rem 1.6rem 1.75rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  border-top: 9px solid transparent;
+}
+
+.info-card:nth-child(1) {
+  border-top-color: #B0B0B0;
+}
+
+.info-card:nth-child(2) {
+  border-top-color: #F5B612;
+}
+ 
+.info-card:nth-child(3) {
+  border-top-color: #97A2E1;
+}
+ 
+.info-card-title {
+  font-family: "Poppins", sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0A1D52;
+  margin-bottom: 0.6rem;
+}
+
+.info-card-desc {
+  font-family: "Inter", sans-serif;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #5a6472;
+  margin-bottom: 1.25rem;
+}
+
+.info-card-arrow {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid #0A1D52;
+  background: transparent;
+  color: #0A1D52;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.info-card-arrow:hover {
+  background: #0A1D52;
+  color: #fff;
+}
+
+/* ── Sports statistics ── */
+.stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stat-icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #001a3a;
+  color: #fff;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  font-family: "Inter", sans-serif;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.stat-label {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.stat-divider {
+  width: 1px;
+  height: 38px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Sports available ── */
+.sports-row {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sport-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 110px;
+  padding: 1.25rem 0.75rem;
+  background: #001a3a;
+  border-radius: 10px;
+  transition: background 0.2s, transform 0.2s;
+  cursor: pointer;
+}
+
+.sport-tile:hover {
+  background: #1a3a6e;
+  transform: translateY(-3px);
+}
+
+.sport-tile-icon {
+  font-size: 1.6rem;
+  color: #fff;
+}
+
+.sport-tile-name {
+  font-family: "Inter", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+}
+
+/* ── How to join as a player ── */
+.steps-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 200px;
+}
+
+.step-icon-circle {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #001a3a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.9rem;
+}
+
+.step-icon {
+  font-size: 1.6rem;
+  color: #fff;
+}
+
+.step-number {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #FCBF19;
+  color: #0A1D52;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-title {
+  font-family: "Inter", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  margin-bottom: 0.4rem;
+}
+
+.step-desc {
+  font-family: "Inter", sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.step-arrow {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 1.6rem;
+  flex-shrink: 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .info-cards-row {
+    grid-template-columns: 1fr;
+    margin-top: -2.5rem;
+  }
+
+  .step-arrow {
+    display: none;
+  }
+
+  .stats-row {
+    gap: 1.25rem;
+  }
+
+  .stat-divider {
+    display: none;
+  }
 }

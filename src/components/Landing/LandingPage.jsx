@@ -2,7 +2,65 @@ import React, { useState } from "react";
 import { FaCalendarAlt, FaTrophy, FaPaperPlane, FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
 import "./LandingPage.css";<link href="https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic" rel="stylesheet" />
 
+/* ── NEW — additional icons for the scrollable content sections ── */
+import {
+  FaArrowRight,
+  FaBullseye,
+  FaUsers,
+  FaUserFriends,
+  FaRunning,
+  FaChess,
+  FaBasketballBall,
+  FaVolleyballBall,
+  FaGamepad,
+  FaClipboardList,
+  FaFileSignature,
+  FaCheckCircle,
+} from "react-icons/fa";
+import { GiShuttlecock, GiPingPongBat } from "react-icons/gi";
+
 const LEVELS = ["Elementary", "High School", "College"];
+
+/* ── NEW — data for the scrollable content sections ── */
+const INFO_CARDS = [
+  {
+    title: "Choose Your Sport",
+    desc: "Pick the sport that you love the most. Start your journey and join the competition by registering to secure your spot and showcase your talent.",
+  },
+  {
+    title: "Browse Schedules",
+    desc: "Check upcoming matches, ongoing matches, finished matches, and event details. Don't miss a game — stay informed.",
+    featured: true,
+  },
+  {
+    title: "Browse Rankings",
+    desc: "Explore the latest rankings and see the teams' medal tally standing. Track performance and stay updated with the ultimate showcase of talents.",
+  },
+];
+
+const STATS = [
+  { icon: FaTrophy, value: 120, label: "Total Matches" },
+  { icon: FaBullseye, value: 9, label: "Sports" },
+  { icon: FaUsers, value: 15, label: "Teams" },
+  { icon: FaUserFriends, value: 350, label: "Players" },
+];
+
+const SPORTS = [
+  { name: "Athletics", icon: FaRunning },
+  { name: "Badminton", icon: GiShuttlecock },
+  { name: "Basketball", icon: FaBasketballBall },
+  { name: "Chess", icon: FaChess },
+  { name: "Mobile Legends", icon: FaGamepad },
+  { name: "Sepak Takraw", icon: FaVolleyballBall },
+  { name: "Table Tennis", icon: GiPingPongBat },
+  { name: "Volleyball", icon: FaVolleyballBall },
+];
+
+const STEPS = [
+  { number: 1, title: "Register", desc: "Fill out the registration form online.", icon: FaFileSignature },
+  { number: 2, title: "Approval", desc: "Wait for the approval of your registration.", icon: FaClipboardList },
+  { number: 3, title: "Compete", desc: "Participate, enjoy, and give your best!", icon: FaCheckCircle },
+];
 
 const MATCHES = [
   {
@@ -192,6 +250,94 @@ function LandingPage() {
       {levelOpen && (
         <div className="dropdown-backdrop" onClick={() => setLevelOpen(false)} />
       )}
+
+      {/* ══════════════════════════════════════════════
+          NEW — Scrollable content below the hero
+          ══════════════════════════════════════════════ */}
+      <div className="content-section">
+
+        {/* ── Info cards ── */}
+        <div className="info-cards-row">
+          {INFO_CARDS.map((card) => (
+            <div
+              key={card.title}
+              className={`info-card ${card.featured ? "featured" : ""}`}
+            >
+              <h3 className="info-card-title">{card.title}</h3>
+              <p className="info-card-desc">{card.desc}</p>
+              <button className="info-card-arrow" aria-label={`Go to ${card.title}`}>
+                <FaArrowRight />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Sports statistics ── */}
+        <div className="section-heading">
+          <span className="heading-line" />
+          <h2 className="heading-text">Sports Statistics</h2>
+          <span className="heading-line" />
+        </div>
+
+        <div className="stats-row">
+          {STATS.map((stat, i) => (
+            <React.Fragment key={stat.label}>
+              <div className="stat-item">
+                <div className="stat-icon-circle">
+                  <stat.icon />
+                </div>
+                <div className="stat-text">
+                  <span className="stat-value">{stat.value}</span>
+                  <span className="stat-label">{stat.label.toUpperCase()}</span>
+                </div>
+              </div>
+              {i < STATS.length - 1 && <span className="stat-divider" />}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* ── Sports available ── */}
+        <div className="section-heading">
+          <span className="heading-line" />
+          <h2 className="heading-text">Sports Available</h2>
+          <span className="heading-line" />
+        </div>
+
+        <div className="sports-row">
+          {SPORTS.map((sport) => (
+            <div key={sport.name} className="sport-tile">
+              <sport.icon className="sport-tile-icon" />
+              <span className="sport-tile-name">{sport.name.toUpperCase()}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── How to join as a player ── */}
+        <div className="section-heading">
+          <span className="heading-line" />
+          <h2 className="heading-text">How to Join as a Player</h2>
+          <span className="heading-line" />
+        </div>
+
+        <div className="steps-row">
+          {STEPS.map((step, i) => (
+            <React.Fragment key={step.number}>
+              <div className="step-item">
+                <div className="step-icon-circle">
+                  <span className="step-number">{step.number}</span>
+                  <step.icon className="step-icon" />
+                </div>
+                <span className="step-title">{step.title.toUpperCase()}</span>
+                <p className="step-desc">{step.desc}</p>
+              </div>
+              {i < STEPS.length - 1 && (
+                <FaArrowRight className="step-arrow" aria-hidden="true" />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+      </div>
     </div>
   );
 }
