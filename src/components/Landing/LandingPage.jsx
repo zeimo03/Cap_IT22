@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { FaCalendarAlt, FaTrophy, FaPaperPlane, FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
 import "./LandingPage.css";<link href="https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic" rel="stylesheet" />
+import { FaArrowRightLong } from "react-icons/fa6";
 
 /* ── NEW — additional icons for the scrollable content sections ── */
 import {
@@ -331,7 +332,7 @@ function LandingPage() {
                 <p className="step-desc">{step.desc}</p>
               </div>
               {i < STEPS.length - 1 && (
-                <FaArrowRight className="step-arrow" aria-hidden="true" />
+                <FaArrowRightLong className="step-arrow" aria-hidden="true" />
               )}
             </React.Fragment>
           ))}
