@@ -8,7 +8,7 @@ import {
   signOut,
   updatePassword as firebaseUpdatePassword,
 } from 'firebase/auth';
-import { createUserProfile } from '../services/firestoreService';
+import { createUserProfile, getUserProfile } from '../services/firestoreService';
 
 export const AuthContext = createContext({
   authModal: { isOpen: false, screen: 'login' },
@@ -16,6 +16,8 @@ export const AuthContext = createContext({
   closeAuthModal: () => {},
   switchScreen: () => {},
   currentUser: null,
+  userProfile: null,
+  userRole: 'guest',
   authLoading: false,
   login: async () => {},
   signup: async () => {},
@@ -30,6 +32,7 @@ export function AuthProvider({ children }) {
     screen: 'login',
   });
   const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
@@ -38,10 +41,23 @@ export function AuthProvider({ children }) {
       setAuthLoading(false);
       return;
     }
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user && db) {
+        try {
+          const profile = await getUserProfile(user.uid);
+          setUserProfile(profile);
+        } catch (error) {
+          console.warn('Failed to load user profile:', error);
+          setUserProfile(null);
+        }
+      } else {
+        setUserProfile(null);
+      }
       setAuthLoading(false);
     });
+
     return unsubscribe;
   }, []);
 
@@ -77,7 +93,9 @@ export function AuthProvider({ children }) {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     const user = credential.user;
     if (db) {
-      await createUserProfile(user.uid, { name, email, role: 'student' });
+      const profileData = { name, email, role: 'student' };
+      await createUserProfile(user.uid, profileData);
+      setUserProfile(profileData);
     }
     return user;
   };
@@ -99,6 +117,7 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     if (!auth) return;
     await signOut(auth);
+    setUserProfile(null);
   };
 
   return (
@@ -109,6 +128,8 @@ export function AuthProvider({ children }) {
         closeAuthModal,
         switchScreen,
         currentUser,
+        userProfile,
+        userRole: userProfile?.role ?? 'guest',
         authLoading,
         login,
         signup,

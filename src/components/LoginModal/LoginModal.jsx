@@ -1,4 +1,5 @@
 import React, { useContext, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
 import { FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import './LoginModal.css';
@@ -363,6 +364,7 @@ function NewPasswordScreen({ onSwitchScreen, onUpdatePassword, currentUser }) {
 }
 
 export default function LoginModal() {
+  const navigate = useNavigate();
   const {
     authModal,
     closeAuthModal,
@@ -372,6 +374,7 @@ export default function LoginModal() {
     resetPassword,
     updatePassword,
     currentUser,
+    userProfile,
   } = useContext(AuthContext);
 
   if (!authModal.isOpen) return null;
@@ -404,14 +407,25 @@ export default function LoginModal() {
             <LoginScreen
               onSwitchScreen={switchScreen}
               onLogin={login}
-              onSuccess={closeAuthModal}
+              onSuccess={() => {
+                closeAuthModal();
+                // redirect based on role; default goes to /dashboard for general users
+                const role = userProfile?.role ?? 'student';
+                if (role === 'admin') navigate('/admin');
+                else if (role === 'moderator') navigate('/moderator');
+                else if (role === 'superadmin') navigate('/superadmin');
+                else navigate('/dashboard');
+              }}
             />
           )}
           {authModal.screen === 'signup' && (
             <SignUpScreen
               onSwitchScreen={switchScreen}
               onSignUp={signup}
-              onSuccess={closeAuthModal}
+              onSuccess={() => {
+                closeAuthModal();
+                navigate('/dashboard');
+              }}
             />
           )}
           {authModal.screen === 'forgotPassword' && (

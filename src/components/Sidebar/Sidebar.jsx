@@ -1,4 +1,5 @@
 import React, { useContext } from "react";
+import { Link } from 'react-router-dom';
 import { FaBars, FaTimes, FaUserCircle, FaHome } from "react-icons/fa";
 import { SidebarContext } from "../Sidebar/SidebarContext";
 import { AuthContext } from "../AuthContext";
@@ -6,7 +7,7 @@ import "./Sidebar.css";
 
 function Sidebar() {
   const { panelOpen, toggleSidebar, openSidebar } = useContext(SidebarContext);
-  const { openAuthModal = () => {} } = useContext(AuthContext);
+  const { openAuthModal = () => {}, currentUser, userProfile, logout } = useContext(AuthContext);
 
   return (
     <>
@@ -37,7 +38,7 @@ function Sidebar() {
             <button
               className="sidebar-btn active"
               aria-label="Go to Dashboard"
-              onClick={openSidebar}
+              onClick={() => { openSidebar(); navigate('/dashboard'); }}
             >
               <FaHome />
             </button>
@@ -49,16 +50,44 @@ function Sidebar() {
       <div className={`sidebar-panel ${panelOpen ? "open" : ""}`}>
         <div className="panel-profile">
           <FaUserCircle className="panel-avatar" />
-          <button className="panel-login-btn" onClick={() => openAuthModal('login')}>
-            Log in
-          </button>
+          {currentUser ? (
+            <button className="panel-login-btn" onClick={logout}>
+              Sign out
+            </button>
+          ) : (
+            <button className="panel-login-btn" onClick={() => openAuthModal('login')}>
+              Log in
+            </button>
+          )}
         </div>
 
         <nav className="panel-nav">
-          <a href="#" className="panel-nav-item active">
+          <Link to="/dashboard" className="panel-nav-item active">
             <FaHome className="panel-nav-icon" />
-            <span>Home</span>
-          </a>
+            <span>Dashboard</span>
+          </Link>
+          <Link to="/profile" className="panel-nav-item">
+            <FaUserCircle className="panel-nav-icon" />
+            <span>Profile</span>
+          </Link>
+          {['admin', 'superadmin'].includes(userProfile?.role) && (
+            <Link to="/admin" className="panel-nav-item">
+              <FaUserCircle className="panel-nav-icon" />
+              <span>Admin</span>
+            </Link>
+          )}
+          {['moderator', 'admin', 'superadmin'].includes(userProfile?.role) && (
+            <Link to="/moderator" className="panel-nav-item">
+              <FaUserCircle className="panel-nav-icon" />
+              <span>Moderator</span>
+            </Link>
+          )}
+          {userProfile?.role === 'superadmin' && (
+            <Link to="/superadmin" className="panel-nav-item">
+              <FaUserCircle className="panel-nav-icon" />
+              <span>Super Admin</span>
+            </Link>
+          )}
         </nav>
       </div>
 

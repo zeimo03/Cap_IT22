@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, setDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, getDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export async function fetchCollectionData(collectionName, orderByField) {
@@ -23,4 +23,15 @@ export async function createUserProfile(uid, profile) {
     ...profile,
     createdAt: serverTimestamp(),
   });
+}
+
+export async function getUserProfile(uid) {
+  if (!db) {
+    console.warn('Firestore not initialized. Cannot fetch user profile.');
+    return null;
+  }
+
+  const profileDoc = doc(db, 'users', uid);
+  const snapshot = await getDoc(profileDoc);
+  return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
 }
