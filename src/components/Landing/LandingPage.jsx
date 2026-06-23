@@ -1,6 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useRef } from "react";
 import { FaCalendarAlt, FaTrophy, FaPaperPlane, FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
-import "./LandingPage.css";<link href="https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic" rel="stylesheet" />
+import "./LandingPage.css";
+import HeaderWithLines from './HeaderWithLines';
+import HighlightsBanner from './HighlightsBanner';
+import ImageCarousel from './ImageCarousel';
+import { AuthContext } from '../AuthContext';
 import { FaArrowRightLong } from "react-icons/fa6";
 
 /* ── NEW — additional icons for the scrollable content sections ── */
@@ -17,8 +21,39 @@ import {
   FaClipboardList,
   FaFileSignature,
   FaCheckCircle,
+  FaMapMarkerAlt,
+  FaPhoneAlt,
+  FaEnvelope,
+  FaFacebookF,
 } from "react-icons/fa";
 import { GiShuttlecock, GiPingPongBat } from "react-icons/gi";
+
+/* ── NEW — contact details shown in the footer strip ── */
+const CONTACT_ITEMS = [
+  {
+    icon: FaMapMarkerAlt,
+    text: "San Jose, Santa Rita Pampanga, Philippines",
+    // EDIT HERE: update this URL if the school's Google Maps location changes.
+    // To get a new link — go to Google Maps, search the correct place,
+    // click "Share" > "Copy link", and paste it below.
+    href: "https://www.google.com/maps/place/Santa+Rita+College/@14.9989285,120.6178094,18.6z/data=!4m14!1m7!3m6!1s0x339658b934844e19:0x7ba727f39f0709df!2sSanta+Rita+College+Of+Pampanga,Inc.+Annex-1!8m2!3d14.9763355!4d120.6370981!16s%2Fg%2F11h0mw9qvh!3m5!1s0x3396f5ffca98627b:0xd9691231b874272b!8m2!3d14.9993667!4d120.6182403!16s%2Fg%2F1q5bm6dg_?entry=ttu&g_ep=EgoyMDI2MDYxNi4wIKXMDSoASAFQAw%3D%3D",
+  },
+  {
+    icon: FaPhoneAlt,
+    text: "(045) 900 0557",
+    href: "tel:+0459000557",
+  },
+  {
+    icon: FaEnvelope,
+    text: "src_educ_ph@yahoo.com",
+    href: "mailto:src_educ_ph@yahoo.com",
+  },
+  {
+    icon: FaFacebookF,
+    text: "facebook.com/santaritacollege",
+    href: "https://facebook.com/santaritacollege",
+  },
+];
 
 const LEVELS = ["Elementary", "High School", "College"];
 
@@ -125,10 +160,40 @@ function LandingPage() {
   const [levelOpen, setLevelOpen] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState("Levels");
   const [matchIndex, setMatchIndex] = useState(0);
+  const [matchDirection, setMatchDirection] = useState("next");
+  const [matchAnimKey, setMatchAnimKey] = useState(0);
+
+  const { openAuthModal } = useContext(AuthContext);
+  const contactFooterRef = useRef(null);
 
   const currentMatch = MATCHES[matchIndex];
-  const prevMatch = () => setMatchIndex((i) => (i - 1 + MATCHES.length) % MATCHES.length);
-  const nextMatch = () => setMatchIndex((i) => (i + 1) % MATCHES.length);
+  const prevMatch = () => {
+    setMatchDirection("prev");
+    setMatchIndex((i) => (i - 1 + MATCHES.length) % MATCHES.length);
+    setMatchAnimKey((k) => k + 1);
+  };
+  const nextMatch = () => {
+    setMatchDirection("next");
+    setMatchIndex((i) => (i + 1) % MATCHES.length);
+    setMatchAnimKey((k) => k + 1);
+  };
+
+  const handleInfoCardArrowClick = () => {
+    openAuthModal('login');
+  };
+
+  const handleCtaButtonClick = () => {
+    openAuthModal('login');
+  };
+
+  const handleSendButtonClick = () => {
+    if (contactFooterRef.current) {
+      contactFooterRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  };
 
   return (
     <div className="landing-wrapper">
@@ -149,28 +214,26 @@ function LandingPage() {
                 className="level-btn"
                 onClick={() => setLevelOpen((prev) => !prev)}
               >
-                {selectedLevel} <FaChevronDown className="level-chevron" />
+                {selectedLevel} <FaChevronDown className={`level-chevron ${levelOpen ? "open" : ""}`} />
               </button>
-              {levelOpen && (
-                <ul className="level-menu">
-                  {LEVELS.map((lvl) => (
-                    <li
-                      key={lvl}
-                      className={`level-item ${selectedLevel === lvl ? "active" : ""}`}
-                      onClick={() => { setSelectedLevel(lvl); setLevelOpen(false); }}
-                    >
-                      {lvl}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ul className={`level-menu ${levelOpen ? "open" : ""}`}>
+                {LEVELS.map((lvl) => (
+                  <li
+                    key={lvl}
+                    className={`level-item ${selectedLevel === lvl ? "active" : ""}`}
+                    onClick={() => { setSelectedLevel(lvl); setLevelOpen(false); }}
+                  >
+                    {lvl}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {/* Message / suggestions */}
             <button
               className="icon-btn"
               aria-label="Send suggestion"
-              onClick={() => (window.location.href = "/suggestions")}
+              onClick={handleSendButtonClick}
             >
               <FaPaperPlane />
             </button>
@@ -203,10 +266,10 @@ function LandingPage() {
               it is a way of LIFE.
             </p>
             <div className="hero-cta-row">
-              <button className="cta-btn cta-primary">
+              <button className="cta-btn cta-primary" onClick={handleCtaButtonClick}>
                 <FaCalendarAlt /> VIEW MATCHES
               </button>
-              <button className="cta-btn cta-secondary">
+              <button className="cta-btn cta-secondary" onClick={handleCtaButtonClick}>
                 <FaTrophy /> VIEW RANKINGS
               </button>
             </div>
@@ -216,25 +279,35 @@ function LandingPage() {
           <div className="match-card">
             <p className="match-card-label">ONGOING MATCHES</p>
 
-            <div className="match-teams">
-              <TeamBadge team={currentMatch.teamA} />
-              <span className="vs-label">VS</span>
-              <TeamBadge team={currentMatch.teamB} />
-            </div>
-              <div className="linespace">
-                
+            <div
+              className={`match-card-body match-anim-${matchDirection}`}
+              key={matchAnimKey}
+            >
+              <div className="match-teams">
+                <TeamBadge team={currentMatch.teamA} />
+                <span className="vs-label">VS</span>
+                <TeamBadge team={currentMatch.teamB} />
               </div>
-            <div className="match-info">
-              <FaCalendarAlt className="match-info-icon" />
-              <span>{currentMatch.date}</span>
-              <span className="dot">·</span>
-              <span>{currentMatch.time}</span>
-              <span className="dot">·</span>
-              <span>{currentMatch.venue}</span>
+                <div className="linespace">
+                  
+                </div>
+              <div className="match-info">
+                <FaCalendarAlt className="match-info-icon" />
+                <span>{currentMatch.date}</span>
+                <span className="dot">·</span>
+                <span>{currentMatch.time}</span>
+                <span className="dot">·</span>
+                <span>{currentMatch.venue}</span>
+              </div>
             </div>
 
             <div className="match-card-footer">
-              <span className="match-sport">{currentMatch.sport.toUpperCase()}</span>
+              <span
+                className={`match-sport match-anim-${matchDirection}`}
+                key={`sport-${matchAnimKey}`}
+              >
+                {currentMatch.sport.toUpperCase()}
+              </span>
               <div className="match-nav-btns">
                 <button className="nav-btn" onClick={prevMatch} aria-label="Previous match">
                   <FaChevronLeft />
@@ -266,7 +339,7 @@ function LandingPage() {
             >
               <h3 className="info-card-title">{card.title}</h3>
               <p className="info-card-desc">{card.desc}</p>
-              <button className="info-card-arrow" aria-label={`Go to ${card.title}`}>
+              <button className="info-card-arrow" aria-label={`Go to ${card.title}`} onClick={handleInfoCardArrowClick}>
                 <FaArrowRight />
               </button>
             </div>
@@ -337,6 +410,78 @@ function LandingPage() {
             </React.Fragment>
           ))}
         </div>
+
+        {/* ── Sports Moments — highlights carousel ── */}
+        <div style={{ marginTop: '2.25rem' }}>
+          <div className="sports-moments">
+            <div className="linegroup1">
+            <div className="line1"></div>
+            <div className="line2"></div>
+            <div className="line5"></div>
+            </div>
+            <HeaderWithLines text="SPORTS MOMENTS" />
+            <div className="linegroup2">
+              <div className="line3"></div>
+              <div className="line4"></div>
+              <div className="line6"></div>
+            </div>
+          </div>
+          <div className="carousel-stage">
+            <HighlightsBanner />
+            <ImageCarousel
+              // Add your actual carousel images by placing them in public/images.
+              // For example: public/images/highlight1.jpg, highlight2.jpg, ... highlight8.jpg
+              // Then use those file names here as the image array.
+              images={[
+                'src/components/img/hi-1.jpg',
+                'src/components/img/hi-2.jpg',
+                'src/components/img/hi-3.jpg',
+                'src/components/img/hi-4.jpg',
+                'src/components/img/hi-5.jpg',
+                'src/components/img/hi-6.jpg',
+                'src/components/img/hi-7.jpg',
+                'src/components/img/hi-8.jpg'
+              ]}
+              duration={20} // loop duration in seconds (smaller = faster)
+            />
+          </div>
+        </div>
+
+        {/* ── Contact us footer strip ── */}
+        <footer className="contact-footer" ref={contactFooterRef}>
+          <HeaderWithLines text="CONTACT US" className="contact-footer-header" />
+          <div className="contact-footer-row">
+            {CONTACT_ITEMS.map((item, i) => {
+              const content = (
+                <>
+                  <span className="contact-icon-circle">
+                    <item.icon />
+                  </span>
+                  <span className="contact-text">{item.text}</span>
+                </>
+              );
+              return (
+                <React.Fragment key={item.text}>
+                  {item.href ? (
+                    <a
+                      href={item.href}
+                      className="contact-item contact-item-link"
+                      target={item.href.startsWith("http") ? "_blank" : undefined}
+                      rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                    >
+                      {content}
+                    </a>
+                  ) : (
+                    <span className="contact-item">{content}</span>
+                  )}
+                  {i < CONTACT_ITEMS.length - 1 && (
+                    <span className="contact-divider" />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </footer>
 
       </div>
     </div>

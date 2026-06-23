@@ -1,9 +1,12 @@
-import React, { useState } from "react";
+import React, { useContext } from "react";
 import { FaBars, FaTimes, FaUserCircle, FaHome } from "react-icons/fa";
+import { SidebarContext } from "../Sidebar/SidebarContext";
+import { AuthContext } from "../AuthContext";
 import "./Sidebar.css";
 
 function Sidebar() {
-  const [panelOpen, setPanelOpen] = useState(false);
+  const { panelOpen, toggleSidebar, openSidebar } = useContext(SidebarContext);
+  const { openAuthModal } = useContext(AuthContext);
 
   return (
     <>
@@ -14,7 +17,7 @@ function Sidebar() {
           <button
             className="sidebar-btn menu-btn"
             aria-label={panelOpen ? "Close Menu" : "Open Menu"}
-            onClick={() => setPanelOpen((prev) => !prev)}
+            onClick={toggleSidebar}
           >
             <span className={`menu-icon ${panelOpen ? "open" : ""}`}>
               <FaBars className="menu-icon-bars" />
@@ -24,10 +27,18 @@ function Sidebar() {
 
           <div className={`sidebar-extra ${panelOpen ? "collapsed" : ""}`}>
             <div className="sidebar-divider" />
-            <button className="sidebar-btn" aria-label="View Profile">
+            <button
+              className="sidebar-btn"
+              aria-label="View Profile"
+              onClick={openSidebar}
+            >
               <FaUserCircle />
             </button>
-            <button className="sidebar-btn active" aria-label="Go to Dashboard">
+            <button
+              className="sidebar-btn active"
+              aria-label="Go to Dashboard"
+              onClick={openSidebar}
+            >
               <FaHome />
             </button>
           </div>
@@ -38,7 +49,9 @@ function Sidebar() {
       <div className={`sidebar-panel ${panelOpen ? "open" : ""}`}>
         <div className="panel-profile">
           <FaUserCircle className="panel-avatar" />
-          <button className="panel-login-btn">Log in</button>
+          <button className="panel-login-btn" onClick={() => openAuthModal('login')}>
+            Log in
+          </button>
         </div>
 
         <nav className="panel-nav">
@@ -52,7 +65,7 @@ function Sidebar() {
       {panelOpen && (
         <div
           className="sidebar-backdrop"
-          onClick={() => setPanelOpen(false)}
+          onClick={toggleSidebar}
         />
       )}
     </>
