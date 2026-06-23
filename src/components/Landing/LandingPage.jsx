@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import { FaCalendarAlt, FaTrophy, FaPaperPlane, FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
 import "./LandingPage.css";
 import HeaderWithLines from './HeaderWithLines';
@@ -6,6 +6,7 @@ import HighlightsBanner from './HighlightsBanner';
 import ImageCarousel from './ImageCarousel';
 import { AuthContext } from '../AuthContext';
 import { FaArrowRightLong } from "react-icons/fa6";
+import { fetchCollectionData } from '../../services/firestoreService';
 
 /* ── NEW — additional icons for the scrollable content sections ── */
 import {
@@ -33,9 +34,6 @@ const CONTACT_ITEMS = [
   {
     icon: FaMapMarkerAlt,
     text: "San Jose, Santa Rita Pampanga, Philippines",
-    // EDIT HERE: update this URL if the school's Google Maps location changes.
-    // To get a new link — go to Google Maps, search the correct place,
-    // click "Share" > "Copy link", and paste it below.
     href: "https://www.google.com/maps/place/Santa+Rita+College/@14.9989285,120.6178094,18.6z/data=!4m14!1m7!3m6!1s0x339658b934844e19:0x7ba727f39f0709df!2sSanta+Rita+College+Of+Pampanga,Inc.+Annex-1!8m2!3d14.9763355!4d120.6370981!16s%2Fg%2F11h0mw9qvh!3m5!1s0x3396f5ffca98627b:0xd9691231b874272b!8m2!3d14.9993667!4d120.6182403!16s%2Fg%2F1q5bm6dg_?entry=ttu&g_ep=EgoyMDI2MDYxNi4wIKXMDSoASAFQAw%3D%3D",
   },
   {
@@ -162,19 +160,57 @@ function LandingPage() {
   const [matchIndex, setMatchIndex] = useState(0);
   const [matchDirection, setMatchDirection] = useState("next");
   const [matchAnimKey, setMatchAnimKey] = useState(0);
+  const [infoCards, setInfoCards] = useState(INFO_CARDS);
+  const [stats, setStats] = useState(STATS);
+  const [sports, setSports] = useState(SPORTS);
+  const [steps, setSteps] = useState(STEPS);
+  const [matches, setMatches] = useState(MATCHES);
+  const [contactItems, setContactItems] = useState(CONTACT_ITEMS);
 
-  const { openAuthModal } = useContext(AuthContext);
+  const { openAuthModal = () => {} } = useContext(AuthContext);
   const contactFooterRef = useRef(null);
 
-  const currentMatch = MATCHES[matchIndex];
+  useEffect(() => {
+    const loadFirestoreData = async () => {
+      try {
+        const [fireInfo, fireStats, fireSports, fireSteps, fireMatches, fireContacts] = await Promise.all([
+          fetchCollectionData('infoCards').catch(() => null),
+          fetchCollectionData('stats').catch(() => null),
+          fetchCollectionData('sports').catch(() => null),
+          fetchCollectionData('steps').catch(() => null),
+          fetchCollectionData('matches').catch(() => null),
+          fetchCollectionData('contactItems').catch(() => null),
+        ]);
+
+        if (Array.isArray(fireInfo) && fireInfo.length) setInfoCards(fireInfo);
+        if (Array.isArray(fireStats) && fireStats.length) setStats(fireStats);
+        if (Array.isArray(fireSports) && fireSports.length) setSports(fireSports);
+        if (Array.isArray(fireSteps) && fireSteps.length) setSteps(fireSteps);
+        if (Array.isArray(fireMatches) && fireMatches.length) setMatches(fireMatches);
+        if (Array.isArray(fireContacts) && fireContacts.length) setContactItems(fireContacts);
+      } catch (error) {
+        console.log('Firestore not available, using default data.');
+      }
+    };
+
+    loadFirestoreData();
+  }, []);
+
+  const currentMatch = matches[matchIndex] || matches[0] || null;
   const prevMatch = () => {
     setMatchDirection("prev");
-    setMatchIndex((i) => (i - 1 + MATCHES.length) % MATCHES.length);
+    setMatchIndex((i) => {
+      if (!matches.length) return 0;
+      return (i - 1 + matches.length) % matches.length;
+    });
     setMatchAnimKey((k) => k + 1);
   };
   const nextMatch = () => {
     setMatchDirection("next");
-    setMatchIndex((i) => (i + 1) % MATCHES.length);
+    setMatchIndex((i) => {
+      if (!matches.length) return 0;
+      return (i + 1) % matches.length;
+    });
     setMatchAnimKey((k) => k + 1);
   };
 
@@ -354,7 +390,7 @@ function LandingPage() {
         </div>
 
         <div className="stats-row">
-          {STATS.map((stat, i) => (
+          {stats.map((stat, i) => (
             <React.Fragment key={stat.label}>
               <div className="stat-item">
                 <div className="stat-icon-circle">
@@ -378,7 +414,7 @@ function LandingPage() {
         </div>
 
         <div className="sports-row">
-          {SPORTS.map((sport) => (
+          {sports.map((sport) => (
             <div key={sport.name} className="sport-tile">
               <sport.icon className="sport-tile-icon" />
               <span className="sport-tile-name">{sport.name.toUpperCase()}</span>
@@ -394,7 +430,7 @@ function LandingPage() {
         </div>
 
         <div className="steps-row">
-          {STEPS.map((step, i) => (
+          {steps.map((step, i) => (
             <React.Fragment key={step.number}>
               <div className="step-item">
                 <div className="step-icon-circle">
@@ -451,7 +487,7 @@ function LandingPage() {
         <footer className="contact-footer" ref={contactFooterRef}>
           <HeaderWithLines text="CONTACT US" className="contact-footer-header" />
           <div className="contact-footer-row">
-            {CONTACT_ITEMS.map((item, i) => {
+            {contactItems.map((item, i) => {
               const content = (
                 <>
                   <span className="contact-icon-circle">

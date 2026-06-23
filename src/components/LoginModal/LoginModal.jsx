@@ -4,15 +4,19 @@ import { FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
 import './LoginModal.css';
 import srcLogo from '../img/SRCLogo.png';
 
-function LoginScreen({ onSwitchScreen }) {
+function LoginScreen({ onSwitchScreen, onLogin, onSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log('Login:', { email, password });
+    try {
+      await onLogin(email, password);
+      onSuccess();
+    } catch (error) {
+      alert(error.message || 'Login failed. Please try again.');
+    }
   };
 
   return (
@@ -89,7 +93,7 @@ function LoginScreen({ onSwitchScreen }) {
   );
 }
 
-function SignUpScreen({ onSwitchScreen }) {
+function SignUpScreen({ onSwitchScreen, onSignUp, onSuccess }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -106,14 +110,20 @@ function SignUpScreen({ onSwitchScreen }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       alert('Passwords do not match');
       return;
     }
-    // Handle signup logic here
-    console.log('Sign up:', formData);
+
+    try {
+      await onSignUp(formData.name, formData.email, formData.password);
+      alert('Account created successfully. Welcome!');
+      onSuccess();
+    } catch (error) {
+      alert(error.message || 'Sign up failed. Please try again.');
+    }
   };
 
   return (
@@ -198,32 +208,25 @@ function SignUpScreen({ onSwitchScreen }) {
         </div>
 
         <button type="submit" className="auth-btn auth-btn-primary">
-          Log in
+          Submit
         </button>
       </form>
-
-      <div className="auth-action">
-        <button
-          type="button"
-          className="auth-link"
-          onClick={() => onSwitchScreen('login')}
-        >
-          Forgot Password?
-        </button>
-      </div>
     </div>
   );
 }
 
-function ForgotPasswordScreen({ onSwitchScreen }) {
+function ForgotPasswordScreen({ onSwitchScreen, onResetPassword }) {
   const [email, setEmail] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle forgot password logic here
-    console.log('Forgot password:', { email });
-    // After validation, switch to new password screen
-    onSwitchScreen('newPassword');
+    try {
+      await onResetPassword(email);
+      alert('Password reset email sent. Please check your inbox.');
+      onSwitchScreen('login');
+    } catch (error) {
+      alert(error.message || 'Could not send reset email.');
+    }
   };
 
   return (
@@ -265,7 +268,7 @@ function ForgotPasswordScreen({ onSwitchScreen }) {
   );
 }
 
-function NewPasswordScreen({ onSwitchScreen }) {
+function NewPasswordScreen({ onSwitchScreen, onUpdatePassword, currentUser }) {
   const [passwords, setPasswords] = useState({
     newPassword: '',
     confirmPassword: '',
@@ -280,16 +283,20 @@ function NewPasswordScreen({ onSwitchScreen }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (passwords.newPassword !== passwords.confirmPassword) {
       alert('Passwords do not match');
       return;
     }
-    // Handle password reset logic here
-    console.log('New password:', passwords);
-    // After successful reset, switch back to login
-    onSwitchScreen('login');
+
+    try {
+      await onUpdatePassword(passwords.newPassword);
+      alert('Password changed successfully. Please log in again.');
+      onSwitchScreen('login');
+    } catch (error) {
+      alert(error.message || 'Unable to update password.');
+    }
   };
 
   return (
@@ -356,7 +363,16 @@ function NewPasswordScreen({ onSwitchScreen }) {
 }
 
 export default function LoginModal() {
-  const { authModal, closeAuthModal, switchScreen } = useContext(AuthContext);
+  const {
+    authModal,
+    closeAuthModal,
+    switchScreen,
+    login,
+    signup,
+    resetPassword,
+    updatePassword,
+    currentUser,
+  } = useContext(AuthContext);
 
   if (!authModal.isOpen) return null;
 
@@ -385,16 +401,31 @@ export default function LoginModal() {
 
           {/* Screen Content */}
           {authModal.screen === 'login' && (
-            <LoginScreen onSwitchScreen={switchScreen} />
+            <LoginScreen
+              onSwitchScreen={switchScreen}
+              onLogin={login}
+              onSuccess={closeAuthModal}
+            />
           )}
           {authModal.screen === 'signup' && (
-            <SignUpScreen onSwitchScreen={switchScreen} />
+            <SignUpScreen
+              onSwitchScreen={switchScreen}
+              onSignUp={signup}
+              onSuccess={closeAuthModal}
+            />
           )}
           {authModal.screen === 'forgotPassword' && (
-            <ForgotPasswordScreen onSwitchScreen={switchScreen} />
+            <ForgotPasswordScreen
+              onSwitchScreen={switchScreen}
+              onResetPassword={resetPassword}
+            />
           )}
           {authModal.screen === 'newPassword' && (
-            <NewPasswordScreen onSwitchScreen={switchScreen} />
+            <NewPasswordScreen
+              onSwitchScreen={switchScreen}
+              onUpdatePassword={updatePassword}
+              currentUser={currentUser}
+            />
           )}
         </div>
       </div>

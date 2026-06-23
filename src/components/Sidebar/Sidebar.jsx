@@ -6,7 +6,7 @@ import "./Sidebar.css";
 
 function Sidebar() {
   const { panelOpen, toggleSidebar, openSidebar } = useContext(SidebarContext);
-  const { openAuthModal } = useContext(AuthContext);
+  const { openAuthModal = () => {} } = useContext(AuthContext);
 
   return (
     <>

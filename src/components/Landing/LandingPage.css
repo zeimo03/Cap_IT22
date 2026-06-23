@@ -807,7 +807,7 @@
 
 .header-with-lines .header-text {
   color: #FFF;
-  font-family: Lalezar;
+  font-family: "Lalezar";
   font-size: 3.41669rem;
   font-style: normal;
   font-weight: 400;
@@ -1002,7 +1002,7 @@
 
 .contact-text {
   color: #0A1D52;
-  font-family: Inter;
+  font-family: "Inter";
   font-size: 0.82rem;
   font-style: normal;
   font-weight: 700;
