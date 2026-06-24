@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { Link } from 'react-router-dom';
-import { FaBars, FaTimes, FaUserCircle, FaHome } from "react-icons/fa";
+import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal } from "react-icons/fa";
 import { SidebarContext } from "../Sidebar/SidebarContext";
 import { AuthContext } from "../AuthContext";
 import "./Sidebar.css";
@@ -42,6 +42,34 @@ function Sidebar() {
             >
               <FaHome />
             </button>
+             <button
+              className="sidebar-btn"
+              aria-label="Registration"
+              onClick={openSidebar}
+            >
+              <FaEdit />
+            </button>
+            <button
+              className="sidebar-btn"
+              aria-label="Team and Sports"
+              onClick={openSidebar}
+            >
+              <FaFlag />
+            </button>
+            <button
+              className="sidebar-btn"
+              aria-label="Match Schedules"
+              onClick={openSidebar}
+            >
+              <FaCalendarAlt />
+            </button>
+            <button
+              className="sidebar-btn"
+              aria-label="Ranking"
+              onClick={openSidebar}
+            >
+              <FaMedal />
+            </button>
           </div>
         </div>
       </aside>
@@ -62,13 +90,29 @@ function Sidebar() {
         </div>
 
         <nav className="panel-nav">
-          <Link to="/dashboard" className="panel-nav-item active">
-            <FaHome className="panel-nav-icon" />
-            <span>Dashboard</span>
-          </Link>
-          <Link to="/profile" className="panel-nav-item">
+           <Link to="/profile" className="panel-nav-item">
             <FaUserCircle className="panel-nav-icon" />
             <span>Profile</span>
+          </Link>
+          <Link to="/dashboard" className="panel-nav-item active">
+            <FaHome className="panel-nav-icon" />
+            <span>Home</span>
+          </Link>
+          <Link to="/announcements" className="panel-nav-item">
+            <FaEdit className="panel-nav-icon" />
+            <span>Registration</span>
+          </Link>
+          <Link to="/events" className="panel-nav-item">
+            <FaFlag className="panel-nav-icon" />
+            <span>Team and Sports</span>
+          </Link>
+          <Link to="/schedule" className="panel-nav-item">
+            <FaCalendarAlt className="panel-nav-icon" />
+            <span>Match Schedules</span>
+          </Link>
+          <Link to="/leaderboard" className="panel-nav-item">
+            <FaMedal className="panel-nav-icon" />
+            <span>Ranking</span>
           </Link>
           {['admin', 'superadmin'].includes(userProfile?.role) && (
             <Link to="/admin" className="panel-nav-item">

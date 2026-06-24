@@ -17,3 +17,13 @@ body {
   overflow: hidden;
   background-color: #001529;
 }
+
+/* ── Critical: main column must consume remaining width after sidebar ── */
+.authenticated-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
