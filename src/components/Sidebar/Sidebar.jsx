@@ -39,35 +39,35 @@ function Sidebar() {
             <button
               className="sidebar-btn active"
               aria-label="Home"
-              onClick={() => { openSidebar(); navigate('/dashboard'); }}
+              onClick={() => navigate('/dashboard') }
             >
               <FaHome />
             </button>
              <button
               className="sidebar-btn"
               aria-label="Registration"
-              onClick={openSidebar}
+              onClick={() => navigate('/registration')}
             >
               <FaEdit />
             </button>
             <button
               className="sidebar-btn"
               aria-label="Team and Sports"
-              onClick={openSidebar}
+              onClick={() => navigate('/events')}
             >
               <FaFlag />
             </button>
             <button
               className="sidebar-btn"
               aria-label="Match Schedules"
-              onClick={openSidebar}
+              onClick={() => navigate('/schedule')}
             >
               <FaCalendarAlt />
             </button>
             <button
               className="sidebar-btn"
               aria-label="Ranking"
-              onClick={openSidebar}
+              onClick={() => navigate('/leaderboard')}
             >
               <FaMedal />
             </button>
