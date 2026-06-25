@@ -1,6 +1,7 @@
 import React from 'react';
 import { useContext } from 'react';
 import './ProfilePage.css';
+import Contact from '../components/Landing/Contact/Contact';
 import {
   FaUserCircle,
   FaTrophy,
@@ -82,6 +83,8 @@ function StatCard({ icon, count, label, arrow }) {
 export default function ProfilePage() {
   const { currentUser, userProfile } = useContext(AuthContext);
 
+  const contactFooterRef = React.useRef(null);
+  const contactItems = CONTACT_ITEMS;
   const displayName =
     userProfile?.fullName ||
     currentUser?.displayName ||
@@ -210,28 +213,7 @@ export default function ProfilePage() {
         </div>
 
         {/* ── Contact footer (reused from LandingPage) ── */}
-        <footer className="contact-footer profile-contact-footer">
-          <HeaderWithLines text="CONTACT US" className="contact-footer-header" />
-          <div className="contact-footer-row">
-            {CONTACT_ITEMS.map((item, i) => (
-              <React.Fragment key={item.text}>
-                <a
-                  href={item.href}
-                  className="contact-item contact-item-link"
-                  target={item.href.startsWith('http') ? '_blank' : undefined}
-                  rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                >
-                  <span className="contact-icon-circle">
-                    <item.icon />
-                  </span>
-                  <span className="contact-text">{item.text}</span>
-                </a>
-                {i < CONTACT_ITEMS.length - 1 && <span className="contact-divider" />}
-              </React.Fragment>
-            ))}
-          </div>
-        </footer>
-
+        <Contact items={contactItems} contactFooterRef={contactFooterRef} />
       </div>
     </div>
   );
