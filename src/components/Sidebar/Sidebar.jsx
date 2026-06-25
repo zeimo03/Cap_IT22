@@ -45,7 +45,7 @@ function Sidebar() {
               <FaHome />
             </button>
              <button
-              className="sidebar-btn"
+              className={`sidebar-btn ${location.pathname === "/registration" ? "active" : ""}`}
               aria-label="Registration"
               onClick={() => navigate('/registration')}
             >

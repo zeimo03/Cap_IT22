@@ -69,16 +69,15 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/registration"
+              element={
+                <ProtectedRoute>
+                  <RegistrationPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
-
-          <Route
-            path="/registration"
-            element={
-              <ProtectedRoute>
-                <RegistrationPage />
-              </ProtectedRoute>
-            }
-          />
 
 
           <Route path="*" element={<NotFoundPage />} />
