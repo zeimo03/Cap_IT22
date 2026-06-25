@@ -7,6 +7,7 @@ import ImageCarousel from './ImageCarousel';
 import { AuthContext } from '../AuthContext';
 import { FaArrowRightLong } from "react-icons/fa6";
 import { fetchCollectionData } from '../../services/firestoreService';
+import Contact from './Contact/Contact';
 
 /* ── NEW — additional icons for the scrollable content sections ── */
 import {
@@ -52,6 +53,8 @@ const CONTACT_ITEMS = [
     href: "https://facebook.com/santaritacollege",
   },
 ];
+
+
 
 const LEVELS = ["Elementary", "High School", "College"];
 
@@ -484,40 +487,7 @@ function LandingPage() {
         </div>
 
         {/* ── Contact us footer strip ── */}
-        <footer className="contact-footer" ref={contactFooterRef}>
-          <HeaderWithLines text="CONTACT US" className="contact-footer-header" />
-          <div className="contact-footer-row">
-            {contactItems.map((item, i) => {
-              const content = (
-                <>
-                  <span className="contact-icon-circle">
-                    <item.icon />
-                  </span>
-                  <span className="contact-text">{item.text}</span>
-                </>
-              );
-              return (
-                <React.Fragment key={item.text}>
-                  {item.href ? (
-                    <a
-                      href={item.href}
-                      className="contact-item contact-item-link"
-                      target={item.href.startsWith("http") ? "_blank" : undefined}
-                      rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                    >
-                      {content}
-                    </a>
-                  ) : (
-                    <span className="contact-item">{content}</span>
-                  )}
-                  {i < CONTACT_ITEMS.length - 1 && (
-                    <span className="contact-divider" />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-        </footer>
+  <Contact items={contactItems} contactFooterRef={contactFooterRef} />
 
       </div>
     </div>
