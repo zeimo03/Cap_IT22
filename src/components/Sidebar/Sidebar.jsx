@@ -1,11 +1,12 @@
 import React, { useContext } from "react";
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal } from "react-icons/fa";
 import { SidebarContext } from "../Sidebar/SidebarContext";
 import { AuthContext } from "../AuthContext";
 import "./Sidebar.css";
 
 function Sidebar() {
+  const navigate = useNavigate();
   const { panelOpen, toggleSidebar, openSidebar } = useContext(SidebarContext);
   const { openAuthModal = () => {}, currentUser, userProfile, logout } = useContext(AuthContext);
 
@@ -30,14 +31,14 @@ function Sidebar() {
             <div className="sidebar-divider" />
             <button
               className="sidebar-btn"
-              aria-label="View Profile"
-              onClick={openSidebar}
+              aria-label="Profile"
+              onClick={() => navigate("/profile")}
             >
               <FaUserCircle />
             </button>
             <button
               className="sidebar-btn active"
-              aria-label="Go to Dashboard"
+              aria-label="Home"
               onClick={() => { openSidebar(); navigate('/dashboard'); }}
             >
               <FaHome />
