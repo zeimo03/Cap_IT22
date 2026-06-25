@@ -46,7 +46,7 @@ function Sidebar() {
              <button
               className="sidebar-btn"
               aria-label="Registration"
-              onClick={openSidebar}
+              onClick={() => navigate("/registration")}
             >
               <FaEdit />
             </button>
