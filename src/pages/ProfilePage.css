@@ -271,24 +271,6 @@
   align-items: center;
 }
 
-/* bottom indicator dot (decorative, matching screenshot) */
-.profile-stat-card::after {
-  content: '';
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 20px;
-  height: 4px;
-  background: #001529;
-  border-radius: 2px;
-  display: none; /* only show on cards that need it */
-}
-
-.profile-stat-card:first-child::after {
-  display: block;
-}
-
 /* ══════════════════════════════════════════
    DETAILS GRID (My Info + Security)
    ══════════════════════════════════════════ */
