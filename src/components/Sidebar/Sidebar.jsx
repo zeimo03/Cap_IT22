@@ -1,11 +1,13 @@
 import React, { useContext } from "react";
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal } from "react-icons/fa";
 import { SidebarContext } from "../Sidebar/SidebarContext";
 import { AuthContext } from "../AuthContext";
 import "./Sidebar.css";
 
 function Sidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { panelOpen, toggleSidebar, openSidebar } = useContext(SidebarContext);
   const { openAuthModal = () => {}, currentUser, userProfile, logout } = useContext(AuthContext);
 
@@ -29,44 +31,44 @@ function Sidebar() {
           <div className={`sidebar-extra ${panelOpen ? "collapsed" : ""}`}>
             <div className="sidebar-divider" />
             <button
-              className="sidebar-btn"
-              aria-label="View Profile"
-              onClick={openSidebar}
+              className={`sidebar-btn ${location.pathname === "/profile" ? "active" : ""}`}
+              aria-label="Profile"
+              onClick={() => navigate("/profile")}
             >
               <FaUserCircle />
             </button>
             <button
-              className="sidebar-btn active"
-              aria-label="Go to Dashboard"
-              onClick={() => { openSidebar(); navigate('/dashboard'); }}
+              className={`sidebar-btn ${location.pathname === "/dashboard" ? "active" : ""}`}
+              aria-label="Home"
+              onClick={() => navigate('/dashboard') }
             >
               <FaHome />
             </button>
              <button
               className="sidebar-btn"
               aria-label="Registration"
-              onClick={openSidebar}
+              onClick={() => navigate('/registration')}
             >
               <FaEdit />
             </button>
             <button
               className="sidebar-btn"
               aria-label="Team and Sports"
-              onClick={openSidebar}
+              onClick={() => navigate('/events')}
             >
               <FaFlag />
             </button>
             <button
               className="sidebar-btn"
               aria-label="Match Schedules"
-              onClick={openSidebar}
+              onClick={() => navigate('/schedule')}
             >
               <FaCalendarAlt />
             </button>
             <button
               className="sidebar-btn"
               aria-label="Ranking"
-              onClick={openSidebar}
+              onClick={() => navigate('/ranking')}
             >
               <FaMedal />
             </button>
@@ -90,27 +92,27 @@ function Sidebar() {
         </div>
 
         <nav className="panel-nav">
-           <Link to="/profile" className="panel-nav-item">
+           <Link to="/profile" className={`panel-nav-item ${ location.pathname === "/profile" ? "active" : "" }`}>
             <FaUserCircle className="panel-nav-icon" />
             <span>Profile</span>
           </Link>
-          <Link to="/dashboard" className="panel-nav-item active">
+          <Link to="/dashboard" className={`panel-nav-item ${location.pathname === "/dashboard" ? "active" : ""}`}>
             <FaHome className="panel-nav-icon" />
             <span>Home</span>
           </Link>
-          <Link to="/announcements" className="panel-nav-item">
+          <Link to="/registration" className={`panel-nav-item ${location.pathname === "/registration" ? "active" : ""}`}>
             <FaEdit className="panel-nav-icon" />
             <span>Registration</span>
           </Link>
-          <Link to="/events" className="panel-nav-item">
+          <Link to="/events" className={`panel-nav-item ${location.pathname === "/events" ? "active" : ""}`}>
             <FaFlag className="panel-nav-icon" />
             <span>Team and Sports</span>
           </Link>
-          <Link to="/schedule" className="panel-nav-item">
+          <Link to="/schedule" className={`panel-nav-item ${location.pathname === "/schedule" ? "active" : ""}`}>
             <FaCalendarAlt className="panel-nav-icon" />
             <span>Match Schedules</span>
           </Link>
-          <Link to="/leaderboard" className="panel-nav-item">
+          <Link to="/ranking" className={`panel-nav-item ${location.pathname === "/ranking" ? "active" : ""}`}>
             <FaMedal className="panel-nav-icon" />
             <span>Ranking</span>
           </Link>
