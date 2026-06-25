@@ -18,35 +18,109 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 25px;
   height: 48px;
   flex-shrink: 0;
   width: 100%;
   background-color: #001529;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 3px solid #fff;
+  margin-top: 3.6px;
+  box-sizing: border-box;
 }
 
 .dash-header__title {
-  font-size: 12px;
+  font-size: 20px;
+  font-family: 'Lalezar', sans-serif;
   font-weight: 700;
   letter-spacing: 0.06em;
   color: #fff;
   margin: 0;
   text-transform: uppercase;
+  line-height: 1;
 }
 
-.levels-btn {
-  background: #fff;
-  color: #001529;
-  border: none;
-  border-radius: 6px;
-  padding: 4px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
+/* ── Levels button & dropdown ── */
+.lvls-wrap {
+  position: relative;
   flex-shrink: 0;
 }
-.levels-btn:hover { background: #dce8f5; }
+
+.lvls-btn {
+  background: transparent;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.04em;
+  transition: border-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.lvls-btn:hover {
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.lvls-btn__arrow {
+  display: inline-block;
+  font-size: 11px;
+  transition: transform 0.25s ease;
+}
+
+.lvls-btn__arrow--open {
+  transform: rotate(180deg);
+}
+
+.lvls-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #001529;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 150px;
+  z-index: 100;
+  transform-origin: top right;
+  transform: scaleY(0.85) translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.lvls-dropdown--open {
+  transform: scaleY(1) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lvls-dropdown__item {
+  display: block;
+  width: 100%;
+  padding: 11px 18px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: background 0.15s ease;
+}
+
+.lvls-dropdown__item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.lvls-dropdown__item + .lvls-dropdown__item {
+  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+}
 
 /* ── Scrollable body ── */
 .dash-body {
@@ -74,7 +148,8 @@
 }
 
 .section-title {
-  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.12em;
   color: #fff;
@@ -100,7 +175,7 @@
 }
 .arrow-btn:hover { background: rgba(255,255,255,0.2); }
 
-/* ── Scroll row: fills width, cards grow equally ── */
+/* ── Scroll row ── */
 .scroll-row {
   display: flex;
   gap: 8px;
@@ -126,8 +201,8 @@
   justify-content: center;
 }
 
-.team-banner--oc  { height: 85px; }
-.team-banner--uc  { height: 130px; border-radius: 8px; }
+.team-banner--oc  { height: 150px; }
+.team-banner--uc  { height: 150px; border-radius: 8px; }
 
 .team-banner__img {
   width: 100%;
@@ -156,24 +231,12 @@
 /* ══════════════════════════════════════════
    SHARED LABELS / PILLS
    ══════════════════════════════════════════ */
-.game-tag {
-  font-size: 9px;
-  font-weight: 700;
-  color: #fff;
-  background: #e63946;
-  border-radius: 4px;
-  padding: 2px 7px;
-  align-self: flex-start;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  display: inline-block;
-}
 
 .date-pill {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
-  color: #fff;
-  background: #e63946;
+  color: #0A1D52;
+  background: #D4DCEF;
   border-radius: 4px;
   padding: 2px 10px;
   text-transform: uppercase;
@@ -184,7 +247,7 @@
 .sport-pill {
   background: #001529;
   color: #fff;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   padding: 4px 18px;
   border-radius: 20px;
@@ -194,7 +257,8 @@
 }
 
 .ft-label {
-  font-size: 7.5px;
+  font-size: 12px;
+  font-family: 'Lalezar', sans-serif;
   font-weight: 800;
   color: #001529;
   text-transform: uppercase;
@@ -208,10 +272,17 @@
 }
 
 .ft-venue {
-  font-size: 6.5px;
-  color: #999;
-  text-transform: uppercase;
+  font-family: 'Lalezar', sans-serif;
+  font-size: 11px;
+  background: #001529;
+  color: #fff;
+  font-weight: 700;
+  padding: 3px 15px;
   text-align: center;
+  border-radius: 20px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: inline-block;
 }
 
 /* ══════════════════════════════════════════
@@ -237,12 +308,17 @@
 }
 
 .oc-footer {
-  border-top: 1px solid #eef2f8;
   padding-top: 5px;
   margin-top: 2px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.oc-date-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2px;
 }
 
 .oc-teams-row {

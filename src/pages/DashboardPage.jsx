@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './DashboardPage.css';
 
 /* ══════════════════════════════════════════════════════
@@ -18,10 +18,10 @@ const TEAMS = {
 };
 
 const ONGOING = [
-  { id: 1, teamA: TEAMS.blackBeetles,  teamB: TEAMS.purpleJaguars,  sport: 'BASKETBALL', venue: 'GYM (COVERED SPORTS)',  game: 'GAME 1' },
-  { id: 2, teamA: TEAMS.brownCubs,     teamB: TEAMS.orangeBulldogs, sport: 'BASEBALL',   venue: 'GYM (COVERED SPORTS)',  game: 'GAME 2' },
-  { id: 3, teamA: TEAMS.yellowVipers,  teamB: TEAMS.maroonOwls,     sport: 'BASEBALL',   venue: 'GYM (COVERED SPORTS)',  game: 'GAME 3' },
-  { id: 4, teamA: TEAMS.greenGators,   teamB: TEAMS.redRhinos,      sport: 'SWIMMING',   venue: 'GYM (SWIMMING POOL)',   game: 'GAME 4' },
+  { id: 1, date: 'JUNE 12', teamA: TEAMS.blackBeetles,  teamB: TEAMS.purpleJaguars,  sport: 'BASKETBALL', venue: 'GYM (COVERED SPORTS)',  game: 'GAME 1' },
+  { id: 2, date: 'JUNE 12', teamA: TEAMS.brownCubs,     teamB: TEAMS.orangeBulldogs, sport: 'BASEBALL',   venue: 'GYM (COVERED SPORTS)',  game: 'GAME 2' },
+  { id: 3, date: 'JUNE 12', teamA: TEAMS.yellowVipers,  teamB: TEAMS.maroonOwls,     sport: 'BASEBALL',   venue: 'GYM (COVERED SPORTS)',  game: 'GAME 3' },
+  { id: 4, date: 'JUNE 12', teamA: TEAMS.greenGators,   teamB: TEAMS.redRhinos,      sport: 'SWIMMING',   venue: 'GYM (SWIMMING POOL)',   game: 'GAME 4' },
 ];
 
 const UPCOMING = [
@@ -29,6 +29,8 @@ const UPCOMING = [
   { id: 2, date: 'JUNE 12', teamA: TEAMS.brownCubs,    teamB: TEAMS.orangeBulldogs, sport: 'BASEBALL'   },
   { id: 3, date: 'JUNE 15', teamA: TEAMS.greenGators,  teamB: TEAMS.redRhinos,      sport: 'SWIMMING'   },
 ];
+
+const LEVELS = ['Elementary', 'High School', 'College'];
 
 /* ── Team Banner: image or placeholder ── */
 function TeamBanner({ team, size }) {
@@ -51,14 +53,14 @@ function TeamBanner({ team, size }) {
 function OngoingCard({ match }) {
   return (
     <div className="ongoing-card">
-      <span className="game-tag">{match.game}</span>
-
       <div className="oc-banners">
         <TeamBanner team={match.teamA} size="oc" />
         <TeamBanner team={match.teamB} size="oc" />
       </div>
-
       <div className="oc-footer">
+        <div className="oc-date-row">
+          <span className="date-pill">{match.date}</span>
+        </div>
         <div className="oc-teams-row">
           <span className="ft-label">{match.teamA.label}</span>
           <span className="ft-vs">VS</span>
@@ -81,17 +83,14 @@ function UpcomingCard({ match }) {
           : <div className="tbd-slot" />
         }
       </div>
-
       <div className="uc-date-row">
         <span className="date-pill">{match.date}</span>
       </div>
-
       <div className="uc-teams-row">
         <span className="ft-label">{match.teamA.label}</span>
         <span className="ft-vs">VS</span>
         {match.teamB && <span className="ft-label">{match.teamB.label}</span>}
       </div>
-
       <div className="uc-sport-row">
         <span className="sport-pill">{match.sport}</span>
       </div>
@@ -121,13 +120,63 @@ function ScrollRow({ children, label }) {
   );
 }
 
+/* ── Levels Dropdown Button ── */
+function LevelsButton() {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState('Levels');
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handlePick = (level) => {
+    setSelected(level);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="lvls-wrap">
+      <button
+        className="lvls-btn"
+        onClick={() => setOpen(prev => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        {selected}
+        <span className={`lvls-btn__arrow ${open ? 'lvls-btn__arrow--open' : ''}`}>▼</span>
+      </button>
+
+      <div className={`lvls-dropdown ${open ? 'lvls-dropdown--open' : ''}`} role="listbox">
+        {LEVELS.map((level) => (
+          <button
+            key={level}
+            className="lvls-dropdown__item"
+            onClick={() => handlePick(level)}
+            role="option"
+            aria-selected={selected === level}
+          >
+            {level}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 export default function DashboardPage() {
   return (
     <div className="user-dashboard">
       <header className="dash-header">
         <h1 className="dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
-        <button className="levels-btn">Levels ▾</button>
+        <LevelsButton />
       </header>
 
       <div className="dash-body">
