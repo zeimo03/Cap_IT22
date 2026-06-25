@@ -12,6 +12,8 @@ import NotFoundPage from './pages/NotFoundPage';
 import ProfilePage from './pages/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginModal from './components/LoginModal/LoginModal';
+import RegistrationPage from './pages/RegistrationPage';
+
 
 function App() {
   return (
@@ -68,6 +70,16 @@ function App() {
               }
             />
           </Route>
+
+          <Route
+            path="/registration"
+            element={
+              <ProtectedRoute>
+                <RegistrationPage />
+              </ProtectedRoute>
+            }
+          />
+
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

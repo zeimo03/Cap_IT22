@@ -99,7 +99,7 @@ function Sidebar() {
             <FaHome className="panel-nav-icon" />
             <span>Home</span>
           </Link>
-          <Link to="/announcements" className="panel-nav-item">
+          <Link to="/registration" className="panel-nav-item">
             <FaEdit className="panel-nav-icon" />
             <span>Registration</span>
           </Link>
