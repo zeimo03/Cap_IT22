@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useContext } from 'react';
 import './ProfilePage.css';
 import Contact from '../components/Landing/Contact/Contact';
+import EventsJoinedModal from '../components/EventsJoinedModal/EventsJoinedModal';
+import AwardsModal from '../components/AwardsModal/AwardsModal';
 import {
   FaUserCircle,
   FaTrophy,
@@ -21,10 +23,31 @@ import {
   FaHashtag,
   FaEdit,
 } from 'react-icons/fa';
-import { AuthContext } from "../components/AuthContext";
-import HeaderWithLines from "../components/Landing/HeaderWithLines";
+import { AuthContext } from '../components/AuthContext';
 
-/* ── Contact items (same as LandingPage) ── */
+/* ── Sample events data (replace with real Firestore data later) ── */
+const SAMPLE_EVENTS = [
+  {
+    name: 'Basketball Intramurals 2025',
+    date: 'Aug 15 – Aug 17, 2025',
+    venue: 'Gymnasium',
+    status: 'Completed',
+  },
+  {
+    name: 'Sportsfest Basketball 2026',
+    date: 'Mar 1 – Mar 3, 2026',
+    venue: 'Gymnasium',
+    status: 'Completed',
+  },
+  {
+    name: 'Basketball Intramurals 2026',
+    date: 'Aug 20 – Aug 3, 2025',
+    venue: 'Gymnasium',
+    status: 'Completed',
+  },
+];
+
+/* ── Contact items ── */
 const CONTACT_ITEMS = [
   {
     icon: FaMapMarkerAlt,
@@ -48,13 +71,11 @@ const CONTACT_ITEMS = [
   },
 ];
 
-/* ── Info row item ── */
+/* ── Info row ── */
 function InfoRow({ icon: Icon, label, value }) {
   return (
     <div className="profile-info-row">
-      <span className="profile-info-icon">
-        <Icon />
-      </span>
+      <span className="profile-info-icon"><Icon /></span>
       <span className="profile-info-label">{label}</span>
       <span className="profile-info-value">{value || '—'}</span>
     </div>
@@ -62,9 +83,15 @@ function InfoRow({ icon: Icon, label, value }) {
 }
 
 /* ── Stat card ── */
-function StatCard({ icon, count, label, arrow }) {
+function StatCard({ icon, count, label, arrow, onClick }) {
   return (
-    <div className="profile-stat-card">
+    <div
+      className={`profile-stat-card ${onClick ? 'profile-stat-card--clickable' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <div className="profile-stat-icon-wrap">{icon}</div>
       <div className="profile-stat-body">
         <span className="profile-stat-label">{label}</span>
@@ -72,7 +99,7 @@ function StatCard({ icon, count, label, arrow }) {
         <span className="profile-stat-sublabel">Total {label}</span>
       </div>
       {arrow && (
-        <button className="profile-stat-arrow" aria-label={`View ${label}`}>
+        <button className="profile-stat-arrow" aria-label={`View ${label}`} tabIndex={-1}>
           <FaChevronRight />
         </button>
       )}
@@ -83,27 +110,31 @@ function StatCard({ icon, count, label, arrow }) {
 export default function ProfilePage() {
   const { currentUser, userProfile } = useContext(AuthContext);
 
+  /* ── Modal state ── */
+  const [eventsModalOpen, setEventsModalOpen] = useState(false);
+  const [awardsModalOpen, setAwardsModalOpen] = useState(false);
+  
+
   const contactFooterRef = React.useRef(null);
-  const contactItems = CONTACT_ITEMS;
-  const displayName =
-    userProfile?.fullName ||
-    currentUser?.displayName ||
-    'JUAN C DELA CRUZ';
 
+  const displayName   = userProfile?.fullName || currentUser?.displayName || 'JUAN C DELA CRUZ';
   const studentNumber = userProfile?.studentNumber || '***********';
-  const role = userProfile?.role || 'Player';
-  const gradeLevel = userProfile?.gradeLevel || 'Grade 12';
-  const section = userProfile?.section || 'STEM A';
-  const teamName = userProfile?.teamName || 'Red Rhinos';
-  const sport = userProfile?.sport || 'BASKETBALL';
-  const position = userProfile?.position || 'PLAYER';
-  const email = currentUser?.email || '@rc_ldelas_ph';
-  const lastUpdate = userProfile?.lastUpdate || 'May 29, 2026 – 07:56 PM';
+  const role          = userProfile?.role || 'Player';
+  const gradeLevel    = userProfile?.gradeLevel || 'Grade 12';
+  const section       = userProfile?.section || 'STEM A';
+  const teamName      = userProfile?.teamName || 'Red Rhinos';
+  const sport         = userProfile?.sport || 'BASKETBALL';
+  const position      = userProfile?.position || 'PLAYER';
+  const email         = currentUser?.email || '@rc_ldelas_ph';
+  const lastUpdate    = userProfile?.lastUpdate || 'May 29, 2026 – 07:56 PM';
 
+  /* Replace SAMPLE_EVENTS with userProfile?.eventsJoined or a Firestore query */
+  const eventsJoined  = userProfile?.eventsJoined || SAMPLE_EVENTS;
+  const awards = userProfile?.awards || [];
   return (
     <div className="profile-page">
 
-      {/* ── Top header (same as DashboardPage) ── */}
+      {/* ── Top header ── */}
       <header className="dash-header">
         <h1 className="dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
       </header>
@@ -152,17 +183,21 @@ export default function ProfilePage() {
 
         {/* ── Stat cards row ── */}
         <div className="profile-stats-row">
+
+          {/* Events Joined — opens modal on click */}
           <StatCard
             icon={<FaTrophy className="stat-icon-trophy" />}
-            count={3}
+            count={eventsJoined.length}
             label="Events Joined"
             arrow
+            onClick={() => setEventsModalOpen(true)}
           />
           <StatCard
             icon={<FaMedal className="stat-icon-medal" />}
             count={3}
             label="Awards"
             arrow
+            onClick={() => setAwardsModalOpen(true)}
           />
           <StatCard
             icon={<FaClipboardList className="stat-icon-reg" />}
@@ -174,8 +209,6 @@ export default function ProfilePage() {
 
         {/* ── Info + Security row ── */}
         <div className="profile-details-grid">
-
-          {/* My Information */}
           <div className="profile-card">
             <div className="profile-card-header">
               <span className="profile-card-title">My Information</span>
@@ -184,19 +217,18 @@ export default function ProfilePage() {
               </button>
             </div>
             <div className="profile-card-body">
-              <InfoRow icon={FaHashtag}        label="Student Number"    value={studentNumber} />
-              <InfoRow icon={FaUserCircle}      label="Full Name"         value={displayName} />
-              <InfoRow icon={FaEnvelope}        label="Email Address"     value={email} />
-              <InfoRow icon={FaUserGraduate}    label="Grade/Year Level"  value={gradeLevel} />
-              <InfoRow icon={FaUsers}           label="Section"           value={section} />
-              <InfoRow icon={FaBasketballBall}  label="Sports"            value={sport} />
-              <InfoRow icon={FaUserTag}         label="Role"              value={position} />
-              <InfoRow icon={FaEdit}            label="Position"          value={position} />
-              <InfoRow icon={FaUsers}           label="Team Name"         value={teamName} />
+              <InfoRow icon={FaHashtag}        label="Student Number"   value={studentNumber} />
+              <InfoRow icon={FaUserCircle}      label="Full Name"        value={displayName} />
+              <InfoRow icon={FaEnvelope}        label="Email Address"    value={email} />
+              <InfoRow icon={FaUserGraduate}    label="Grade/Year Level" value={gradeLevel} />
+              <InfoRow icon={FaUsers}           label="Section"          value={section} />
+              <InfoRow icon={FaBasketballBall}  label="Sports"           value={sport} />
+              <InfoRow icon={FaUserTag}         label="Role"             value={position} />
+              <InfoRow icon={FaEdit}            label="Position"         value={position} />
+              <InfoRow icon={FaUsers}           label="Team Name"        value={teamName} />
             </div>
           </div>
 
-          {/* Security Settings */}
           <div className="profile-card">
             <div className="profile-card-header">
               <span className="profile-card-title">Security Settings</span>
@@ -205,16 +237,28 @@ export default function ProfilePage() {
               </button>
             </div>
             <div className="profile-card-body">
-              <InfoRow icon={FaKey}   label="Password"     value="••••••••••••" />
-              <InfoRow icon={FaClock} label="Last Update"  value={lastUpdate} />
+              <InfoRow icon={FaKey}   label="Password"    value="••••••••••••" />
+              <InfoRow icon={FaClock} label="Last Update" value={lastUpdate} />
             </div>
           </div>
-
         </div>
 
-        {/* ── Contact footer (reused from LandingPage) ── */}
-        <Contact items={contactItems} contactFooterRef={contactFooterRef} />
+        {/* ── Contact footer ── */}
+        <Contact items={CONTACT_ITEMS} contactFooterRef={contactFooterRef} />
       </div>
+
+      {/* ── Events Joined Modal ── */}
+      <EventsJoinedModal
+        isOpen={eventsModalOpen}
+        onClose={() => setEventsModalOpen(false)}
+        events={eventsJoined}
+      />
+      <AwardsModal
+  isOpen={awardsModalOpen}
+  onClose={() => setAwardsModalOpen(false)}
+  awards={awards}
+/>
+
     </div>
   );
 }
