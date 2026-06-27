@@ -412,3 +412,20 @@
   height: 0.2rem;
   max-width: 80px;
 }
+
+/* ── Add this block to the bottom of your existing ProfilePage.css ── */
+
+/* Clickable stat card */
+.profile-stat-card--clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.profile-stat-card--clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 21, 41, 0.12);
+}
+
+.profile-stat-card--clickable:active {
+  transform: translateY(0px);
+}

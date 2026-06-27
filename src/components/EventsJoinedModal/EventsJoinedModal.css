@@ -1,0 +1,232 @@
+/* ═══════════════════════════════════════════
+   EventsJoinedModal.css — Santa Rita College
+   ═══════════════════════════════════════════ */
+
+/* ── Overlay (blurred backdrop) ── */
+.ej-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 10, 30, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.ej-overlay--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Modal card ── */
+.ej-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  overflow: hidden;
+  transform: scale(0.88) translateY(28px);
+  opacity: 0;
+  transition:
+    transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.28s ease;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+}
+
+.ej-modal--visible {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* ── Header ── */
+.ej-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.ej-header-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #EAF1FB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ej-header-icon {
+  font-size: 26px;
+  color: #1a3a7c;
+}
+
+.ej-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ej-header-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #001529;
+  letter-spacing: 0.06em;
+  margin: 0 0 3px;
+}
+
+.ej-header-sub {
+  font-size: 12px;
+  color: #667788;
+  margin: 0;
+}
+
+.ej-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #334;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ej-close-btn:hover {
+  background: #f0f4fa;
+  color: #001529;
+}
+
+/* ── Event list ── */
+.ej-list {
+  padding: 0 20px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.ej-list::-webkit-scrollbar { width: 4px; }
+.ej-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+
+.ej-empty {
+  text-align: center;
+  padding: 32px 0;
+  font-size: 13px;
+  color: #8899aa;
+}
+
+/* ── Event item row ── */
+.ej-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e8edf5;
+  animation: ej-slide-in 0.3s ease both;
+}
+
+.ej-item:last-child {
+  border-bottom: none;
+}
+
+@keyframes ej-slide-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Stagger each row */
+.ej-item:nth-child(1) { animation-delay: 0.05s; }
+.ej-item:nth-child(2) { animation-delay: 0.12s; }
+.ej-item:nth-child(3) { animation-delay: 0.19s; }
+.ej-item:nth-child(4) { animation-delay: 0.26s; }
+.ej-item:nth-child(5) { animation-delay: 0.33s; }
+
+.ej-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ej-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #001529;
+  margin: 0 0 6px;
+}
+
+.ej-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ej-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #667788;
+}
+
+.ej-meta-icon {
+  font-size: 11px;
+  color: #1a5cb0;
+  flex-shrink: 0;
+}
+
+/* ── Status badge ── */
+.ej-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ej-badge--completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.ej-badge--ongoing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.ej-badge--upcoming {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ── Footer ── */
+.ej-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #EAF1FB;
+  border-top: 1px solid #d6e4f5;
+}
+
+.ej-footer-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #001529;
+}
+
+.ej-footer-count {
+  font-size: 15px;
+  font-weight: 900;
+  color: #001529;
+}
