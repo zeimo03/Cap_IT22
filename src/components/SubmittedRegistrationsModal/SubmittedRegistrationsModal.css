@@ -1,0 +1,241 @@
+/* ═══════════════════════════════════════════
+   SubmittedRegistrationsModal.css — Santa Rita College
+   ═══════════════════════════════════════════ */
+
+.sr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 10, 30, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.sr-overlay--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sr-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  overflow: hidden;
+  transform: scale(0.88) translateY(28px);
+  opacity: 0;
+  transition:
+    transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.28s ease;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+}
+
+.sr-modal--visible {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* ── Header ── */
+.sr-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.sr-header-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #EEF2FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sr-header-icon {
+  font-size: 26px;
+  color: #4F46E5;
+}
+
+.sr-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sr-header-title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #001529;
+  letter-spacing: 0.06em;
+  margin: 0 0 3px;
+}
+
+.sr-header-sub {
+  font-size: 12px;
+  color: #667788;
+  margin: 0;
+}
+
+.sr-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #334;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sr-close-btn:hover {
+  background: #f0f4fa;
+  color: #001529;
+}
+
+/* ── List ── */
+.sr-list {
+  padding: 0 20px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.sr-list::-webkit-scrollbar { width: 4px; }
+.sr-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+
+.sr-empty {
+  text-align: center;
+  padding: 32px 0;
+  font-size: 13px;
+  color: #8899aa;
+}
+
+/* ── Registration item ── */
+.sr-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e8edf5;
+  animation: sr-slide-in 0.3s ease both;
+}
+
+.sr-item:last-child {
+  border-bottom: none;
+}
+
+@keyframes sr-slide-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.sr-item:nth-child(1) { animation-delay: 0.05s; }
+.sr-item:nth-child(2) { animation-delay: 0.12s; }
+.sr-item:nth-child(3) { animation-delay: 0.19s; }
+.sr-item:nth-child(4) { animation-delay: 0.26s; }
+.sr-item:nth-child(5) { animation-delay: 0.33s; }
+
+.sr-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sr-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #001529;
+  margin: 0 0 5px;
+}
+
+.sr-item-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #667788;
+}
+
+.sr-date-icon {
+  font-size: 11px;
+  color: #1a5cb0;
+  flex-shrink: 0;
+}
+
+.sr-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Status badges ── */
+.sr-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.sr-badge--approved {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.sr-badge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sr-badge--rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.sr-item-submitted {
+  font-size: 10px;
+  color: #8899aa;
+  font-weight: 500;
+}
+
+.sr-item-arrow {
+  font-size: 12px;
+  color: #aab4c4;
+  flex-shrink: 0;
+}
+
+/* ── Footer ── */
+.sr-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #EEF2FF;
+  border-top: 1px solid #c7d2fe;
+}
+
+.sr-footer-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #3730a3;
+}
+
+.sr-footer-count {
+  font-size: 15px;
+  font-weight: 900;
+  color: #3730a3;
+}
