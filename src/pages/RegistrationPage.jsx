@@ -1,5 +1,12 @@
 import React, { useState, useRef } from 'react';
 import './RegistrationPage.css';
+import Contact from '../components/Landing/Contact/Contact';
+import {
+  FaMapMarkerAlt,
+  FaPhoneAlt,
+  FaEnvelope,
+  FaFacebookF,
+} from 'react-icons/fa';
 
 const GRADE_LEVELS = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
   'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
@@ -32,14 +39,22 @@ const INITIAL = {
   message: '',
 };
 
+const CONTACT_ITEMS = [
+  { icon: FaMapMarkerAlt, text: 'San Jose, Santa Rita Pampanga, Philippines', href: 'https://www.google.com/maps/place/Santa+Rita+College/@14.9989285,120.6178094,18.6z' },
+  { icon: FaPhoneAlt,     text: '(045) 900 0557',                href: 'tel:+0459000557' },
+  { icon: FaEnvelope,     text: 'src_educ_ph@yahoo.com',         href: 'mailto:src_educ_ph@yahoo.com' },
+  { icon: FaFacebookF,    text: 'facebook.com/santaritacollege', href: 'https://facebook.com/santaritacollege' },
+];
+
 export default function RegistrationPage() {
   const [form, setForm] = useState(INITIAL);
-  const [photo, setPhoto]     = useState(null);
-  const [waiver, setWaiver]   = useState(null);
+  const [photo, setPhoto]         = useState(null);
+  const [waiver, setWaiver]       = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const photoRef  = useRef(null);
-  const waiverRef = useRef(null);
+  const photoRef         = useRef(null);
+  const waiverRef        = useRef(null);
+  const contactFooterRef = useRef(null);
 
   const set = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }));
 
@@ -65,18 +80,13 @@ export default function RegistrationPage() {
   if (submitted) {
     return (
       <div className="reg-page">
-        {/* ── Top header — identical to ProfilePage ── */}
         <header className="reg-dash-header">
           <h1 className="reg-dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
         </header>
-
-        {/* ── Page intro — identical to ProfilePage ── */}
         <div className="reg-page-intro">
           <h2 className="reg-page-title">Player Registration</h2>
           <p className="reg-page-subtitle">Submit your player details to join a team and sport event</p>
         </div>
-
-        {/* ── Scrollable body — identical to ProfilePage ── */}
         <div className="reg-body">
           <div className="reg-card" style={{ textAlign: 'center', padding: '48px 28px' }}>
             <div style={{ fontSize: 52, marginBottom: 12 }}>✅</div>
@@ -90,7 +100,7 @@ export default function RegistrationPage() {
               Register Another Player
             </button>
           </div>
-          <RegContactFooter />
+          <Contact items={CONTACT_ITEMS} contactFooterRef={contactFooterRef} />
         </div>
       </div>
     );
@@ -98,24 +108,17 @@ export default function RegistrationPage() {
 
   return (
     <div className="reg-page">
-
-      {/* ── Top header — identical to ProfilePage ── */}
       <header className="reg-dash-header">
         <h1 className="reg-dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
       </header>
 
-      {/* ── Page intro — identical to ProfilePage ── */}
       <div className="reg-page-intro">
         <h2 className="reg-page-title">Player Registration</h2>
         <p className="reg-page-subtitle">Submit your player details to join a team and sport event</p>
       </div>
 
-      {/* ── Scrollable body — identical to ProfilePage ── */}
       <div className="reg-body">
-
-        {/* Form card */}
         <div className="reg-card">
-          {/* Card heading */}
           <div className="reg-card__head">
             <div className="reg-card__icon">
               <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
@@ -124,6 +127,7 @@ export default function RegistrationPage() {
           </div>
 
           <form className="reg-form" onSubmit={handleSave} noValidate>
+
             {/* Row 1: Full Name / DOB / Age */}
             <div className="reg-row reg-row--3">
               <Field label="Full Name" required>
@@ -215,7 +219,6 @@ export default function RegistrationPage() {
 
             {/* Row 6: Uploads + Message */}
             <div className="reg-uploads-row">
-              {/* Photo upload */}
               <Field label="Upload Photo">
                 <label className="reg-upload-box">
                   <input type="file" accept="image/*" ref={photoRef} onChange={handleFile(setPhoto)} />
@@ -228,8 +231,7 @@ export default function RegistrationPage() {
                 </label>
               </Field>
 
-              {/* Waiver upload */}
-              <Field label={<>Upload Waiver / Consent Form <span style={{color:'#C0392B'}}>*</span></>}>
+              <Field label={<>Upload Waiver / Consent Form <span style={{ color: '#C0392B' }}>*</span></>}>
                 <label className="reg-upload-box">
                   <input type="file" accept=".pdf,.doc,.docx,image/*" ref={waiverRef} onChange={handleFile(setWaiver)} />
                   <div className="reg-upload-icon">📄</div>
@@ -241,7 +243,6 @@ export default function RegistrationPage() {
                 </label>
               </Field>
 
-              {/* Message */}
               <Field label="Message">
                 <textarea className="reg-textarea"
                   placeholder="Any additional information (optional)"
@@ -252,11 +253,10 @@ export default function RegistrationPage() {
 
             <div className="reg-divider" />
 
-            {/* Footer */}
             <div className="reg-footer">
               <span className="reg-footer__note">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="#5a6a7a"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                Fields marked with <strong style={{color:'#C0392B'}}>*</strong> are required
+                Fields marked with <strong style={{ color: '#C0392B' }}>*</strong> are required
               </span>
               <div className="reg-footer__actions">
                 <button type="button" className="reg-btn-reset" onClick={handleReset}>
@@ -268,18 +268,17 @@ export default function RegistrationPage() {
                 </button>
               </div>
             </div>
+
           </form>
         </div>
 
-        {/* Contact footer */}
-        <RegContactFooter />
+        <Contact items={CONTACT_ITEMS} contactFooterRef={contactFooterRef} />
 
-      </div>{/* end reg-body */}
+      </div>
     </div>
   );
 }
 
-/* ── Reusable Field wrapper ── */
 function Field({ label, required, children }) {
   return (
     <div className="reg-field">
@@ -287,23 +286,6 @@ function Field({ label, required, children }) {
         {label}{required && <span>*</span>}
       </label>
       {children}
-    </div>
-  );
-}
-
-/* ── Contact footer (replaces old reg-hero bottom block) ── */
-function RegContactFooter() {
-  return (
-    <div className="reg-contact-bar">
-      <p className="reg-contact-bar__title">Contact Us</p>
-      <div className="reg-contact-bar__links">
-        <span>📍 San Jose, Santa Rita Pampanga, Philippines</span>
-        <span>📞 (045) 900 0597</span>
-        <a href="mailto:src_educ_ph@yahoo.com">✉ src_educ_ph@yahoo.com</a>
-        <a href="https://facebook.com/santaritacollege" target="_blank" rel="noreferrer">
-          🔷 facebook.com/santaritacollege
-        </a>
-      </div>
     </div>
   );
 }
