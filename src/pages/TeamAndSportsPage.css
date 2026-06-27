@@ -216,8 +216,10 @@
   background: #0A1D52;
   border-radius: 12px;
   padding: 14px 16px 14px;
+  margin: 5px 30px;
   position: relative;
   animation: ts-card-in 0.35s ease both;
+  border: 0.975px solid #FFF;
 }
 
 @keyframes ts-card-in {

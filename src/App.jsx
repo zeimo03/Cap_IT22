@@ -14,6 +14,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoginModal from './components/LoginModal/LoginModal';
 import RegistrationPage from './pages/RegistrationPage';
 import TeamAndSportsPage from './pages/TeamAndSportsPage';
+import MatchSchedulesPage from './pages/MatchSchedulesPage';
 
 function App() {
   return (
@@ -82,6 +83,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <TeamAndSportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/schedule"
+              element={
+                <ProtectedRoute>
+                  <MatchSchedulesPage />
                 </ProtectedRoute>
               }
             />
