@@ -20,6 +20,7 @@ function Sidebar() {
           <button
             className="sidebar-btn menu-btn"
             aria-label={panelOpen ? "Close Menu" : "Open Menu"}
+            data-label={panelOpen ? "Close" : "Menu"}
             onClick={toggleSidebar}
           >
             <span className={`menu-icon ${panelOpen ? "open" : ""}`}>
@@ -33,6 +34,7 @@ function Sidebar() {
             <button
               className={`sidebar-btn ${location.pathname === "/profile" ? "active" : ""}`}
               aria-label="Profile"
+              data-label="Profile"
               onClick={() => navigate("/profile")}
             >
               <FaUserCircle />
@@ -40,6 +42,7 @@ function Sidebar() {
             <button
               className={`sidebar-btn ${location.pathname === "/dashboard" ? "active" : ""}`}
               aria-label="Home"
+              data-label="Home"
               onClick={() => navigate('/dashboard') }
             >
               <FaHome />
@@ -47,6 +50,7 @@ function Sidebar() {
              <button
               className={`sidebar-btn ${location.pathname === "/registration" ? "active" : ""}`}
               aria-label="Registration"
+              data-label="Registration"
               onClick={() => navigate('/registration')}
             >
               <FaEdit />
@@ -54,6 +58,7 @@ function Sidebar() {
             <button
               className="sidebar-btn"
               aria-label="Team and Sports"
+              data-label="Team & Sports"
               onClick={() => navigate('/events')}
             >
               <FaFlag />
@@ -61,6 +66,7 @@ function Sidebar() {
             <button
               className="sidebar-btn"
               aria-label="Match Schedules"
+              data-label="Schedules"
               onClick={() => navigate('/schedule')}
             >
               <FaCalendarAlt />
@@ -68,6 +74,7 @@ function Sidebar() {
             <button
               className="sidebar-btn"
               aria-label="Ranking"
+              data-label="Ranking"
               onClick={() => navigate('/ranking')}
             >
               <FaMedal />

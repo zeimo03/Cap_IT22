@@ -64,7 +64,6 @@
   max-height: 320px;
   margin-top: 2px;
   opacity: 1;
-  overflow: hidden;
   transition: max-height 0.3s ease, margin-top 0.3s ease, opacity 0.2s ease;
 }
 
@@ -95,6 +94,8 @@
   font-size: 1.2rem;
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
+  position: relative;
+  overflow: visible;
 }
 
 .sidebar-btn:hover {
@@ -102,9 +103,42 @@
   color: #fff;
 }
 
+.sidebar-btn::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  opacity: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.98);
+  color: #001a3a;
+  border: solid 2px #D4A017;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.sidebar-btn:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+}
+
 .sidebar-btn.active {
   background: #1a3a6e;
   color: #fff;
+}
+
+/* Don't show tooltips when sidebar is collapsed */
+.sidebar-extra.collapsed .sidebar-btn::after {
+  display: none;
 }
 
 /* ── Slide-out panel ── */
