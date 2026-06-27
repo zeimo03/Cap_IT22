@@ -13,7 +13,7 @@ import ProfilePage from './pages/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginModal from './components/LoginModal/LoginModal';
 import RegistrationPage from './pages/RegistrationPage';
-
+import TeamAndSportsPage from './pages/TeamAndSportsPage';
 
 function App() {
   return (
@@ -77,8 +77,15 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/events"
+              element={
+                <ProtectedRoute>
+                  <TeamAndSportsPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
-
 
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

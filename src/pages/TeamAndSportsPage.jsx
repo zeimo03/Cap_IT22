@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import './TeamsAndSportsPage.css';
+import './TeamAndSportsPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 
 /* ── Sample teams data (replace with Firestore later) ── */
