@@ -1,0 +1,432 @@
+/* ═══════════════════════════════════════════
+   RankingPage.css — Santa Rita College
+   ═══════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Lalezar&family=Inter:wght@400;600;700;800;900&display=swap');
+
+/* ── Page shell ── */
+.rk-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background-color: #001529;
+  color: #fff;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── Top header ── */
+.rk-dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 25px;
+  height: 48px;
+  flex-shrink: 0;
+  width: 100%;
+  background-color: #001529;
+  border-bottom: 3px solid #fff;
+  margin-top: 3.6px;
+  box-sizing: border-box;
+}
+
+.rk-dash-header__title {
+  font-size: 20px;
+  font-family: 'Lalezar', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  margin: 0;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.rk-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ── Search bar ── */
+.rk-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rk-search-icon {
+  position: absolute;
+  left: 13px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.rk-search-input {
+  width: 200px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 7px 14px 7px 32px;
+  font-size: 12px;
+  color: #fff;
+  box-sizing: border-box;
+  transition: border-color 0.2s, background 0.2s, width 0.2s;
+}
+
+.rk-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.rk-search-input:focus {
+  outline: none;
+  width: 240px;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* ── Levels dropdown (same pattern as Dashboard) ── */
+.rk-lvls-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rk-lvls-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.04em;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.rk-lvls-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.rk-lvls-arrow {
+  display: inline-block;
+  font-size: 11px;
+  transition: transform 0.25s ease;
+}
+
+.rk-lvls-arrow--open {
+  transform: rotate(180deg);
+}
+
+.rk-lvls-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #001529;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 150px;
+  z-index: 100;
+  transform-origin: top right;
+  transform: scaleY(0.9) translateY(-8px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.rk-lvls-dropdown--open {
+  transform: scaleY(1) translateY(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.rk-lvls-item {
+  display: block;
+  width: 100%;
+  padding: 11px 18px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.rk-lvls-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rk-lvls-item+.rk-lvls-item {
+  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ── Page intro ── */
+.rk-page-intro {
+  padding: 18px 25px 10px;
+  flex-shrink: 0;
+  margin-left: -15px;
+}
+
+.rk-page-title {
+  font-size: 26px;
+  font-weight: 900;
+  color: #FCBF19;
+  margin: 0 0 4px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.rk-page-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+/* ── Scrollable body ── */
+.rk-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 14px 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rk-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.rk-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+/* ── Section header ── */
+.rk-section {
+  padding-top: 10px;
+}
+
+.rk-section-header {
+  margin-bottom: 12px;
+}
+
+.rk-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 2px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.rk-section-icon {
+  color: #FCBF19;
+  font-size: 16px;
+}
+
+.rk-section-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0;
+}
+
+/* ── Sport filter tabs ── */
+.rk-sport-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.rk-sport-tab {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.rk-sport-tab:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.rk-sport-tab--active {
+  background: #FCBF19;
+  border-color: #FCBF19;
+  color: #001529;
+}
+
+/* ── Table card shell ── */
+.rk-card {
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.rk-card--light {
+  background: #fff;
+}
+
+/* ── Table ── */
+.rk-table-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.rk-row {
+  display: grid;
+  grid-template-columns: 60px 60px 1fr 100px 100px;
+  align-items: center;
+  padding: 10px 16px;
+  color: #00193F;
+}
+
+.rk-row--medal {
+  grid-template-columns: 60px 60px 1fr 80px 80px 80px 80px;
+}
+
+.rk-row--head {
+  background: #DCE3F0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #5A6B8C;
+  text-transform: uppercase;
+  padding: 12px 16px;
+}
+
+.rk-row:not(.rk-row--head) {
+  background: #fff;
+}
+
+.rk-row--rank-1 {
+  background: linear-gradient(90deg, #fff 0%, #FCBF19 100%) !important;
+  color: #00193F;
+}
+
+.rk-row--rank-2 {
+  background: linear-gradient(90deg, #fff 0%, #C7CDD6 100%) !important;
+  color: #00193F;
+}
+
+.rk-row--rank-3 {
+  background: linear-gradient(90deg, #fff 0%, #D8A06A 100%) !important;
+  color: #00193F;
+}
+
+.rk-cell {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rk-cell-rank {
+  text-align: center;
+  font-weight: 900;
+}
+
+.rk-crown {
+  color: #FCBF19;
+  font-size: 18px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.rk-cell-logo {
+  display: flex;
+  justify-content: center;
+}
+
+.rk-team-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.rk-cell-team {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 12.5px;
+}
+
+.rk-cell-num {
+  text-align: center;
+  font-size: 13px;
+}
+
+.rk-cell-total {
+  font-weight: 900;
+}
+
+/* ── Responsive ── */
+@media (max-width: 560px) {
+  .rk-dash-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .rk-dash-header__title {
+    font-size: 15px;
+    white-space: normal;
+  }
+
+  .rk-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rk-search-input,
+  .rk-search-input:focus {
+    width: 100%;
+  }
+
+  .rk-search-wrap {
+    flex: 1;
+  }
+
+  .rk-row,
+  .rk-row--medal {
+    grid-template-columns: 36px 36px 1fr repeat(auto-fit, minmax(48px, 1fr));
+    padding: 8px 10px;
+    column-gap: 4px;
+  }
+
+  .rk-cell {
+    font-size: 11px;
+  }
+
+  .rk-cell-team {
+    font-size: 10.5px;
+  }
+}

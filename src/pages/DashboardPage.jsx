@@ -305,6 +305,10 @@ export default function DashboardPage() {
         <h1 className="dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
         <LevelsButton />
       </header>
+      <div className="profile-page-intro">
+        <h2 className="profile-page-title">Home</h2>
+        <p className="profile-page-subtitle">Browse for matches informations</p>
+      </div>
       <div className="dash-body">
         <ScrollRow label="ONGOING MATCHES" variant="ongoing">
           {ONGOING.map(m => <OngoingCard key={m.id} match={m} />)}

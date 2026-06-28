@@ -1,15 +1,16 @@
 /* ═══════════════════════════════════════════
    DashboardPage.css — Santa Rita College
    ═══════════════════════════════════════════ */
+@import url(https://fonts.googleapis.com/css?family=Lalezar:regular);
 
 .user-dashboard {
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background-color: #0A1D52;
+  background-color: #001529;
   color: #fff;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Lalezar';
   overflow: hidden;
 }
 
@@ -21,7 +22,7 @@
   height: 48px;
   flex-shrink: 0;
   width: 100%;
-  background-color: #00193F;
+  background-color: #001529;
   border-bottom: 3px solid #fff;
   margin-top: 3.6px;
   box-sizing: border-box;
@@ -30,11 +31,17 @@
 .dash-header__title {
   font-size: 20px;
   font-family: 'Lalezar', sans-serif;
-  font-weight: 400;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   color: #fff;
   margin: 0;
   text-transform: uppercase;
   line-height: 1;
+}
+
+.profile-page-intro {
+  padding: 18px 25px 10px;
+  flex-shrink: 0;
 }
 
 .lvls-wrap {
@@ -629,4 +636,3 @@
 .fc-stat-icon {
   font-size: 11px;
 }
-

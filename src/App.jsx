@@ -15,6 +15,7 @@ import LoginModal from './components/LoginModal/LoginModal';
 import RegistrationPage from './pages/RegistrationPage';
 import TeamAndSportsPage from './pages/TeamAndSportsPage';
 import MatchSchedulesPage from './pages/MatchSchedulesPage';
+import RankingPage from './pages/RankingPage';
 
 function App() {
   return (
@@ -91,6 +92,15 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MatchSchedulesPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/ranking"
+              element={
+                <ProtectedRoute>
+                  <RankingPage />
                 </ProtectedRoute>
               }
             />
