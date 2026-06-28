@@ -1,0 +1,27 @@
+/* ── Page transition ──
+   Wraps whatever page is currently rendered by <Outlet />.
+   Because the wrapper is remounted on every route change (see
+   AuthenticatedLayout.jsx, key={location.pathname}), this animation
+   replays automatically every time the user navigates to a new page —
+   the same fade + slide-up feel used on the Team & Sports cards. */
+.page-transition {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: page-fade-in 0.32s ease both;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
