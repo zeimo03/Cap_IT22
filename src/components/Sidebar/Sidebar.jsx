@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal } from "react-icons/fa";
+import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal, FaShieldAlt } from "react-icons/fa";
 import { SidebarContext } from "../Sidebar/SidebarContext";
 import { AuthContext } from "../AuthContext";
 import "./Sidebar.css";
@@ -15,7 +15,6 @@ function Sidebar() {
     <>
       {/* ── Fixed icon rail ── */}
       <aside className="sidebar">
-        {/* ALL buttons stacked at top so they line up with the slide-out panel */}
         <div className="sidebar-top">
           <button
             className="sidebar-btn menu-btn"
@@ -43,11 +42,11 @@ function Sidebar() {
               className={`sidebar-btn ${location.pathname === "/dashboard" ? "active" : ""}`}
               aria-label="Home"
               data-label="Home"
-              onClick={() => navigate('/dashboard') }
+              onClick={() => navigate('/dashboard')}
             >
               <FaHome />
             </button>
-             <button
+            <button
               className={`sidebar-btn ${location.pathname === "/registration" ? "active" : ""}`}
               aria-label="Registration"
               data-label="Registration"
@@ -79,6 +78,18 @@ function Sidebar() {
             >
               <FaMedal />
             </button>
+
+            {/* Admin Panel icon — only visible to admins */}
+            {userProfile?.isAdmin && (
+              <button
+                className={`sidebar-btn ${location.pathname === "/schedule-admin" ? "active" : ""}`}
+                aria-label="Admin Panel"
+                data-label="Admin"
+                onClick={() => navigate('/schedule-admin')}
+              >
+                <FaShieldAlt />
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -99,7 +110,7 @@ function Sidebar() {
         </div>
 
         <nav className="panel-nav">
-           <Link to="/profile" className={`panel-nav-item ${ location.pathname === "/profile" ? "active" : "" }`}>
+          <Link to="/profile" className={`panel-nav-item ${location.pathname === "/profile" ? "active" : ""}`}>
             <FaUserCircle className="panel-nav-icon" />
             <span>Profile</span>
           </Link>
@@ -123,6 +134,15 @@ function Sidebar() {
             <FaMedal className="panel-nav-icon" />
             <span>Ranking</span>
           </Link>
+
+          {/* Admin Panel link — only visible to admins */}
+          {userProfile?.isAdmin && (
+            <Link to="/schedule-admin" className={`panel-nav-item ${location.pathname === "/schedule-admin" ? "active" : ""}`}>
+              <FaShieldAlt className="panel-nav-icon" />
+              <span>Admin Panel</span>
+            </Link>
+          )}
+
           {['admin', 'superadmin'].includes(userProfile?.role) && (
             <Link to="/admin" className="panel-nav-item">
               <FaUserCircle className="panel-nav-icon" />

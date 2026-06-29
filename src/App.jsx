@@ -6,6 +6,7 @@ import PublicLayout from './layouts/PublicLayout';
 import AuthenticatedLayout from './layouts/AuthenticatedLayout';
 import DashboardPage from './pages/DashboardPage';
 import AdminPage from './pages/AdminPage';
+import AdminSchedulePage from './pages/AdminSchedulePage';
 import ModeratorPage from './pages/ModeratorPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -101,6 +102,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <RankingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/schedule-admin"
+              element={
+                <ProtectedRoute>
+                  <AdminSchedulePage />
                 </ProtectedRoute>
               }
             />

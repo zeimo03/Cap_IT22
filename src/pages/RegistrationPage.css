@@ -85,8 +85,14 @@
   box-sizing: border-box;
 }
 
-.reg-body::-webkit-scrollbar { width: 4px; }
-.reg-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+.reg-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.reg-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
 
 /* ══════════════════════════════════════════
    FORM CARD  — white card matching profile-card style
@@ -149,10 +155,21 @@
   gap: 12px;
 }
 
-.reg-row--3   { grid-template-columns: 2fr 1fr 1fr; }
-.reg-row--2   { grid-template-columns: 1fr 1fr; }
-.reg-row--3eq { grid-template-columns: 1fr 1fr 1fr; }
-.reg-row--1   { grid-template-columns: 1fr; }
+.reg-row--3 {
+  grid-template-columns: 2fr 1fr 1fr;
+}
+
+.reg-row--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.reg-row--3eq {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.reg-row--1 {
+  grid-template-columns: 1fr;
+}
 
 /* ── Field ── */
 .reg-field {
@@ -449,17 +466,45 @@
    RESPONSIVE
    ══════════════════════════════════════════ */
 @media (max-width: 600px) {
-  .reg-dash-header { padding: 0 16px; }
-  .reg-page-intro  { padding: 14px 16px 8px; }
-  .reg-body        { padding: 0 10px 16px; }
-  .reg-card        { padding: 18px 16px 22px; }
-  .reg-row--3      { grid-template-columns: 1fr; }
-  .reg-row--3eq    { grid-template-columns: 1fr 1fr; }
-  .reg-row--2      { grid-template-columns: 1fr; }
-  .reg-uploads-row { grid-template-columns: 1fr 1fr; }
+  .reg-dash-header {
+    padding: 0 16px;
+  }
+
+  .reg-page-intro {
+    padding: 14px 16px 8px;
+  }
+
+  .reg-body {
+    padding: 0 10px 16px;
+  }
+
+  .reg-card {
+    padding: 18px 16px 22px;
+  }
+
+  .reg-row--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .reg-row--3eq {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reg-row--2 {
+    grid-template-columns: 1fr;
+  }
+
+  .reg-uploads-row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 400px) {
-  .reg-row--3eq    { grid-template-columns: 1fr; }
-  .reg-uploads-row { grid-template-columns: 1fr; }
+  .reg-row--3eq {
+    grid-template-columns: 1fr;
+  }
+
+  .reg-uploads-row {
+    grid-template-columns: 1fr;
+  }
 }

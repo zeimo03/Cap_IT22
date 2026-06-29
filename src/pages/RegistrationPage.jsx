@@ -1,4 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useContext } from 'react';
+import { AuthContext } from '../components/AuthContext';
+import { createRegistration } from '../services/firestoreService';
 import './RegistrationPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import {
@@ -47,6 +49,8 @@ const CONTACT_ITEMS = [
 ];
 
 export default function RegistrationPage() {
+
+  const { currentUser } = useContext(AuthContext);
   const [form, setForm] = useState(INITIAL);
   const [photo, setPhoto]         = useState(null);
   const [waiver, setWaiver]       = useState(null);
@@ -72,10 +76,31 @@ export default function RegistrationPage() {
     if (waiverRef.current) waiverRef.current.value = '';
   };
 
-  const handleSave = (e) => {
+ const handleSave = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
-  };
+
+    try {
+
+        if (!currentUser) {
+            alert("Please login first.");
+            return;
+        }
+
+        await createRegistration(
+            currentUser.uid,
+            currentUser.email,
+            form,
+            photo,
+            waiver
+        );
+
+        setSubmitted(true);
+
+    } catch (error) {
+        console.error(error);
+        alert(error.message);
+    }
+};
 
   if (submitted) {
     return (
@@ -278,6 +303,8 @@ export default function RegistrationPage() {
     </div>
   );
 }
+
+
 
 function Field({ label, required, children }) {
   return (
