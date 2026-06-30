@@ -84,6 +84,9 @@ export default function AdminSchedulePage() {
   const [filterGender,   setFilterGender]   = useState('');
   const [filterTeam,     setFilterTeam]     = useState('');
 
+  // Student detail modal
+  const [selectedStudent, setSelectedStudent] = useState(null);
+
   useEffect(() => { if (!isAdmin) navigate('/dashboard'); }, [isAdmin, navigate]);
 
   useEffect(() => {
@@ -387,7 +390,7 @@ const fetchSummary = useCallback(async () => {
                             </span>
                           </td>
                           <td>
-                            <button className="asp-btn-view">View</button>
+                            <button className="asp-btn-view" onClick={() => setSelectedStudent(reg)}>View</button>
                           </td>
                         </tr>
                       ))}
@@ -510,6 +513,104 @@ const fetchSummary = useCallback(async () => {
                 <button type="button" className="asp-btn-submit" onClick={handleAddSchedule} disabled={loading}>
                   {editingId ? 'Update Schedule' : 'Create Schedule'}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Student Detail Modal ── */}
+      {selectedStudent && (
+        <div className="asp-modal-overlay" onClick={() => setSelectedStudent(null)}>
+          <div className="asp-modal" onClick={e => e.stopPropagation()}>
+            <div className="asp-modal__header">
+              <h2>Student Details</h2>
+              <button className="asp-modal__close" onClick={() => setSelectedStudent(null)}><FaTimes /></button>
+            </div>
+            <div className="asp-modal__body">
+              <div className="asp-form-row">
+                <div className="asp-form-group">
+                  <label>Full Name</label>
+                  <p>{selectedStudent.fullName || '—'}</p>
+                </div>
+                <div className="asp-form-group">
+                  <label>Gender</label>
+                  <p>{selectedStudent.gender || '—'}</p>
+                </div>
+              </div>
+              <div className="asp-form-row">
+                <div className="asp-form-group">
+                  <label>Grade / Year Level</label>
+                  <p>{selectedStudent.gradeLevel || '—'}</p>
+                </div>
+                <div className="asp-form-group">
+                  <label>Section</label>
+                  <p>{selectedStudent.section || '—'}</p>
+                </div>
+              </div>
+              <div className="asp-form-row">
+                <div className="asp-form-group">
+                  <label>Date of Birth</label>
+                  <p>{selectedStudent.dob || '—'}</p>
+                </div>
+                <div className="asp-form-group">
+                  <label>Age</label>
+                  <p>{selectedStudent.age || '—'}</p>
+                </div>
+              </div>
+              <div className="asp-form-row">
+                <div className="asp-form-group">
+                  <label>Contact Number</label>
+                  <p>{selectedStudent.contactNumber || '—'}</p>
+                </div>
+                <div className="asp-form-group">
+                  <label>Email</label>
+                  <p>{selectedStudent.email || selectedStudent.studentEmail || '—'}</p>
+                </div>
+              </div>
+              <div className="asp-form-group">
+                <label>Address</label>
+                <p>{selectedStudent.address || '—'}</p>
+              </div>
+              <div className="asp-form-group">
+                <label>Emergency Contact</label>
+                <p>{selectedStudent.emergencyContact || '—'}</p>
+              </div>
+              <div className="asp-form-row">
+                <div className="asp-form-group">
+                  <label>Sport</label>
+                  <p>{selectedStudent.sport || '—'}</p>
+                </div>
+                <div className="asp-form-group">
+                  <label>Position</label>
+                  <p>{selectedStudent.position || '—'}</p>
+                </div>
+              </div>
+              <div className="asp-form-group">
+                <label>Team Name</label>
+                <p>{selectedStudent.teamName || '—'}</p>
+              </div>
+              {selectedStudent.message && (
+                <div className="asp-form-group">
+                  <label>Message</label>
+                  <p>{selectedStudent.message}</p>
+                </div>
+              )}
+              <div className="asp-form-row">
+                {selectedStudent.photoURL && (
+                  <div className="asp-form-group">
+                    <label>Photo</label>
+                    <p><a href={selectedStudent.photoURL} target="_blank" rel="noreferrer">View photo</a></p>
+                  </div>
+                )}
+                {selectedStudent.waiverURL && (
+                  <div className="asp-form-group">
+                    <label>Waiver / Consent Form</label>
+                    <p><a href={selectedStudent.waiverURL} target="_blank" rel="noreferrer">View waiver</a></p>
+                  </div>
+                )}
+              </div>
+              <div className="asp-form-actions">
+                <button type="button" className="asp-btn-cancel" onClick={() => setSelectedStudent(null)}>Close</button>
               </div>
             </div>
           </div>

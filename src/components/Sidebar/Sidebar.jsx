@@ -143,18 +143,14 @@ function Sidebar() {
             </Link>
           )}
 
-          {['admin', 'superadmin'].includes(userProfile?.role) && (
-            <Link to="/admin" className="panel-nav-item">
-              <FaUserCircle className="panel-nav-icon" />
-              <span>Admin</span>
-            </Link>
-          )}
-          {['moderator', 'admin', 'superadmin'].includes(userProfile?.role) && (
+          {/* Moderator — visible to moderators and super admins only (not regular admins) */}
+          {(userProfile?.role === 'moderator' || userProfile?.role === 'superadmin') && (
             <Link to="/moderator" className="panel-nav-item">
               <FaUserCircle className="panel-nav-icon" />
               <span>Moderator</span>
             </Link>
           )}
+          {/* Super Admin — visible to super admins only */}
           {userProfile?.role === 'superadmin' && (
             <Link to="/superadmin" className="panel-nav-item">
               <FaUserCircle className="panel-nav-icon" />

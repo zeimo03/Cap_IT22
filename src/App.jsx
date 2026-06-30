@@ -5,7 +5,6 @@ import { SidebarProvider } from './components/Sidebar/SidebarContext';
 import PublicLayout from './layouts/PublicLayout';
 import AuthenticatedLayout from './layouts/AuthenticatedLayout';
 import DashboardPage from './pages/DashboardPage';
-import AdminPage from './pages/AdminPage';
 import AdminSchedulePage from './pages/AdminSchedulePage';
 import ModeratorPage from './pages/ModeratorPage';
 import SuperAdminPage from './pages/SuperAdminPage';
@@ -48,18 +47,22 @@ function App() {
                  </ProtectedRoute>
               }
             />
+            {/* Admin lands on the real, functional admin dashboard
+                (registrations / sports / schedules management) — not a stub page. */}
             <Route
               path="/admin"
               element={
                 <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
-                  <AdminPage />
+                  <AdminSchedulePage />
                 </ProtectedRoute>
               }
             />
+            {/* Moderators (and super admins) only — regular admins no longer
+                fall through into the moderator area. */}
             <Route
               path="/moderator"
               element={
-                <ProtectedRoute allowedRoles={["moderator", "admin", "superadmin"]}>
+                <ProtectedRoute allowedRoles={["moderator", "superadmin"]}>
                   <ModeratorPage />
                 </ProtectedRoute>
               }
@@ -105,10 +108,11 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            {/* Kept as an alias of /admin so existing links/bookmarks still work */}
             <Route
               path="/schedule-admin"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={["admin", "superadmin"]}>
                   <AdminSchedulePage />
                 </ProtectedRoute>
               }

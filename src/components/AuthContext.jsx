@@ -12,13 +12,23 @@ import { doc, getDoc } from 'firebase/firestore';
 import { createUserProfile, getUserProfile } from '../services/firestoreService';
 
 // ════════════════════════════════════════════════════════════════════════════════
-// ADMINISTRATOR ACCOUNTS CONFIGURATION
+// STAFF ACCOUNTS CONFIGURATION
 // ════════════════════════════════════════════════════════════════════════════════
-// Admin emails are now managed through Firestore.
-// To add/remove admins, go to your Firebase Console → Firestore Database → 
-// "admins" collection, and add/remove documents using the admin's email as the
-// Document ID.
+// Staff roles are managed through Firestore. To grant a role to an account, go to
+// Firebase Console → Firestore Database → and add a document using the staff
+// member's email (lowercase) as the Document ID, inside one of these collections:
+//   • "superadmins"  → Super Admin access
+//   • "admins"       → Admin access
+//   • "moderators"   → Moderator access
+// Anyone whose email is not present in any of these collections is treated as a
+// regular student/player account.
 // ════════════════════════════════════════════════════════════════════════════════
+
+const ROLE_COLLECTIONS = [
+  { role: 'superadmin', collection: 'superadmins' },
+  { role: 'admin', collection: 'admins' },
+  { role: 'moderator', collection: 'moderators' },
+];
 
 export const AuthContext = createContext({
   authModal: { isOpen: false, screen: 'login' },
@@ -47,18 +57,24 @@ export function AuthProvider({ children }) {
   const [authLoading, setAuthLoading] = useState(true);
 
   /**
-   * Check Firestore "admins" collection to see if an email is an admin.
-   * The document ID in the "admins" collection should be the email address.
+   * Check the "superadmins", "admins", and "moderators" Firestore collections
+   * (document ID = lowercase email) to resolve a staff role for this email.
+   * Returns 'superadmin' | 'admin' | 'moderator' | 'student'.
+   * This is the single source of truth for role/security checks — a user
+   * cannot claim a privileged role unless their email exists in Firestore.
    */
-  const checkAdminStatus = async (email) => {
-    if (!db || !email) return false;
-    try {
-      const adminDoc = await getDoc(doc(db, 'admins', email.toLowerCase()));
-      return adminDoc.exists();
-    } catch (error) {
-      console.warn('Failed to check admin status:', error);
-      return false;
+  const resolveStaffRole = async (email) => {
+    if (!db || !email) return 'student';
+    const lower = email.toLowerCase();
+    for (const { role, collection } of ROLE_COLLECTIONS) {
+      try {
+        const snap = await getDoc(doc(db, collection, lower));
+        if (snap.exists()) return role;
+      } catch (error) {
+        console.warn(`Failed to check ${collection} status:`, error);
+      }
     }
+    return 'student';
   };
 
   useEffect(() => {
@@ -73,13 +89,15 @@ export function AuthProvider({ children }) {
       if (user && db) {
         try {
           const profile = await getUserProfile(user.uid);
-          // Check Firestore admins collection
-          const adminStatus = await checkAdminStatus(user.email);
+          // Resolve staff role from Firestore (superadmins / admins / moderators)
+          const staffRole = await resolveStaffRole(user.email);
+          const isAdminRole = staffRole === 'admin' || staffRole === 'superadmin';
 
           if (profile) {
             setUserProfile({
               ...profile,
-              isAdmin: adminStatus,
+              role: staffRole !== 'student' ? staffRole : (profile.role || 'student'),
+              isAdmin: isAdminRole,
             });
           } else {
             setUserProfile(null);
@@ -109,23 +127,43 @@ export function AuthProvider({ children }) {
     setAuthModal({ isOpen: true, screen });
   };
 
+  /**
+   * @param {string} email
+   * @param {string} password
+   * Signs the person in and automatically resolves their *real* role by
+   * checking Firestore (superadmins / admins / moderators / else student).
+   * The person never has to pick a role — the system already knows it.
+   * Returns { user, role }.
+   */
   const login = async (email, password) => {
     if (!auth) throw new Error('Firebase Auth not configured. Please add Firebase credentials to .env');
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    return credential.user;
+    const user = credential.user;
+    const resolvedRole = await resolveStaffRole(user.email);
+    return { user, role: resolvedRole };
   };
 
-  const signup = async (name, email, password) => {
+  /**
+   * @param {string} name
+   * @param {string} email
+   * @param {string} password
+   * @param {object} [extra] Optional player/student details captured at sign-up:
+   *   { gender, gradeLevel, section }
+   */
+  const signup = async (name, email, password, extra = {}) => {
     if (!auth) throw new Error('Firebase Auth not configured. Please add Firebase credentials to .env');
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     const user = credential.user;
     if (db) {
-      const adminStatus = await checkAdminStatus(email);
+      const staffRole = await resolveStaffRole(email);
       const profileData = {
         name,
         email,
-        role: 'student',
-        isAdmin: adminStatus,
+        gender: extra.gender || '',
+        gradeLevel: extra.gradeLevel || '',
+        section: extra.section || '',
+        role: staffRole,
+        isAdmin: staffRole === 'admin' || staffRole === 'superadmin',
       };
       await createUserProfile(user.uid, profileData);
       setUserProfile(profileData);

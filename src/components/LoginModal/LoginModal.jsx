@@ -2,6 +2,7 @@ import React, { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
 import { FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { findStaffAllowlistEntry } from '../../services/firestoreService';
 import './LoginModal.css';
 import srcLogo from '../img/SRCLogo.png';
 
@@ -9,14 +10,18 @@ function LoginScreen({ onSwitchScreen, onLogin, onSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
-      await onLogin(email, password);
-      onSuccess();
+      const { role } = await onLogin(email, password);
+      onSuccess(role);
     } catch (error) {
       alert(error.message || 'Login failed. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -63,8 +68,8 @@ function LoginScreen({ onSwitchScreen, onLogin, onSuccess }) {
           </div>
         </div>
 
-        <button type="submit" className="auth-btn auth-btn-primary">
-          Log In
+        <button type="submit" className="auth-btn auth-btn-primary" disabled={submitting}>
+          {submitting ? 'Signing in…' : 'Log In'}
         </button>
       </form>
 
@@ -94,20 +99,55 @@ function LoginScreen({ onSwitchScreen, onLogin, onSuccess }) {
   );
 }
 
+const GRADE_LEVELS = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+  'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12',
+  '1st Year', '2nd Year', '3rd Year', '4th Year'];
+
+const SECTIONS = ['Section A', 'Section B', 'Section C', 'Section D', 'Section E'];
+
+const ROLE_LABELS = {
+  student: 'Student',
+  admin: 'Admin',
+  moderator: 'Moderator',
+  superadmin: 'Super Admin',
+};
+
 function SignUpScreen({ onSwitchScreen, onSignUp, onSuccess }) {
+  const [role, setRole] = useState('student'); // student | admin | moderator | superadmin
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
+    gender: '',
+    gradeLevel: '',
+    section: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isStaffRole = role !== 'student';
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleRoleChange = (e) => {
+    // Switching roles clears the form so a half-filled student form
+    // can't leak into a staff signup (and vice versa).
+    setRole(e.target.value);
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      gender: '',
+      gradeLevel: '',
+      section: '',
     });
   };
 
@@ -118,12 +158,42 @@ function SignUpScreen({ onSwitchScreen, onSignUp, onSuccess }) {
       return;
     }
 
+    setSubmitting(true);
     try {
-      await onSignUp(formData.name, formData.email, formData.password);
+      if (isStaffRole) {
+        // Staff (admin / moderator / super admin) don't fill out the
+        // full student form — just the gmail they were pre-cleared
+        // with, plus a password. Confirm that gmail is on the
+        // allowlist for the role they picked before creating the account.
+        const staffEntry = await findStaffAllowlistEntry(formData.email, role);
+        if (!staffEntry) {
+          alert(
+            'That email is not authorized to sign up as ' +
+            ROLE_LABELS[role] +
+            '. Please check the email or contact a super admin.'
+          );
+          return;
+        }
+
+        await onSignUp(staffEntry.name || '', formData.email, formData.password, {
+          role,
+          isStaff: true,
+        });
+      } else {
+        await onSignUp(formData.name, formData.email, formData.password, {
+          role: 'student',
+          gender: formData.gender,
+          gradeLevel: formData.gradeLevel,
+          section: formData.section,
+        });
+      }
+
       alert('Account created successfully. Welcome!');
       onSuccess();
     } catch (error) {
       alert(error.message || 'Sign up failed. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -137,79 +207,207 @@ function SignUpScreen({ onSwitchScreen, onSignUp, onSuccess }) {
 
       <form onSubmit={handleSubmit} className="auth-form">
         <div className="form-group">
-          <label htmlFor="name">Create Name</label>
-          <input
-            type="text"
-            id="name"
-            name="name"
-            placeholder="Enter your name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-          />
+          <label htmlFor="role">Sign up as</label>
+          <select id="role" name="role" value={role} onChange={handleRoleChange}>
+            <option value="student">Student</option>
+            <option value="admin">Admin</option>
+            <option value="moderator">Moderator</option>
+            <option value="superadmin">Super Admin</option>
+          </select>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="email">Email</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            placeholder="Enter your email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-          />
-        </div>
+        {isStaffRole ? (
+          <>
+            {/* Staff accounts are pre-approved by gmail — no need to
+                re-collect personal/academic info that's already on file. */}
+            <div className="form-group">
+              <label htmlFor="email">{ROLE_LABELS[role]} Gmail</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="Enter your authorized gmail"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-        <div className="form-group">
-          <label htmlFor="password">Create Password</label>
-          <div className="password-input-wrapper">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              id="password"
-              name="password"
-              placeholder="Create a password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
-            <button
-              type="button"
-              className="password-toggle"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <FaEyeSlash /> : <FaEye />}
-            </button>
-          </div>
-        </div>
+            <div className="form-group">
+              <label htmlFor="password">Create Password</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  placeholder="Create a password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+            </div>
 
-        <div className="form-group">
-          <label htmlFor="confirmPassword">Confirm Password</label>
-          <div className="password-input-wrapper">
-            <input
-              type={showConfirmPassword ? 'text' : 'password'}
-              id="confirmPassword"
-              name="confirmPassword"
-              placeholder="Confirm your password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-            />
-            <button
-              type="button"
-              className="password-toggle"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            >
-              {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
-            </button>
-          </div>
-        </div>
+            <div className="form-group">
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <div className="password-input-wrapper">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  placeholder="Confirm password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="form-group">
+              <label htmlFor="name">Create Name</label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                placeholder="Enter your name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+              />
+            </div>
 
-        <button type="submit" className="auth-btn auth-btn-primary">
-          Submit
+            <div className="form-group">
+              <label htmlFor="email">Email</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Gender</label>
+              <div className="auth-radio-group">
+                {['Male', 'Female', 'Others'].map((g) => (
+                  <label className="auth-radio-label" key={g}>
+                    <input
+                      type="radio"
+                      name="gender"
+                      value={g}
+                      checked={formData.gender === g}
+                      onChange={handleChange}
+                      required
+                    />
+                    {g}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="auth-form-row">
+              <div className="form-group">
+                <label htmlFor="gradeLevel">Grade / Year Level</label>
+                <select
+                  id="gradeLevel"
+                  name="gradeLevel"
+                  value={formData.gradeLevel}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select</option>
+                  {GRADE_LEVELS.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="section">Section</label>
+                <select
+                  id="section"
+                  name="section"
+                  value={formData.section}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select</option>
+                  {SECTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="auth-form-row">
+              <div className="form-group">
+                <label htmlFor="password">Create Password</label>
+                <div className="password-input-wrapper">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    name="password"
+                    placeholder="Create a password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="confirmPassword">Confirm Password</label>
+                <div className="password-input-wrapper">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="Confirm password"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        <button type="submit" className="auth-btn auth-btn-primary" disabled={submitting}>
+          {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </form>
     </div>
@@ -407,10 +605,9 @@ export default function LoginModal() {
             <LoginScreen
               onSwitchScreen={switchScreen}
               onLogin={login}
-              onSuccess={() => {
+              onSuccess={(role) => {
                 closeAuthModal();
-                // redirect based on role; default goes to /dashboard for general users
-                const role = userProfile?.role ?? 'student';
+                // redirect based on the Firestore-verified role returned by login()
                 if (role === 'admin') navigate('/admin');
                 else if (role === 'moderator') navigate('/moderator');
                 else if (role === 'superadmin') navigate('/superadmin');

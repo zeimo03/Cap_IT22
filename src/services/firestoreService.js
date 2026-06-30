@@ -7,6 +7,7 @@ import {
   addDoc,
   query,
   orderBy,
+  where,
   serverTimestamp,
 } from 'firebase/firestore';
 import {
@@ -56,6 +57,38 @@ export async function getUserProfile(uid) {
   const profileDoc = doc(db, 'users', uid);
   const snapshot   = await getDoc(profileDoc);
   return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+}
+
+/* ─────────────────────────────────────────────
+   Staff allowlist lookup.
+
+   Used by the sign-up form's "Admin / Moderator / Super Admin"
+   path: staff don't fill out the full student form, they just
+   enter the gmail they were pre-registered with + a password.
+   We look that email up in the `staffAllowlist` collection and,
+   if found, confirm it's cleared for the role they picked.
+
+   Expected doc shape in `staffAllowlist` (doc id = lowercase email):
+     { email: 'someone@gmail.com', role: 'admin' | 'moderator' | 'superadmin', name: 'Optional Name' }
+
+   @param {string} email
+   @param {string} role  one of 'admin' | 'moderator' | 'superadmin'
+   @returns {object|null} the allowlist doc if email+role match, else null
+───────────────────────────────────────────── */
+export async function findStaffAllowlistEntry(email, role) {
+  if (!db) {
+    console.warn('Firestore not initialized. Cannot verify staff email.');
+    return null;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  const staffQuery = query(
+    collection(db, 'staffAllowlist'),
+    where('email', '==', normalizedEmail),
+    where('role', '==', role)
+  );
+  const snapshot = await getDocs(staffQuery);
+  if (snapshot.empty) return null;
+  return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
 }
 
 /* ─────────────────────────────────────────────
@@ -133,4 +166,33 @@ export async function createRegistration(uid, email, formData, photoFile, waiver
 
   const docRef = await addDoc(collection(db, 'registrations'), registrationData);
   return docRef;
+}
+
+/* ─────────────────────────────────────────────
+   Sports & Teams management (per school level)
+   Stored at: sportsTeamsConfig/{level}
+   level: 'elementary' | 'highSchool' | 'college'
+───────────────────────────────────────────── */
+export async function getSportsTeamsConfig(level) {
+  if (!db) {
+    console.warn('Firestore not initialized. Cannot load sports/teams config.');
+    return { sports: [], teams: [] };
+  }
+  const ref = doc(db, 'sportsTeamsConfig', level);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { sports: [], teams: [] };
+  const data = snap.data();
+  return { sports: data.sports || [], teams: data.teams || [] };
+}
+
+export async function saveSportsConfig(level, sports) {
+  if (!db) throw new Error('Firestore not initialized.');
+  const ref = doc(db, 'sportsTeamsConfig', level);
+  await setDoc(ref, { sports, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function saveTeamsConfig(level, teams) {
+  if (!db) throw new Error('Firestore not initialized.');
+  const ref = doc(db, 'sportsTeamsConfig', level);
+  await setDoc(ref, { teams, updatedAt: serverTimestamp() }, { merge: true });
 }

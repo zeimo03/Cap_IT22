@@ -48,11 +48,24 @@
   background: #ffffff;
   border-radius: 20px;
   width: 100%;
-  max-width: 420px;
-  padding: 2.5rem 2rem;
+  max-width: 480px;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2.25rem 2.25rem;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   z-index: 1;
   animation: modalSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Slimmer scrollbar so it doesn't fight the rounded corners */
+.auth-modal-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.auth-modal-card::-webkit-scrollbar-thumb {
+  background: rgba(10, 29, 82, 0.25);
+  border-radius: 10px;
 }
 
 /* Close Button */
@@ -104,6 +117,85 @@
   animation: fadeInDown 0.5s ease-out 0.1s backwards;
 }
 
+/* Signup: gender radio group */
+.auth-radio-group {
+  display: flex;
+  gap: 1.25rem;
+  padding-top: 0.1rem;
+}
+
+.auth-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0A1D52;
+  font-family: "Inter", sans-serif;
+  cursor: pointer;
+}
+
+.auth-radio-label input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  width: 17px;
+  height: 17px;
+  min-width: 17px;
+  border: 2px solid #c7cfdb;
+  border-radius: 50%;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  background: #fff;
+  transition: border-color 0.15s ease;
+}
+
+.auth-radio-label input[type="radio"]:hover {
+  border-color: #0A1D52;
+}
+
+.auth-radio-label input[type="radio"]:checked {
+  border-color: #0A1D52;
+}
+
+.auth-radio-label input[type="radio"]:checked::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #0A1D52;
+}
+
+/* Signup: side-by-side fields (Grade/Year + Section) */
+
+.form-group select {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: "Inter", sans-serif;
+  background: #f8f9fa;
+  color: #0A1D52;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #0A1D52;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(10, 29, 82, 0.1);
+}
+
+.form-group select:invalid {
+  color: rgba(10, 29, 82, 0.5);
+}
+
 /* Form */
 .auth-form {
   display: flex;
@@ -126,7 +218,7 @@
   font-family: "Inter", sans-serif;
 }
 
-.form-group input {
+.form-group input:not([type="radio"]) {
   padding: 0.75rem 1rem;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -137,7 +229,7 @@
   transition: all 0.2s ease;
 }
 
-.form-group input:focus {
+.form-group input:not([type="radio"]):focus {
   outline: none;
   border-color: #0A1D52;
   background: #ffffff;
@@ -364,6 +456,16 @@
   animation: screenFadeIn 0.3s ease-out;
 }
 
+/* Sign-up has more fields than the other screens — tighten vertical
+   rhythm a touch so it relies less on the modal's internal scroll. */
+.signup-screen .auth-title {
+  margin-bottom: 1.25rem;
+}
+
+.signup-screen .auth-form {
+  gap: 0.85rem;
+}
+
 @keyframes screenFadeIn {
   from {
     opacity: 0;
@@ -401,6 +503,16 @@
   .form-group input {
     padding: 0.65rem 0.85rem;
     font-size: 0.9rem;
+  }
+
+  .form-group select {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.9rem;
+  }
+
+  .auth-form-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
   .auth-btn {
