@@ -1,10 +1,47 @@
-import React, { useState, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { AuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './AdminSchedulePage.css';
-import { FaEdit, FaTrash, FaPlus, FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import SportsTeamsManager from './SportsTeamsManager';
+
+const LEVELS = [
+  { key: 'elementary', label: 'Elementary' },
+  { key: 'highSchool',  label: 'High School' },
+  { key: 'college',     label: 'College' },
+];
+
+/* Levels dropdown — same interaction pattern as the Home Dashboard's LevelsButton */
+function LevelsButton({ levelKey, onChange }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const current = LEVELS.find(l => l.key === levelKey) || LEVELS[1];
+
+  return (
+    <div ref={wrapRef} className="lvls-wrap">
+      <button className="lvls-btn" onClick={() => setOpen(p => !p)} aria-haspopup="listbox" aria-expanded={open}>
+        {current.label}
+        <span className={`lvls-btn__arrow ${open ? 'lvls-btn__arrow--open' : ''}`}><FaChevronDown /></span>
+      </button>
+      <div className={`lvls-dropdown ${open ? 'lvls-dropdown--open' : ''}`} role="listbox">
+        {LEVELS.map((l) => (
+          <button key={l.key} className="lvls-dropdown__item" onClick={() => { onChange(l.key); setOpen(false); }} role="option" aria-selected={levelKey === l.key}>
+            {l.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /* ─── Grade-level bucketing ───────────────────────── */
 const ELEMENTARY_GRADES = new Set(['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6']);
@@ -60,6 +97,7 @@ export default function AdminSchedulePage() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState(0);
+  const [level, setLevel] = useState('highSchool');
   const [schedules, setSchedules] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -206,6 +244,7 @@ const fetchSummary = useCallback(async () => {
       {/* Header */}
       <header className="asp-header">
         <h1 className="asp-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
+        <LevelsButton levelKey={level} onChange={setLevel} />
       </header>
 
       {/* Intro */}
@@ -405,8 +444,12 @@ const fetchSummary = useCallback(async () => {
 
         {/* ══ TAB 1 ══ */}
         {activeTab === 1 && (
-          <div className="asp-card asp-card--placeholder">
-            <p>Sports &amp; Teams management coming soon.</p>
+          <div className="asp-tab-content">
+            <div className="asp-level-banner">
+              <h2>{LEVELS.find(l => l.key === level)?.label.toUpperCase()}</h2>
+              <div className="asp-level-banner__bar" />
+            </div>
+            <SportsTeamsManager level={level} />
           </div>
         )}
 

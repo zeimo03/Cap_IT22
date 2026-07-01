@@ -178,21 +178,48 @@ export async function getSportsTeamsConfig(level) {
     console.warn('Firestore not initialized. Cannot load sports/teams config.');
     return { sports: [], teams: [] };
   }
-  const ref = doc(db, 'sportsTeamsConfig', level);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return { sports: [], teams: [] };
-  const data = snap.data();
-  return { sports: data.sports || [], teams: data.teams || [] };
+
+  const configRef = doc(db, 'sportsTeamsConfig', level);
+  const snapshot = await getDoc(configRef);
+
+  if (!snapshot.exists()) {
+    return { sports: [], teams: [] };
+  }
+
+  const data = snapshot.data();
+
+  return {
+    sports: data.sports || [],
+    teams: data.teams || [],
+  };
 }
 
 export async function saveSportsConfig(level, sports) {
   if (!db) throw new Error('Firestore not initialized.');
-  const ref = doc(db, 'sportsTeamsConfig', level);
-  await setDoc(ref, { sports, updatedAt: serverTimestamp() }, { merge: true });
+
+  const configRef = doc(db, 'sportsTeamsConfig', level);
+
+  await setDoc(
+    configRef,
+    {
+      sports,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }
 
 export async function saveTeamsConfig(level, teams) {
   if (!db) throw new Error('Firestore not initialized.');
-  const ref = doc(db, 'sportsTeamsConfig', level);
-  await setDoc(ref, { teams, updatedAt: serverTimestamp() }, { merge: true });
+
+  const configRef = doc(db, 'sportsTeamsConfig', level);
+
+  await setDoc(
+    configRef,
+    {
+      teams,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }

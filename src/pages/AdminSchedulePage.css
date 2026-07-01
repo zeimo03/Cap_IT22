@@ -20,6 +20,7 @@
 .asp-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 25px;
   height: 48px;
   flex-shrink: 0;
@@ -900,4 +901,116 @@
   .asp-results-count {
     margin-left: 0;
   }
+}
+
+/* ══════════════════════════════════════════
+   LEVELS DROPDOWN (header, top-right)
+   ══════════════════════════════════════════ */
+.lvls-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.lvls-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.04em;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+.lvls-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.lvls-btn__arrow {
+  display: inline-block;
+  font-size: 11px;
+  transition: transform 0.25s ease;
+}
+
+.lvls-btn__arrow--open {
+  transform: rotate(180deg);
+}
+
+.lvls-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #001529;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 150px;
+  z-index: 100;
+  transform-origin: top right;
+  transform: scaleY(0.9) translateY(-8px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.lvls-dropdown--open {
+  transform: scaleY(1) translateY(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.lvls-dropdown__item {
+  display: block;
+  width: 100%;
+  padding: 11px 18px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.lvls-dropdown__item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.lvls-dropdown__item+.lvls-dropdown__item {
+  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ══════════════════════════════════════════
+   LEVEL BANNER (Sports & Teams tab)
+   ══════════════════════════════════════════ */
+.asp-level-banner {
+  text-align: center;
+  padding: 6px 0 4px;
+}
+
+.asp-level-banner h2 {
+  font-family: 'Lalezar', sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.08em;
+  color: #f5a623;
+  margin: 0 0 8px;
+}
+
+.asp-level-banner__bar {
+  width: 90px;
+  height: 3px;
+  background: #f5a623;
+  margin: 0 auto;
+  border-radius: 2px;
 }
