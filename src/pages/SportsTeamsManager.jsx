@@ -1,67 +1,115 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaRunning, FaUsers, FaPlus, FaTimes, FaChevronDown, FaCheck, FaEdit } from 'react-icons/fa';
+import {
+  FaRunning, FaUsers, FaPlus, FaTimes, FaChevronDown,
+  FaEdit, FaCheck, FaEllipsisV, FaSync,
+} from 'react-icons/fa';
 import './SportsTeamsManager.css';
 import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../services/firestoreService';
 
-/* ───────────────────────────────────────────
-   Constants
-─────────────────────────────────────────── */
-const LEVEL_LABELS = { elementary: 'ELEMENTARY', highSchool: 'HIGH SCHOOL', college: 'COLLEGE' };
-
+/* ═══════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════ */
 const FORMAT_OPTIONS = [
-  { id: 'single-time-a',  label: 'Single Play',          sub: '(with only time basis to win)' },
-  { id: 'single-time-b',  label: 'Single Play',          sub: '(with only time basis to win)' },
-  { id: 'single-group',   label: 'Single Play (Group)',  sub: '(depends on how many players will play in one match)' },
-  { id: 'team-points',    label: 'Team Play',            sub: '(with only points basis to win)' },
+  { id: 'single-time',  label: 'Single Play',         sub: '(with only time basis to win)' },
+  { id: 'single-solo',  label: 'Single Play',         sub: '(with only points basis to win — solo)' },
+  { id: 'single-group', label: 'Single Play (Group)', sub: '(depends on how many players will play in one match)' },
+  { id: 'team-play',    label: 'Team Play',           sub: '(with only points basis to win)' },
 ];
 
-const TEAM_COLORS = ['#b45309', '#dc2626', '#15803d', '#6d28d9', '#92400e', '#9f1239', '#1a1a1a', '#ea580c'];
+const DEFAULT_GROUP_LABELS = ['FEMALE', 'MALE', 'MIXED', 'OPEN', 'YOUTH', 'SENIOR', 'JUNIOR', 'VETERAN'];
+const TEAM_COLORS = ['#b45309','#dc2626','#15803d','#6d28d9','#92400e','#9f1239','#374151','#ea580c'];
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const ensureId = (obj) => obj?.id ? obj : { ...obj, id: uid() };
 
-/* ───────────────────────────────────────────
-   Generic small dropdown for picking a count (1-10)
-─────────────────────────────────────────── */
-function CountDropdown({ value, onChange, label }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+/* ═══════════════════════════════════════════
+   LOGO UPLOAD
+   Resizes to 80×80 before storing as base64
+═══════════════════════════════════════════ */
+function LogoUpload({ logo, onUpload }) {
+  const inputRef = useRef(null);
 
-  useEffect(() => {
-    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const SIZE = 80;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = SIZE;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#001529';
+      ctx.fillRect(0, 0, SIZE, SIZE);
+      const scale = Math.min(SIZE / img.width, SIZE / img.height);
+      const x = (SIZE - img.width * scale) / 2;
+      const y = (SIZE - img.height * scale) / 2;
+      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+      onUpload(canvas.toDataURL('image/jpeg', 0.75));
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  };
 
   return (
-    <div className="stm-count-wrap" ref={ref}>
-      <button type="button" className="stm-count-btn" onClick={() => setOpen(o => !o)}>
-        {value ? `${value}` : label}
-        <FaChevronDown className={`stm-count-arrow ${open ? 'stm-count-arrow--open' : ''}`} />
-      </button>
-      <div className={`stm-count-dropdown ${open ? 'stm-count-dropdown--open' : ''}`}>
-        {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
-          <button
-            key={n}
-            type="button"
-            className="stm-count-item"
-            onClick={() => { onChange(n); setOpen(false); }}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
+    <div className="stm-logo-upload" onClick={() => inputRef.current?.click()} title="Click to upload">
+      {logo
+        ? <img src={logo} alt="logo" className="stm-logo-img" />
+        : <span className="stm-logo-placeholder">Upload Image</span>
+      }
+      <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
     </div>
   );
 }
 
-/* ───────────────────────────────────────────
-   Choose Sport Format modal
-─────────────────────────────────────────── */
-function FormatModal({ initial, onDone, onClose }) {
-  const [picked, setPicked] = useState(initial || FORMAT_OPTIONS[0].id);
+/* ═══════════════════════════════════════════
+   CUSTOM NUMBER DROPDOWN  (image 3 design)
+   Dark navy panel with pill options
+═══════════════════════════════════════════ */
+function NumDropdown({ value, onChange, label, max = 10 }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   return (
-    <div className="stm-overlay" onClick={onClose}>
+    <div className="stm-num-wrap" ref={wrapRef}>
+      <button type="button" className="stm-num-btn" onClick={() => setOpen(o => !o)}>
+        {value ? `Number of ${label.toLowerCase().replace('number of ', '')} ✓ ${value}` : label}
+        <FaChevronDown className={`stm-num-arrow ${open ? 'stm-num-arrow--open' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="stm-num-panel">
+          <div className="stm-num-panel__title">NUMBER OF {label.toUpperCase().replace('NUMBER OF ', '')} OPTION</div>
+          {Array.from({ length: max }, (_, i) => i + 1).map(n => (
+            <button
+              key={n}
+              type="button"
+              className={`stm-num-option ${value === n ? 'stm-num-option--active' : ''}`}
+              onClick={() => { onChange(n); setOpen(false); }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   CHOOSE SPORT FORMAT MODAL
+═══════════════════════════════════════════ */
+function FormatModal({ initial, onDone, onClose }) {
+  const [picked, setPicked] = useState(initial || '');
+
+  return (
+    <div className="stm-overlay stm-overlay--top" onClick={onClose}>
       <div className="stm-modal stm-modal--format" onClick={e => e.stopPropagation()}>
         <div className="stm-modal__head">
           <div>
@@ -72,167 +120,293 @@ function FormatModal({ initial, onDone, onClose }) {
         </div>
         <div className="stm-format-list">
           {FORMAT_OPTIONS.map(opt => (
-            <label key={opt.id} className={`stm-format-row ${picked === opt.id ? 'stm-format-row--active' : ''}`}>
+            <label
+              key={opt.id}
+              className={`stm-format-row ${picked === opt.id ? 'stm-format-row--active' : ''}`}
+              onClick={() => setPicked(opt.id)}
+            >
               <div>
                 <span className="stm-format-label">{opt.label}</span>
                 <span className="stm-format-sub">{opt.sub}</span>
               </div>
-              <input
-                type="checkbox"
-                checked={picked === opt.id}
-                onChange={() => setPicked(opt.id)}
-              />
+              <span className={`stm-format-check ${picked === opt.id ? 'stm-format-check--on' : ''}`}>
+                {picked === opt.id && <FaCheck />}
+              </span>
             </label>
           ))}
         </div>
-        <button className="stm-btn-primary stm-btn-block" onClick={() => onDone(picked)}>Done</button>
+        <button className="stm-btn-primary stm-btn-block" disabled={!picked} onClick={() => onDone(picked)}>
+          Done
+        </button>
       </div>
     </div>
   );
 }
 
-/* ───────────────────────────────────────────
-   Category / Division modal
-─────────────────────────────────────────── */
+/* ═══════════════════════════════════════════
+   CATEGORY / DIVISION MODAL  (image 4 design)
+   Groups (Female/Male/etc) each with divisions
+═══════════════════════════════════════════ */
 function CategoryModal({ sport, onClose, onSave }) {
-  const [rows, setRows] = useState(sport.categories?.length ? sport.categories : [{ id: uid(), name: '', format: '' }]);
-  const [formatTarget, setFormatTarget] = useState(null);
+  const initGroups = () => {
+    if (sport.categoryGroups?.length) return sport.categoryGroups.map(g => ({
+      ...ensureId(g),
+      divisions: (g.divisions || []).map(ensureId),
+    }));
+    return [{ id: uid(), label: 'FEMALE', divisions: [{ id: uid(), name: '', format: '' }] }];
+  };
 
-  const setCount = (n) => {
-    setRows(prev => {
+  const [groups, setGroups] = useState(initGroups);
+  const [fmtTarget, setFmtTarget] = useState(null); // { gid, did }
+
+  /* Stepper: controls number of groups */
+  const setGroupCount = (n) => {
+    setGroups(prev => {
       const next = [...prev];
-      while (next.length < n) next.push({ id: uid(), name: '', format: '' });
+      while (next.length < n) {
+        const lbl = DEFAULT_GROUP_LABELS[next.length] || `GROUP ${next.length + 1}`;
+        next.push({ id: uid(), label: lbl, divisions: [{ id: uid(), name: '', format: '' }] });
+      }
       while (next.length > n) next.pop();
       return next;
     });
   };
 
-  const updateRow = (id, patch) => setRows(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
-  const removeRow = (id) => setRows(prev => prev.filter(r => r.id !== id));
-  const formatLabel = (fmtId) => FORMAT_OPTIONS.find(f => f.id === fmtId);
+  const updateLabel = (gid, label) =>
+    setGroups(prev => prev.map(g => g.id === gid ? { ...g, label } : g));
+
+  const addDivision = (gid) =>
+    setGroups(prev => prev.map(g => g.id === gid
+      ? { ...g, divisions: [...g.divisions, { id: uid(), name: '', format: '' }] }
+      : g));
+
+  const removeDivision = (gid, did) =>
+    setGroups(prev => prev.map(g => g.id === gid
+      ? { ...g, divisions: g.divisions.filter(d => d.id !== did) }
+      : g));
+
+  const updateDiv = (gid, did, patch) =>
+    setGroups(prev => prev.map(g => g.id === gid
+      ? { ...g, divisions: g.divisions.map(d => d.id === did ? { ...d, ...patch } : d) }
+      : g));
+
+  const handleReset = () => setGroups(initGroups());
+
+  const handleSubmit = () => {
+    const cleaned = groups
+      .filter(g => g.label.trim())
+      .map(g => {
+        // Keep a division if it has a name OR a format selected
+        const filledDivs = g.divisions.filter(d => d.name.trim() || d.format);
+        // If no filled divisions at all, represent the category itself as one entry
+        // so "FEMALE" still appears in the preview even without sub-events
+        const divisions = filledDivs.length > 0
+          ? filledDivs.map(d => ({ ...d, name: d.name.trim() || g.label }))
+          : [{ id: g.id + '_auto', name: g.label, format: g.divisions[0]?.format || '' }];
+        return { ...g, divisions };
+      });
+    onSave(cleaned);
+  };
+
+  const fmtObj = (id) => FORMAT_OPTIONS.find(f => f.id === id);
 
   return (
-    <div className="stm-overlay" onClick={onClose}>
-      <div className="stm-modal stm-modal--category" onClick={e => e.stopPropagation()}>
-        <div className="stm-modal__head stm-modal__head--row">
-          <div>
-            <h3>Category/ Division</h3>
-            <p>Set the categories or divisions for your sports</p>
+    <>
+      <div className="stm-overlay" onClick={onClose}>
+        <div className="stm-modal stm-modal--category" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="stm-catmod-head">
+          <button className="stm-icon-btn stm-catmod-close" onClick={onClose}><FaTimes /></button>
+          <h3>CATEGORY / DIVISION</h3>
+          <p>Set the categories, divisions, and formats for your sports</p>
+          {/* Stepper: [+  N  -] matching image 4 */}
+          <div className="stm-catmod-stepper">
+            <button type="button" onClick={() => setGroupCount(groups.length + 1)}>+</button>
+            <span>{groups.length}</span>
+            <button type="button" onClick={() => setGroupCount(Math.max(1, groups.length - 1))}>−</button>
           </div>
-          <div className="stm-stepper">
-            <button type="button" onClick={() => setCount(Math.max(1, rows.length - 1))}>−</button>
-            <span>{rows.length}</span>
-            <button type="button" onClick={() => setCount(rows.length + 1)}>+</button>
-          </div>
-          <button className="stm-icon-btn" onClick={onClose}><FaTimes /></button>
         </div>
 
-        <div className="stm-cat-list">
-          {rows.map(row => {
-            const fmt = formatLabel(row.format);
-            return (
-              <div key={row.id} className="stm-cat-row">
+        {/* Groups */}
+        <div className="stm-cat-groups">
+          {groups.map((group, gi) => (
+            <div key={group.id} className="stm-cat-group">
+              <div className="stm-cat-group__hdr">
                 <input
-                  className="stm-cat-input"
-                  placeholder="e.g. Female (100 meters run)"
-                  value={row.name}
-                  onChange={e => updateRow(row.id, { name: e.target.value })}
+                  className="stm-cat-group__label"
+                  value={group.label}
+                  onChange={e => updateLabel(group.id, e.target.value.toUpperCase())}
                 />
-                {fmt ? (
-                  <div className="stm-cat-format-chip">
-                    <span className="stm-cat-format-chip__label">{fmt.label}</span>
-                    <span className="stm-cat-format-chip__sub">{fmt.sub}</span>
-                  </div>
-                ) : (
-                  <button type="button" className="stm-btn-secondary" onClick={() => setFormatTarget(row.id)}>
-                    Choose sport format
-                  </button>
-                )}
-                <button type="button" className="stm-icon-btn" onClick={() => removeRow(row.id)}><FaTimes /></button>
+                <span className="stm-cat-group__num">{gi + 1}</span>
               </div>
-            );
-          })}
+
+              {group.divisions.map(div => {
+                const fmt = fmtObj(div.format);
+                return (
+                  <div key={div.id} className="stm-div-row">
+                    <input
+                      className="stm-div-input"
+                      placeholder="e.g. Mixed Relay 4×4 (400m)"
+                      value={div.name}
+                      onChange={e => updateDiv(group.id, div.id, { name: e.target.value })}
+                    />
+                    {fmt ? (
+                      <button
+                        type="button"
+                        className="stm-div-fmt-chip"
+                        onClick={() => setFmtTarget({ gid: group.id, did: div.id })}
+                        title="Click to change format"
+                      >
+                        <span className="stm-div-fmt-chip__label">{fmt.label}</span>
+                        <span className="stm-div-fmt-chip__sub">{fmt.sub}</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="stm-div-choose-btn"
+                        onClick={() => setFmtTarget({ gid: group.id, did: div.id })}
+                      >
+                        Choose sport format
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="stm-icon-btn"
+                      onClick={() => removeDivision(group.id, div.id)}
+                    >
+                      <FaTimes />
+                    </button>
+                  </div>
+                );
+              })}
+
+              <button
+                type="button"
+                className="stm-add-div-btn"
+                onClick={() => addDivision(group.id)}
+              >
+                <FaPlus /> Add Division
+              </button>
+            </div>
+          ))}
         </div>
 
-        <button
-          className="stm-btn-primary stm-btn-block"
-          onClick={() => onSave(rows.filter(r => r.name.trim()))}
-        >
-          Submit
-        </button>
+        {/* Bottom actions */}
+        <div className="stm-catmod-actions">
+          <button type="button" className="stm-btn-ghost" onClick={handleReset}>
+            <FaSync style={{ marginRight: 6, fontSize: '0.7rem' }} /> Reset
+          </button>
+          <button type="button" className="stm-btn-primary" onClick={handleSubmit}>Submit</button>
+        </div>
       </div>
-
-      {formatTarget && (
-        <FormatModal
-          initial={rows.find(r => r.id === formatTarget)?.format}
-          onClose={() => setFormatTarget(null)}
-          onDone={(fmtId) => { updateRow(formatTarget, { format: fmtId }); setFormatTarget(null); }}
-        />
-      )}
     </div>
+
+    {/* FormatModal is a sibling overlay — not a child — so z-index stacks correctly */}
+    {fmtTarget && (
+      <FormatModal
+        initial={groups.find(g => g.id === fmtTarget.gid)?.divisions.find(d => d.id === fmtTarget.did)?.format}
+        onClose={() => setFmtTarget(null)}
+        onDone={(fmtId) => {
+          updateDiv(fmtTarget.gid, fmtTarget.did, { format: fmtId });
+          setFmtTarget(null);
+        }}
+      />
+    )}
+    </>
   );
 }
 
-/* ───────────────────────────────────────────
-   Sports confirmation modal
-─────────────────────────────────────────── */
-function SportsConfirmModal({ sports, onClose, onSave }) {
-  const flat = sports.flatMap(s => (s.categories.length ? s.categories : [{ name: '—', format: '' }]).map((c, i) => ({
-    sportName: i === 0 ? s.name : '',
-    sportIcon: i === 0,
-    catName: c.name,
-    fmt: FORMAT_OPTIONS.find(f => f.id === c.format),
-  })));
+/* ═══════════════════════════════════════════
+   SPORTS CONFIRMATION MODAL  (image 5 design)
+   Sports | Division/Categories | Sports Format | Logo
+═══════════════════════════════════════════ */
+function SportsConfirmModal({ sports, saving, onClose, onSave }) {
+  /* Flatten: one row per division across all groups */
+  const rows = sports.flatMap(sport => {
+    const flat = sport.categoryGroups?.flatMap(g =>
+      g.divisions.map(d => ({ div: d, groupLabel: g.label }))
+    ) || [];
+    if (flat.length === 0) return [{ sport, div: null, groupLabel: '' }];
+    return flat.map((item, i) => ({ sport: i === 0 ? sport : null, ...item }));
+  });
 
   return (
     <div className="stm-overlay" onClick={onClose}>
       <div className="stm-modal stm-modal--confirm" onClick={e => e.stopPropagation()}>
-        <h3 className="stm-confirm-title">Confirmation</h3>
+        <h3 className="stm-confirm-title">CONFIRMATION</h3>
         <div className="stm-confirm-grid stm-confirm-grid--sports">
+          {/* SPORTS col */}
           <div className="stm-confirm-col">
-            <h4>Sports</h4>
-            {sports.map(s => (
-              <div key={s.id} className="stm-confirm-cell stm-confirm-cell--edit">
-                <span>{s.name}</span>
-                <FaEdit className="stm-confirm-edit-icon" />
+            <h4>SPORTS</h4>
+            {rows.map((r, i) => (
+              <div key={i} className="stm-confirm-cell">
+                {r.sport ? (
+                  <span className="stm-confirm-sport-name">
+                    {r.sport.name}
+                    <span className="stm-confirm-edit-icon"><FaEdit /></span>
+                  </span>
+                ) : <span />}
               </div>
             ))}
           </div>
+
+          {/* DIVISION/CATEGORIES col */}
           <div className="stm-confirm-col">
-            <h4>Division/ Categories</h4>
-            {flat.map((r, i) => <div key={i} className="stm-confirm-cell">{r.catName || '—'}</div>)}
+            <h4>DIVISION/ CATEGORIES</h4>
+            {rows.map((r, i) => (
+              <div key={i} className="stm-confirm-cell">
+                {r.div ? r.div.name || r.groupLabel : '—'}
+              </div>
+            ))}
           </div>
+
+          {/* SPORTS FORMAT col */}
           <div className="stm-confirm-col">
-            <h4>Sports Format</h4>
-            {flat.map((r, i) => <div key={i} className="stm-confirm-cell">{r.fmt ? r.fmt.label : '—'}</div>)}
+            <h4>SPORTS FORMAT</h4>
+            {rows.map((r, i) => {
+              const fmt = FORMAT_OPTIONS.find(f => f.id === r.div?.format);
+              return (
+                <div key={i} className="stm-confirm-cell">
+                  {fmt ? fmt.label : '—'}
+                </div>
+              );
+            })}
           </div>
+
+          {/* SPORTS LOGO col */}
           <div className="stm-confirm-col">
-            <h4>Sports Logo</h4>
+            <h4>SPORTS LOGO</h4>
             {sports.map(s => (
               <div key={s.id} className="stm-confirm-cell stm-confirm-cell--logo">
-                <FaRunning />
+                {s.logo
+                  ? <img src={s.logo} alt="logo" className="stm-confirm-logo-img" />
+                  : <span className="stm-confirm-logo-placeholder"><FaRunning /></span>
+                }
               </div>
             ))}
           </div>
         </div>
-        <button className="stm-btn-primary stm-btn-block" onClick={onSave}>Save</button>
+
+        <button className="stm-btn-primary stm-btn-block" onClick={onSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
       </div>
     </div>
   );
 }
 
-/* ───────────────────────────────────────────
-   "Select sports that team participating" modal
-─────────────────────────────────────────── */
+/* ═══════════════════════════════════════════
+   TEAM SPORTS PICKER MODAL
+═══════════════════════════════════════════ */
 function TeamSportsPickerModal({ team, sportsList, onClose, onSave }) {
-  const [selected, setSelected] = useState(team.sportIds || []);
-  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(new Set(team.sportIds || []));
 
-  const toggle = (name) => {
-    setSelected(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
-  };
-
-  const available = sportsList.length ? sportsList.map(s => s.name) : [];
+  const toggle = (name) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(name) ? next.delete(name) : next.add(name);
+    return next;
+  });
 
   return (
     <div className="stm-overlay" onClick={onClose}>
@@ -240,111 +414,96 @@ function TeamSportsPickerModal({ team, sportsList, onClose, onSave }) {
         <div className="stm-modal__head">
           <div>
             <h3>Sports</h3>
-            <p>Set the sports with the participating teams</p>
+            <p>Select sports for <strong>{team.name || 'this team'}</strong></p>
           </div>
           <button className="stm-icon-btn" onClick={onClose}><FaTimes /></button>
         </div>
 
-        <div className="stm-count-wrap stm-picker-dd" style={{ width: '100%' }}>
-          <button type="button" className="stm-count-btn stm-count-btn--wide" onClick={() => setOpen(o => !o)}>
-            Sports
-            <FaChevronDown className={`stm-count-arrow ${open ? 'stm-count-arrow--open' : ''}`} />
-          </button>
-          <div className={`stm-count-dropdown stm-count-dropdown--wide ${open ? 'stm-count-dropdown--open' : ''}`}>
-            {available.length === 0 && <div className="stm-empty-note">Add sports first</div>}
-            {available.map(name => (
-              <button key={name} type="button" className="stm-count-item stm-count-item--wide" onClick={() => { toggle(name); setOpen(false); }}>
-                {name}
+        {sportsList.length === 0 ? (
+          <p className="stm-empty-note" style={{ padding: '20px 0' }}>No sports added yet.</p>
+        ) : (
+          <div className="stm-picker-list">
+            {sportsList.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                className={`stm-picker-item ${selected.has(s.name) ? 'stm-picker-item--on' : ''}`}
+                onClick={() => toggle(s.name)}
+              >
+                {s.logo
+                  ? <img src={s.logo} alt="" className="stm-picker-logo" />
+                  : <span className="stm-picker-logo stm-picker-logo--icon"><FaRunning /></span>
+                }
+                <span>{s.name}</span>
+                <span className="stm-picker-check">{selected.has(s.name) && <FaCheck />}</span>
               </button>
             ))}
           </div>
-        </div>
+        )}
 
-        <p className="stm-selected-label">Selected Sports</p>
+        <p className="stm-selected-label">Selected ({selected.size})</p>
         <div className="stm-chip-list">
-          {selected.map(name => (
+          {[...selected].map(name => (
             <div key={name} className="stm-chip">
               <span>{name}</span>
               <button type="button" onClick={() => toggle(name)}><FaTimes /></button>
             </div>
           ))}
-          {selected.length === 0 && <p className="stm-empty-note">No sports selected yet.</p>}
+          {selected.size === 0 && <p className="stm-empty-note">None selected.</p>}
         </div>
 
-        <button className="stm-btn-primary stm-btn-block" onClick={() => onSave(selected)}>Submit</button>
+        <button className="stm-btn-primary stm-btn-block" onClick={() => onSave([...selected])}>
+          Submit
+        </button>
       </div>
     </div>
   );
 }
 
-/* ───────────────────────────────────────────
-   Teams confirmation modal
-─────────────────────────────────────────── */
-function TeamsConfirmModal({ teams, onClose, onSave }) {
-  const [active, setActive] = useState(teams[0]?.id);
-  const activeTeam = teams.find(t => t.id === active) || teams[0];
+/* ═══════════════════════════════════════════
+   TEAMS CONFIRMATION MODAL
+═══════════════════════════════════════════ */
+function TeamsConfirmModal({ teams, saving, onClose, onSave }) {
+  const [activeId, setActiveId] = useState(teams[0]?.id);
+  const activeTeam = teams.find(t => t.id === activeId) || teams[0];
 
   return (
     <div className="stm-overlay" onClick={onClose}>
       <div className="stm-modal stm-modal--confirm stm-modal--teams-confirm" onClick={e => e.stopPropagation()}>
-        <h3 className="stm-confirm-title">Confirmation</h3>
+        <h3 className="stm-confirm-title">CONFIRMATION</h3>
         <div className="stm-confirm-grid stm-confirm-grid--teams">
           <div className="stm-confirm-col">
-            <h4>Teams</h4>
+            <h4>TEAMS</h4>
             {teams.map((t, i) => (
               <button
                 key={t.id}
                 type="button"
-                className={`stm-team-row ${activeTeam?.id === t.id ? 'stm-team-row--active' : ''}`}
-                onClick={() => setActive(t.id)}
+                className={`stm-team-conf-row ${activeTeam?.id === t.id ? 'stm-team-conf-row--active' : ''}`}
+                onClick={() => setActiveId(t.id)}
               >
-                <span className="stm-team-row__num">{i + 1}</span>
-                <span className="stm-team-row__logo" style={{ background: t.color }} />
-                <span className="stm-team-row__name">{t.name}</span>
-                <span className="stm-team-row__count">{t.sportIds.length}</span>
+                <span className="stm-team-conf-row__num">{i + 1}</span>
+                {t.logo
+                  ? <img src={t.logo} alt="" className="stm-team-conf-row__logo-img" />
+                  : <span className="stm-team-conf-row__dot" style={{ background: t.color }} />
+                }
+                <span className="stm-team-conf-row__name">{t.name}</span>
+                <span className="stm-team-conf-row__badge">{t.sportIds.length}</span>
               </button>
             ))}
           </div>
           <div className="stm-confirm-col">
-            <h4>{activeTeam?.name || 'TEAM'}</h4>
-            {(activeTeam?.sportIds || []).map(s => (
-              <div key={s} className="stm-confirm-cell">{s}</div>
-            ))}
-            {(!activeTeam || activeTeam.sportIds.length === 0) && <p className="stm-empty-note">No sports selected.</p>}
+            <h4>{activeTeam?.name?.toUpperCase() || 'TEAM'}</h4>
+            {(activeTeam?.sportIds || []).length === 0
+              ? <p className="stm-empty-note">No sports selected.</p>
+              : (activeTeam?.sportIds || []).map(s => (
+                <div key={s} className="stm-confirm-cell">{s}</div>
+              ))
+            }
           </div>
         </div>
-        <button className="stm-btn-primary stm-btn-block" onClick={onSave}>Save</button>
-      </div>
-    </div>
-  );
-}
-
-/* ───────────────────────────────────────────
-   Preview dropdown (shared for sports + teams)
-─────────────────────────────────────────── */
-function PreviewSelect({ items, value, onChange, placeholder }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
-
-  return (
-    <div className="stm-preview-select" ref={ref}>
-      <button type="button" className="stm-preview-select__btn" onClick={() => setOpen(o => !o)}>
-        {value || placeholder}
-        <FaChevronDown className={`stm-count-arrow ${open ? 'stm-count-arrow--open' : ''}`} />
-      </button>
-      <div className={`stm-preview-select__dd ${open ? 'stm-preview-select__dd--open' : ''}`}>
-        {items.map(name => (
-          <button key={name} type="button" className="stm-preview-select__item" onClick={() => { onChange(name); setOpen(false); }}>
-            {name}
-          </button>
-        ))}
-        {items.length === 0 && <div className="stm-empty-note">Nothing saved yet.</div>}
+        <button className="stm-btn-primary stm-btn-block" onClick={onSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
       </div>
     </div>
   );
@@ -354,120 +513,168 @@ function PreviewSelect({ items, value, onChange, placeholder }) {
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
 export default function SportsTeamsManager({ level }) {
-  const [sportsRows, setSportsRows] = useState([]);
-  const [teamsRows, setTeamsRows]   = useState([]);
-  const [sportsList, setSportsList] = useState([]); // saved/confirmed
-  const [teamsList, setTeamsList]   = useState([]);
+  const [sportsRows,  setSportsRows]  = useState([]);
+  const [teamsRows,   setTeamsRows]   = useState([]);
+  const [sportsList,  setSportsList]  = useState([]);
+  const [teamsList,   setTeamsList]   = useState([]);
 
-  const [categoryTarget, setCategoryTarget] = useState(null); // sport row id
-  const [sportsPickerTarget, setSportsPickerTarget] = useState(null); // team row id
+  const [catTarget,         setCatTarget]         = useState(null); // sport row id
+  const [pickerTarget,      setPickerTarget]      = useState(null); // team row id
   const [showSportsConfirm, setShowSportsConfirm] = useState(false);
-  const [showTeamsConfirm, setShowTeamsConfirm]   = useState(false);
+  const [showTeamsConfirm,  setShowTeamsConfirm]  = useState(false);
 
   const [previewSport, setPreviewSport] = useState('');
-  const [previewTeam, setPreviewTeam]   = useState('');
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState('');
+  const [previewTeam,  setPreviewTeam]  = useState('');
+  const [saving,  setSaving]  = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [toast,   setToast]   = useState('');
 
-  /* Load config when level changes */
+  /* ── Load from Firestore ── */
   const load = useCallback(async () => {
-    const cfg = await getSportsTeamsConfig(level);
-    setSportsList(cfg.sports);
-    setTeamsList(cfg.teams);
-    setPreviewSport(cfg.sports[0]?.name || '');
-    setPreviewTeam(cfg.teams[0]?.name || '');
-    setSportsRows([]);
-    setTeamsRows([]);
+    setLoading(true);
+    try {
+      const cfg = await getSportsTeamsConfig(level);
+      const sports = (cfg.sports || []).map(s => ({
+        ...ensureId(s),
+        logo: s.logo || null,
+        categoryGroups: (s.categoryGroups || (s.categories
+          ? [{ id: uid(), label: 'DIVISION', divisions: s.categories.map(ensureId) }]
+          : [])).map(g => ({ ...ensureId(g), divisions: (g.divisions || []).map(ensureId) })),
+      }));
+      const teams = (cfg.teams || []).map(t => ({
+        ...ensureId(t),
+        logo: t.logo || null,
+        sportIds: t.sportIds || [],
+        color: t.color || TEAM_COLORS[0],
+      }));
+      setSportsList(sports);
+      setTeamsList(teams);
+      setPreviewSport(sports[0]?.name || '');
+      setPreviewTeam('');   // always start blank so "Team Name" placeholder shows
+      setSportsRows([]);
+      setTeamsRows([]);
+    } catch (e) {
+      console.error('Load error:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [level]);
 
   useEffect(() => { load(); }, [load]);
 
-  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2800); };
 
-  /* ── Sports form helpers ── */
-  const setSportsCount = (n) => {
-    setSportsRows(prev => {
-      const next = [...prev];
-      while (next.length < n) next.push({ id: uid(), name: '', categories: [] });
-      while (next.length > n) next.pop();
-      return next;
-    });
-  };
-  const updateSportRow = (id, patch) => setSportsRows(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
+  /* ── Sport row helpers ── */
+  const setSportsCount = (n) => setSportsRows(prev => {
+    const next = [...prev];
+    while (next.length < n) next.push({ id: uid(), name: '', logo: null, categoryGroups: [] });
+    while (next.length > n) next.pop();
+    return next;
+  });
+  const updateSportRow = (id, patch) =>
+    setSportsRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
   const resetSportsForm = () => setSportsRows([]);
 
-  const submitSportsForm = () => {
-    const cleaned = sportsRows.filter(r => r.name.trim());
-    if (cleaned.length === 0) { flash('Add at least one sport first.'); return; }
+  const submitSports = () => {
+    if (!sportsRows.some(r => r.name.trim())) { flash('Enter at least one sport name.'); return; }
     setShowSportsConfirm(true);
   };
 
-  const saveSportsConfirm = async () => {
+  const saveSports = async () => {
     const cleaned = sportsRows.filter(r => r.name.trim());
-    const merged = [...sportsList.filter(s => !cleaned.some(c => c.name === s.name)), ...cleaned];
+    const merged  = [
+      ...sportsList.filter(s => !cleaned.some(c => c.name === s.name)),
+      ...cleaned,
+    ];
+    // Update local state immediately so preview reflects changes right away
+    setSportsList(merged);
+    setPreviewSport(merged[0]?.name || '');
+    setSportsRows([]);
+    setShowSportsConfirm(false);
+    // Then persist to Firestore in background
     setSaving(true);
     try {
       await saveSportsConfig(level, merged);
-      setSportsList(merged);
-      setPreviewSport(merged[0]?.name || '');
-      setSportsRows([]);
-      setShowSportsConfirm(false);
-      flash('Sports saved to Firestore!');
+      flash('✓ Sports saved!');
     } catch (e) {
       console.error(e);
-      flash('Failed to save sports.');
+      flash('Saved locally — Firestore sync failed.');
     } finally {
       setSaving(false);
     }
   };
 
-  /* ── Teams form helpers ── */
-  const setTeamsCount = (n) => {
-    setTeamsRows(prev => {
-      const next = [...prev];
-      while (next.length < n) next.push({ id: uid(), name: '', sportIds: [], color: TEAM_COLORS[next.length % TEAM_COLORS.length] });
-      while (next.length > n) next.pop();
-      return next;
-    });
-  };
-  const updateTeamRow = (id, patch) => setTeamsRows(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
-  const resetTeamsForm = () => setTeamsRows([]);
+  /* ── Team row helpers ── */
+  const setTeamsCount = (n) => setTeamsRows(prev => {
+    const next = [...prev];
+    while (next.length < n) next.push({ id: uid(), name: '', logo: null, sportIds: [], color: TEAM_COLORS[next.length % TEAM_COLORS.length] });
+    while (next.length > n) next.pop();
+    return next;
+  });
+  const updateTeamRow = (id, patch) =>
+    setTeamsRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
 
-  const submitTeamsForm = () => {
-    const cleaned = teamsRows.filter(r => r.name.trim());
-    if (cleaned.length === 0) { flash('Add at least one team first.'); return; }
+  const submitTeams = () => {
+    if (!teamsRows.some(r => r.name.trim())) { flash('Enter at least one team name.'); return; }
     setShowTeamsConfirm(true);
   };
 
-  const saveTeamsConfirm = async () => {
+  const saveTeams = async () => {
     const cleaned = teamsRows.filter(r => r.name.trim());
-    const merged = [...teamsList.filter(t => !cleaned.some(c => c.name === t.name)), ...cleaned];
+    const merged  = [
+      ...teamsList.filter(t => !cleaned.some(c => c.name === t.name)),
+      ...cleaned,
+    ];
+    // Update local state immediately so preview reflects changes right away
+    setTeamsList(merged);
+    setPreviewTeam('');   // reset to placeholder so user picks manually
+    setTeamsRows([]);
+    setShowTeamsConfirm(false);
+    // Then persist to Firestore in background
     setSaving(true);
     try {
       await saveTeamsConfig(level, merged);
-      setTeamsList(merged);
-      setPreviewTeam(merged[0]?.name || '');
-      setTeamsRows([]);
-      setShowTeamsConfirm(false);
-      flash('Teams saved to Firestore!');
+      flash('✓ Teams saved!');
     } catch (e) {
       console.error(e);
-      flash('Failed to save teams.');
+      flash('Saved locally — Firestore sync failed.');
     } finally {
       setSaving(false);
     }
   };
 
-  const activePreviewSport = sportsList.find(s => s.name === previewSport);
-  const activePreviewTeam  = teamsList.find(t => t.name === previewTeam);
-  const categorySportRow   = sportsRows.find(r => r.id === categoryTarget);
-  const pickerTeamRow      = teamsRows.find(r => r.id === sportsPickerTarget);
+  const resetTeamsForm = () => {
+    setTeamsRows([]);
+  };
+
+  /* ── Derived ── */
+  const catSportRow  = sportsRows.find(r => r.id === catTarget)     || null;
+  const pickerTeam   = teamsRows.find(r => r.id === pickerTarget)   || null;
+  const activeSport  = sportsList.find(s => s.name === previewSport) || null;
+  const activeTeam   = teamsList.find(t => t.name === previewTeam)  || null;
+
+  const flatDivisions = (sport) =>
+    (sport?.categoryGroups || []).flatMap(g => {
+      const divs = g.divisions || [];
+      if (divs.length === 0) {
+        // No sub-divisions: represent the category group itself
+        return [{ id: g.id + '_lbl', name: g.label, format: '', groupLabel: g.label }];
+      }
+      return divs.map(d => ({
+        ...d,
+        name: d.name || g.label, // fall back to group label if division name is blank
+        groupLabel: g.label,
+      }));
+    });
+
+  const totalDivisions = (sport) => flatDivisions(sport).length;
 
   return (
     <div className="stm-wrap">
-      {toast && <div className="stm-toast">{toast}</div>}
+      {toast   && <div className="stm-toast">{toast}</div>}
+      {loading && <div className="stm-loading">Loading…</div>}
 
-      {/* ════════ SPORTS ════════ */}
+      {/* ════════ SPORTS FORM ════════ */}
       <div className="stm-card">
         <div className="stm-card__head">
           <FaRunning className="stm-card__icon" />
@@ -478,7 +685,7 @@ export default function SportsTeamsManager({ level }) {
         </div>
 
         <div className="stm-form-toprow">
-          <CountDropdown value={sportsRows.length || ''} onChange={setSportsCount} label="Number of sport" />
+          <NumDropdown value={sportsRows.length || null} onChange={setSportsCount} label="Number of sport" />
           <button type="button" className="stm-link-btn" onClick={() => setSportsCount(sportsRows.length + 1)}>
             <FaPlus /> To add category
           </button>
@@ -488,7 +695,14 @@ export default function SportsTeamsManager({ level }) {
           <div className="stm-table-wrap">
             <table className="stm-table">
               <thead>
-                <tr><th>#</th><th>Sports Name</th><th>Logo</th><th>Categories/Division</th></tr>
+                <tr>
+                  <th>#</th>
+                  <th>Sports Name</th>
+                  <th>Logo</th>
+                  <th>Categories</th>
+                  <th>Division</th>
+                  <th />
+                </tr>
               </thead>
               <tbody>
                 {sportsRows.map((row, i) => (
@@ -502,12 +716,37 @@ export default function SportsTeamsManager({ level }) {
                         onChange={e => updateSportRow(row.id, { name: e.target.value })}
                       />
                     </td>
-                    <td><span className="stm-logo-chip"><FaRunning /></span></td>
+                    <td>
+                      <LogoUpload
+                        logo={row.logo}
+                        onUpload={(b64) => updateSportRow(row.id, { logo: b64 })}
+                      />
+                    </td>
+                    <td className="stm-td-center">
+                      {row.categoryGroups.length > 0 ? row.categoryGroups.length : '—'}
+                    </td>
                     <td>
                       <div className="stm-cat-count-cell">
-                        <span>{row.categories.length}</span>
-                        <button type="button" className="stm-plus-btn" onClick={() => setCategoryTarget(row.id)}><FaPlus /></button>
+                        <span className="stm-cat-badge">{totalDivisions(row) || '—'}</span>
+                        <button
+                          type="button"
+                          className="stm-plus-btn"
+                          title="Set categories & divisions"
+                          onClick={() => setCatTarget(row.id)}
+                        >
+                          <FaPlus />
+                        </button>
                       </div>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="stm-dots-btn"
+                        onClick={() => updateSportRow(row.id, { _del: !row._del })}
+                        title="Remove"
+                      >
+                        <FaEllipsisV />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -517,54 +756,81 @@ export default function SportsTeamsManager({ level }) {
         )}
 
         <div className="stm-form-actions">
-          <button type="button" className="stm-btn-ghost" onClick={resetSportsForm}>Reset</button>
-          <button type="button" className="stm-btn-primary" onClick={submitSportsForm} disabled={saving}>Submit</button>
+          <button type="button" className="stm-btn-ghost" onClick={resetSportsForm}>
+            <FaSync style={{ marginRight: 5, fontSize: '0.7rem' }} /> Reset
+          </button>
+          <button type="button" className="stm-btn-primary" onClick={submitSports} disabled={saving}>Submit</button>
         </div>
       </div>
 
-      {/* ════════ PREVIEW: SPORTS ════════ */}
-      <div className="stm-card">
+      {/* ════════ SPORTS PREVIEW ════════ */}
+      <div className="stm-card stm-card--preview">
         <h4 className="stm-preview-title">PREVIEW</h4>
         <p className="stm-preview-sub">Select a sport to view its categories/divisions.</p>
+
         <div className="stm-preview-row">
           <div className="stm-preview-block">
             <span className="stm-preview-label">SPORTS</span>
-            <PreviewSelect items={sportsList.map(s => s.name)} value={previewSport} onChange={setPreviewSport} placeholder="Select sport" />
+            <div className="stm-preview-dd-wrap">
+              <select
+                className="stm-preview-dd"
+                value={previewSport}
+                onChange={e => setPreviewSport(e.target.value)}
+              >
+                {(!previewSport || sportsList.length === 0) && (
+                  <option value="" disabled>Sport Name</option>
+                )}
+                {sportsList.map(s => (
+                  <option key={s.id} value={s.name}>{s.name.toUpperCase()}</option>
+                ))}
+              </select>
+              <FaChevronDown className="stm-preview-dd__arrow" />
+            </div>
           </div>
+
           <div className="stm-preview-block">
             <span className="stm-preview-label">CATEGORIES/ DIVISION</span>
             <ul className="stm-preview-list">
-              {(activePreviewSport?.categories || []).map(c => (
-                <li key={c.id}>{c.name}</li>
-              ))}
-              {(!activePreviewSport || activePreviewSport.categories.length === 0) && <li className="stm-empty-note">—</li>}
+              {sportsList.length === 0 ? (
+                <li className="stm-empty-note">No sports saved yet.</li>
+              ) : flatDivisions(activeSport).length === 0 ? (
+                <li className="stm-empty-note">No categories set.</li>
+              ) : (
+                flatDivisions(activeSport).map((d, i) => (
+                  <li key={d.id || i}>{d.name}</li>
+                ))
+              )}
             </ul>
           </div>
+
           <div className="stm-preview-block">
             <span className="stm-preview-label">SPORTS FORMAT</span>
             <ul className="stm-preview-list">
-              {(activePreviewSport?.categories || []).map(c => {
-                const f = FORMAT_OPTIONS.find(o => o.id === c.format);
-                return <li key={c.id}>{f ? f.label : '—'}</li>;
-              })}
-              {(!activePreviewSport || activePreviewSport.categories.length === 0) && <li className="stm-empty-note">—</li>}
+              {flatDivisions(activeSport).length === 0 ? (
+                <li className="stm-empty-note">—</li>
+              ) : (
+                flatDivisions(activeSport).map((d, i) => {
+                  const f = FORMAT_OPTIONS.find(o => o.id === d.format);
+                  return <li key={d.id || i}>{f ? f.label : '—'}</li>;
+                })
+              )}
             </ul>
           </div>
         </div>
       </div>
 
-      {/* ════════ TEAMS ════════ */}
+      {/* ════════ TEAMS FORM ════════ */}
       <div className="stm-card">
         <div className="stm-card__head">
           <FaUsers className="stm-card__icon" />
           <div>
             <h3>TEAMS</h3>
-            <p>Add teams that will participate in the selected sports</p>
+            <p>Add teams that will participate in the selected sports.</p>
           </div>
         </div>
 
         <div className="stm-form-toprow">
-          <CountDropdown value={teamsRows.length || ''} onChange={setTeamsCount} label="Number of team" />
+          <NumDropdown value={teamsRows.length || null} onChange={setTeamsCount} label="Number of team" />
           <button type="button" className="stm-link-btn" onClick={() => setTeamsCount(teamsRows.length + 1)}>
             <FaPlus /> To select sports that team participating
           </button>
@@ -574,7 +840,12 @@ export default function SportsTeamsManager({ level }) {
           <div className="stm-table-wrap">
             <table className="stm-table">
               <thead>
-                <tr><th>#</th><th>Team Name</th><th>Logo</th><th>Sports</th></tr>
+                <tr>
+                  <th>#</th>
+                  <th>Team Name</th>
+                  <th>Logo</th>
+                  <th>Sports</th>
+                </tr>
               </thead>
               <tbody>
                 {teamsRows.map((row, i) => (
@@ -588,11 +859,23 @@ export default function SportsTeamsManager({ level }) {
                         onChange={e => updateTeamRow(row.id, { name: e.target.value })}
                       />
                     </td>
-                    <td><span className="stm-logo-chip" style={{ background: row.color }} /></td>
+                    <td>
+                      <LogoUpload
+                        logo={row.logo}
+                        onUpload={(b64) => updateTeamRow(row.id, { logo: b64 })}
+                      />
+                    </td>
                     <td>
                       <div className="stm-cat-count-cell">
-                        <span>{row.sportIds.length}</span>
-                        <button type="button" className="stm-plus-btn" onClick={() => setSportsPickerTarget(row.id)}><FaPlus /></button>
+                        <span className="stm-cat-badge">{row.sportIds.length || '—'}</span>
+                        <button
+                          type="button"
+                          className="stm-plus-btn"
+                          title="Select sports"
+                          onClick={() => setPickerTarget(row.id)}
+                        >
+                          <FaPlus />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -603,61 +886,95 @@ export default function SportsTeamsManager({ level }) {
         )}
 
         <div className="stm-form-actions">
-          <button type="button" className="stm-btn-ghost" onClick={resetTeamsForm}>Reset</button>
-          <button type="button" className="stm-btn-primary" onClick={submitTeamsForm} disabled={saving}>Submit</button>
+          <button type="button" className="stm-btn-ghost" onClick={resetTeamsForm}>
+            <FaSync style={{ marginRight: 5, fontSize: '0.7rem' }} /> Reset
+          </button>
+          <button type="button" className="stm-btn-primary" onClick={submitTeams} disabled={saving}>Submit</button>
         </div>
       </div>
 
-      {/* ════════ PREVIEW: TEAMS ════════ */}
-      <div className="stm-card">
+      {/* ════════ TEAMS PREVIEW ════════ */}
+      <div className="stm-card stm-card--preview">
         <h4 className="stm-preview-title">PREVIEW</h4>
-        <p className="stm-preview-sub">Select a team to view what sports they participate.</p>
+        <p className="stm-preview-sub">Select a team to view what sports they participate in.</p>
+
         <div className="stm-preview-row stm-preview-row--teams">
           <div className="stm-preview-block">
-            <span className="stm-preview-label">TEAMS</span>
-            <PreviewSelect items={teamsList.map(t => t.name)} value={previewTeam} onChange={setPreviewTeam} placeholder="Select team" />
+            <span className="stm-preview-label">Teams</span>
+            <div className="stm-preview-dd-wrap">
+              <select
+                className="stm-preview-dd"
+                value={previewTeam}
+                onChange={e => setPreviewTeam(e.target.value)}
+              >
+                {/* Placeholder shown when no team selected or no teams saved */}
+                {(!previewTeam || teamsList.length === 0) && (
+                  <option value="" disabled>Team Name</option>
+                )}
+                {teamsList.map(t => (
+                  <option key={t.id} value={t.name}>{t.name}</option>
+                ))}
+              </select>
+              <FaChevronDown className="stm-preview-dd__arrow" />
+            </div>
           </div>
+
           <div className="stm-preview-block stm-preview-block--wide">
-            <span className="stm-preview-label">SPORTS</span>
-            <ul className="stm-preview-list stm-preview-list--cols">
-              {(activePreviewTeam?.sportIds || []).map(s => <li key={s}>{s}</li>)}
-              {(!activePreviewTeam || activePreviewTeam.sportIds.length === 0) && <li className="stm-empty-note">—</li>}
-            </ul>
+            <span className="stm-preview-label">Sports</span>
+            {teamsList.length === 0 ? (
+              <p className="stm-empty-note">No teams saved yet. Add and submit teams above.</p>
+            ) : !activeTeam ? (
+              <p className="stm-empty-note">Select a team to see their sports.</p>
+            ) : activeTeam.sportIds.length === 0 ? (
+              <p className="stm-empty-note">No sports assigned to this team.</p>
+            ) : (
+              <ul className="stm-preview-list stm-preview-list--cols">
+                {activeTeam.sportIds.map(s => <li key={s}>{s}</li>)}
+              </ul>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Modals ── */}
-      {categorySportRow && (
+      {/* ════════ MODALS ════════ */}
+      {catSportRow && (
         <CategoryModal
-          sport={categorySportRow}
-          onClose={() => setCategoryTarget(null)}
-          onSave={(cats) => { updateSportRow(categorySportRow.id, { categories: cats }); setCategoryTarget(null); }}
+          sport={catSportRow}
+          onClose={() => setCatTarget(null)}
+          onSave={(groups) => {
+            updateSportRow(catSportRow.id, { categoryGroups: groups });
+            setCatTarget(null);
+          }}
         />
       )}
 
       {showSportsConfirm && (
         <SportsConfirmModal
           sports={sportsRows.filter(r => r.name.trim())}
+          saving={saving}
           onClose={() => setShowSportsConfirm(false)}
-          onSave={saveSportsConfirm}
+          onSave={saveSports}
         />
       )}
 
-      {pickerTeamRow && (
+      {pickerTeam && (
         <TeamSportsPickerModal
-          team={pickerTeamRow}
+          team={pickerTeam}
           sportsList={sportsList.length ? sportsList : sportsRows.filter(r => r.name.trim())}
-          onClose={() => setSportsPickerTarget(null)}
-          onSave={(ids) => { updateTeamRow(pickerTeamRow.id, { sportIds: ids }); setSportsPickerTarget(null); }}
+          onClose={() => setPickerTarget(null)}
+          onSave={(ids) => {
+            updateTeamRow(pickerTeam.id, { sportIds: ids });
+            setPickerTarget(null);
+          }}
         />
       )}
 
       {showTeamsConfirm && (
         <TeamsConfirmModal
           teams={teamsRows.filter(r => r.name.trim())}
+          saving={saving}
           onClose={() => setShowTeamsConfirm(false)}
-          onSave={saveTeamsConfirm}
+          onSave={saveTeams}
         />
       )}
     </div>
