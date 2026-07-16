@@ -228,6 +228,17 @@
   padding-bottom: 6px;
 }
 
+.dash-empty {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  padding: 18px 4px;
+  margin: 0;
+}
+
+.dash-section--upcoming .dash-empty {
+  color: rgba(0, 21, 41, 0.55);
+}
+
 .scroll-row::-webkit-scrollbar {
   height: 3px;
 }

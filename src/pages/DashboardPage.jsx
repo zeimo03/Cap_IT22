@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { FiAward, FiAlertTriangle, FiChevronDown, FiChevronLeft, FiChevronRight, FiStar, FiTrendingUp, FiZap } from 'react-icons/fi';
 import './DashboardPage.css';
 import Contact from '../components/Landing/Contact/Contact';
+import { getMatchSchedules, getSportsTeamsConfig } from '../services/firestoreService';
 
 const TEAMS = {
   blackBeetles:   { id: 'black-beetles',   label: 'BLACK BEETLES',   banner: null },
@@ -14,18 +15,31 @@ const TEAMS = {
   redRhinos:      { id: 'red-rhinos',      label: 'RED RHINOS',      banner: null },
 };
 
-const ONGOING = [
-  { id: 1, date: 'JUNE 12', teamA: TEAMS.blackBeetles,  teamB: TEAMS.purpleJaguars,  sport: 'BASKETBALL', venue: 'GYM (COVERED SPORTS)',  game: 'GAME 1' },
-  { id: 2, date: 'JUNE 12', teamA: TEAMS.brownCubs,     teamB: TEAMS.orangeBulldogs, sport: 'BASEBALL',   venue: 'GYM (COVERED SPORTS)',  game: 'GAME 2' },
-  { id: 3, date: 'JUNE 12', teamA: TEAMS.yellowVipers,  teamB: TEAMS.maroonOwls,     sport: 'BASEBALL',   venue: 'GYM (COVERED SPORTS)',  game: 'GAME 3' },
-  { id: 4, date: 'JUNE 12', teamA: TEAMS.greenGators,   teamB: TEAMS.redRhinos,      sport: 'SWIMMING',   venue: 'GYM (SWIMMING POOL)',   game: 'GAME 4' },
-];
+/* ═══════════════════════════════════════════
+   LIVE MATCH STATUS
+   A saved match only has a start time (date + time), not a duration,
+   so "ongoing" needs an assumed match length to know when it ends.
+   Matches created by the schedule generator but not yet assigned a
+   date/time (round-robin/bracket placeholders) are skipped entirely —
+   they have nothing to compare against the clock yet.
+═══════════════════════════════════════════ */
+const ASSUMED_MATCH_MINUTES = 120; // 2 hours, matching the original mock's "7:00–9:00 AM" style windows
 
-const UPCOMING = [
-  { id: 1, date: 'JUNE 12', teamA: TEAMS.blackBeetles, teamB: TEAMS.purpleJaguars,  sport: 'BASKETBALL' },
-  { id: 2, date: 'JUNE 12', teamA: TEAMS.brownCubs,    teamB: TEAMS.orangeBulldogs, sport: 'BASEBALL'   },
-  { id: 3, date: 'JUNE 15', teamA: TEAMS.greenGators,  teamB: TEAMS.redRhinos,      sport: 'SWIMMING'   },
-];
+const LEVEL_KEY_BY_LABEL = { 'Elementary': 'elementary', 'High School': 'highSchool', 'College': 'college' };
+
+function matchWindow(match) {
+  if (!match.date || !match.time) return null;
+  const start = new Date(`${match.date}T${match.time}`);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + ASSUMED_MATCH_MINUTES * 60000);
+  return { start, end };
+}
+
+function formatDatePill(dateStr) {
+  const d = new Date(`${dateStr}T00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }).toUpperCase();
+}
 
 const FINISHED = [
   {
@@ -245,7 +259,7 @@ function FinishedCarousel({ matches }) {
   );
 }
 
-function ScrollRow({ children, label, variant }) {
+function ScrollRow({ children, label, variant, isEmpty, emptyText }) {
   const ref = React.useRef(null);
   const scroll = (dir) => {
     if (ref.current) ref.current.scrollBy({ left: dir * 180, behavior: 'smooth' });
@@ -259,14 +273,13 @@ function ScrollRow({ children, label, variant }) {
           <button className="arrow-btn" onClick={() => scroll(1)}  aria-label="Scroll right">&#8250;</button>
         </div>
       </div>
-      <div className="scroll-row" ref={ref}>{children}</div>
+      {isEmpty ? <p className="dash-empty">{emptyText}</p> : <div className="scroll-row" ref={ref}>{children}</div>}
     </section>
   );
 }
 
-function LevelsButton() {
+function LevelsButton({ value, onChange }) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState('Levels');
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -277,17 +290,17 @@ function LevelsButton() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handlePick = (level) => { setSelected(level); setOpen(false); };
+  const handlePick = (level) => { onChange(level); setOpen(false); };
 
   return (
     <div ref={wrapRef} className="lvls-wrap">
       <button className="lvls-btn" onClick={() => setOpen(p => !p)} aria-haspopup="listbox" aria-expanded={open}>
-        {selected}
+        {value}
         <span className={`lvls-btn__arrow ${open ? 'lvls-btn__arrow--open' : ''}`}><FiChevronDown /></span>
       </button>
       <div className={`lvls-dropdown ${open ? 'lvls-dropdown--open' : ''}`} role="listbox">
         {LEVELS.map((level) => (
-          <button key={level} className="lvls-dropdown__item" onClick={() => handlePick(level)} role="option" aria-selected={selected === level}>
+          <button key={level} className="lvls-dropdown__item" onClick={() => handlePick(level)} role="option" aria-selected={value === level}>
             {level}
           </button>
         ))}
@@ -299,22 +312,105 @@ function LevelsButton() {
 export default function DashboardPage() {
   const contactFooterRef = useRef(null);
 
+  const [levelLabel, setLevelLabel] = useState('High School');
+  const [matches, setMatches] = useState([]);
+  const [teamsByName, setTeamsByName] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  const levelKey = LEVEL_KEY_BY_LABEL[levelLabel];
+
+  // Reload whenever the selected level changes
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const [scheduleMatches, cfg] = await Promise.all([
+          getMatchSchedules(levelKey),
+          getSportsTeamsConfig(levelKey),
+        ]);
+        if (cancelled) return;
+        setMatches(scheduleMatches);
+        const byName = {};
+        (cfg.teams || []).forEach(t => { byName[t.name] = t; });
+        setTeamsByName(byName);
+      } catch (e) {
+        console.error('Failed to load matches for dashboard:', e);
+        if (!cancelled) { setMatches([]); setTeamsByName({}); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [levelKey]);
+
+  // Re-check the clock periodically so a match flips from Upcoming to
+  // Ongoing (and out of Ongoing once it's over) without a page refresh.
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const toCardTeam = (name, logo) => ({ label: (name || '').toUpperCase(), banner: logo || teamsByName[name]?.logo || null });
+
+  const { ongoing, upcoming } = useMemo(() => {
+    const withWindow = matches
+      .map(m => ({ m, w: matchWindow(m) }))
+      .filter(x => x.w); // skip matches that have no date/time yet (generated but not scheduled)
+
+    const ongoingList = withWindow
+      .filter(({ w }) => now >= w.start && now < w.end)
+      .sort((a, b) => a.w.start - b.w.start)
+      .map(({ m }) => ({
+        id: m.id,
+        date: formatDatePill(m.date),
+        teamA: toCardTeam(m.teamA, m.teamALogo),
+        teamB: toCardTeam(m.teamB, m.teamBLogo),
+        sport: (m.sport || '').toUpperCase(),
+        venue: (m.location || 'TBA').toUpperCase(),
+      }));
+
+    const upcomingList = withWindow
+      .filter(({ w }) => now < w.start)
+      .sort((a, b) => a.w.start - b.w.start)
+      .map(({ m }) => ({
+        id: m.id,
+        date: formatDatePill(m.date),
+        teamA: toCardTeam(m.teamA, m.teamALogo),
+        teamB: toCardTeam(m.teamB, m.teamBLogo),
+        sport: (m.sport || '').toUpperCase(),
+      }));
+
+    return { ongoing: ongoingList, upcoming: upcomingList };
+  }, [matches, now, teamsByName]);
+
   return (
     <div className="user-dashboard">
       <header className="dash-header">
         <h1 className="dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
-        <LevelsButton />
+        <LevelsButton value={levelLabel} onChange={setLevelLabel} />
       </header>
       <div className="profile-page-intro">
         <h2 className="profile-page-title">Home</h2>
         <p className="profile-page-subtitle">Browse for matches informations</p>
       </div>
       <div className="dash-body">
-        <ScrollRow label="ONGOING MATCHES" variant="ongoing">
-          {ONGOING.map(m => <OngoingCard key={m.id} match={m} />)}
+        <ScrollRow
+          label="ONGOING MATCHES"
+          variant="ongoing"
+          isEmpty={!loading && ongoing.length === 0}
+          emptyText="No matches are ongoing right now."
+        >
+          {ongoing.map(m => <OngoingCard key={m.id} match={m} />)}
         </ScrollRow>
-        <ScrollRow label="UPCOMING MATCHES" variant="upcoming">
-          {UPCOMING.map(m => <UpcomingCard key={m.id} match={m} />)}
+        <ScrollRow
+          label="UPCOMING MATCHES"
+          variant="upcoming"
+          isEmpty={!loading && upcoming.length === 0}
+          emptyText="No upcoming matches scheduled yet."
+        >
+          {upcoming.map(m => <UpcomingCard key={m.id} match={m} />)}
         </ScrollRow>
         <FinishedCarousel matches={FINISHED} />
         <Contact contactFooterRef={contactFooterRef} />

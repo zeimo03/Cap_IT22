@@ -2,10 +2,11 @@ import React, { useState, useContext, useEffect, useCallback, useRef } from 'rea
 import { AuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './AdminSchedulePage.css';
-import { FaEdit, FaTrash, FaPlus, FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown } from 'react-icons/fa';
+import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import SportsTeamsManager from './SportsTeamsManager';
+import MatchSchedulesPage from './MatchSchedulesPage';
 
 const LEVELS = [
   { key: 'elementary', label: 'Elementary' },
@@ -93,20 +94,11 @@ const TEAM_COLORS = {
 const TABS = ['Registration', 'Sports & Teams', 'Match Schedules Format'];
 
 export default function AdminSchedulePage() {
-  const { userProfile, isAdmin } = useContext(AuthContext);
+  const { isAdmin } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState(0);
   const [level, setLevel] = useState('highSchool');
-  const [schedules, setSchedules] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData]   = useState({
-    teamA: '', teamB: '', date: '', time: '', location: '', sport: '', status: 'scheduled',
-  });
-  const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage,   setErrorMessage]   = useState('');
 
   // Registration data
   const [summaryRows,      setSummaryRows]      = useState([]);
@@ -126,11 +118,6 @@ export default function AdminSchedulePage() {
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   useEffect(() => { if (!isAdmin) navigate('/dashboard'); }, [isAdmin, navigate]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('schedules');
-    if (saved) { try { setSchedules(JSON.parse(saved)); } catch (e) {} }
-  }, []);
 
 const fetchSummary = useCallback(async () => {
   if (!db) {
@@ -216,25 +203,6 @@ const fetchSummary = useCallback(async () => {
 
   const hasFilters = searchQuery || filterGrade || filterSection || filterSport || filterGender || filterTeam;
   const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); setFilterTeam(''); };
-
-  const saveToStorage = (data) => localStorage.setItem('schedules', JSON.stringify(data));
-  const handleInputChange = (e) => { const { name, value } = e.target; setFormData(p => ({ ...p, [name]: value })); };
-  const resetForm = () => { setFormData({ teamA:'', teamB:'', date:'', time:'', location:'', sport:'', status:'scheduled' }); setEditingId(null); };
-
-  const handleAddSchedule = () => {
-    if (!formData.teamA || !formData.teamB || !formData.date || !formData.time) { setErrorMessage('Please fill in all required fields'); return; }
-    const newSchedule = { id: editingId || Date.now().toString(), ...formData, createdAt: editingId ? undefined : new Date().toISOString(), createdBy: userProfile?.email };
-    const updated = editingId ? schedules.map(s => s.id === editingId ? newSchedule : s) : [...schedules, newSchedule];
-    setSchedules(updated); saveToStorage(updated);
-    setSuccessMessage(editingId ? 'Schedule updated!' : 'Schedule created!');
-    setShowModal(false); resetForm(); setErrorMessage('');
-    setTimeout(() => setSuccessMessage(''), 3000);
-  };
-
-  const handleEdit = (s) => { setFormData({ teamA: s.teamA, teamB: s.teamB, date: s.date, time: s.time, location: s.location, sport: s.sport, status: s.status }); setEditingId(s.id); setShowModal(true); };
-  const handleDelete = (id) => { if (window.confirm('Delete this schedule?')) { const u = schedules.filter(s => s.id !== id); setSchedules(u); saveToStorage(u); setSuccessMessage('Deleted!'); setTimeout(() => setSuccessMessage(''), 3000); } };
-  const handleOpenNewModal = () => { resetForm(); setErrorMessage(''); setShowModal(true); };
-  const handleCloseModal   = () => { setShowModal(false); resetForm(); setErrorMessage(''); };
 
   const fmt = (row, level) => row[level] === 0 ? '--' : row[level];
 
@@ -455,112 +423,10 @@ const fetchSummary = useCallback(async () => {
 
         {/* ══ TAB 2 ══ */}
         {activeTab === 2 && (
-          <div className="asp-card">
-            <div className="asp-sched-topbar">
-              <h2 className="asp-sched-title">Active Schedules ({schedules.length})</h2>
-              <button className="asp-btn-create" onClick={handleOpenNewModal}><FaPlus /> Create New Schedule</button>
-            </div>
-
-            {successMessage && <div className="asp-alert asp-alert--success">✓ {successMessage}</div>}
-            {errorMessage   && <div className="asp-alert asp-alert--error">✗ {errorMessage}</div>}
-
-            {schedules.length === 0 ? (
-              <div className="asp-empty-state">
-                <p>No schedules created yet.</p>
-                <button className="asp-btn-create" onClick={handleOpenNewModal}><FaPlus /> Create Your First Schedule</button>
-              </div>
-            ) : (
-              <div className="asp-table-wrap">
-                <table className="asp-table">
-                  <thead>
-                    <tr>
-                      <th>Sport</th><th>Team A vs Team B</th><th>Date</th><th>Time</th><th>Location</th><th>Status</th><th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {schedules.map(s => (
-                      <tr key={s.id} className={`asp-status-row--${s.status}`}>
-                        <td className="asp-td--sport">{s.sport || 'N/A'}</td>
-                        <td className="asp-td--teams">
-                          <span className="asp-team-a">{s.teamA}</span>
-                          <span className="asp-vs">vs</span>
-                          <span className="asp-team-b">{s.teamB}</span>
-                        </td>
-                        <td>{new Date(s.date).toLocaleDateString()}</td>
-                        <td>{s.time}</td>
-                        <td>{s.location || 'N/A'}</td>
-                        <td><span className={`asp-status-badge asp-status--${s.status}`}>{s.status}</span></td>
-                        <td className="asp-td--actions">
-                          <button className="asp-btn-action asp-btn-edit" onClick={() => handleEdit(s)}><FaEdit /></button>
-                          <button className="asp-btn-action asp-btn-delete" onClick={() => handleDelete(s.id)}><FaTrash /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <MatchSchedulesPage level={level} />
         )}
       </div>
 
-      {/* ── Modal ── */}
-      {showModal && (
-        <div className="asp-modal-overlay" onClick={handleCloseModal}>
-          <div className="asp-modal" onClick={e => e.stopPropagation()}>
-            <div className="asp-modal__header">
-              <h2>{editingId ? 'Edit Schedule' : 'Create New Schedule'}</h2>
-              <button className="asp-modal__close" onClick={handleCloseModal}><FaTimes /></button>
-            </div>
-            <div className="asp-modal__body">
-              {errorMessage && <div className="asp-alert asp-alert--error" style={{marginBottom:12}}>✗ {errorMessage}</div>}
-              <div className="asp-form-group">
-                <label>Sport *</label>
-                <input type="text" name="sport" placeholder="e.g., Basketball, Volleyball" value={formData.sport} onChange={handleInputChange} />
-              </div>
-              <div className="asp-form-row">
-                <div className="asp-form-group">
-                  <label>Team A *</label>
-                  <input type="text" name="teamA" placeholder="First team name" value={formData.teamA} onChange={handleInputChange} />
-                </div>
-                <div className="asp-form-group">
-                  <label>Team B *</label>
-                  <input type="text" name="teamB" placeholder="Second team name" value={formData.teamB} onChange={handleInputChange} />
-                </div>
-              </div>
-              <div className="asp-form-row">
-                <div className="asp-form-group">
-                  <label>Date *</label>
-                  <input type="date" name="date" value={formData.date} onChange={handleInputChange} />
-                </div>
-                <div className="asp-form-group">
-                  <label>Time *</label>
-                  <input type="time" name="time" value={formData.time} onChange={handleInputChange} />
-                </div>
-              </div>
-              <div className="asp-form-group">
-                <label>Location</label>
-                <input type="text" name="location" placeholder="e.g., Gymnasium A" value={formData.location} onChange={handleInputChange} />
-              </div>
-              <div className="asp-form-group">
-                <label>Status</label>
-                <select name="status" value={formData.status} onChange={handleInputChange}>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="ongoing">Ongoing</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-              <div className="asp-form-actions">
-                <button type="button" className="asp-btn-cancel" onClick={handleCloseModal}>Cancel</button>
-                <button type="button" className="asp-btn-submit" onClick={handleAddSchedule} disabled={loading}>
-                  {editingId ? 'Update Schedule' : 'Create Schedule'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* ── Student Detail Modal ── */}
       {selectedStudent && (
         <div className="asp-modal-overlay" onClick={() => setSelectedStudent(null)}>

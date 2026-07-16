@@ -223,3 +223,78 @@ export async function saveTeamsConfig(level, teams) {
     { merge: true }
   );
 }
+
+/* ─────────────────────────────────────────────
+   Match schedules (per school level)
+   Stored at: matchSchedules/{level} → { matches: [...] }
+
+   A "match" produced by MatchSchedulesPage's generator looks like:
+   {
+     id, sport, category, format, round,
+     teamA, teamB,           // team names
+     teamALogo, teamBLogo,   // base64 or URL, copied from Sports & Teams
+     date, time, location,   // filled in later via Edit / Add Schedule
+     status: 'scheduled',
+   }
+───────────────────────────────────────────── */
+export async function getMatchSchedules(level) {
+  if (!db) {
+    console.warn('Firestore not initialized. Cannot load match schedules.');
+    return [];
+  }
+  const configRef = doc(db, 'matchSchedules', level);
+  const snapshot  = await getDoc(configRef);
+  if (!snapshot.exists()) return [];
+  return snapshot.data().matches || [];
+}
+
+/**
+ * Persists a freshly generated round-robin / bracket schedule.
+ * Called when the admin clicks "Save Generated Schedule".
+ * Merges with (rather than replaces) any existing matches for
+ * other sport/category combinations at this level.
+ */
+export async function saveGeneratedSchedule(level, matches) {
+  if (!db) throw new Error('Firestore not initialized.');
+
+  const configRef = doc(db, 'matchSchedules', level);
+  const existing  = await getMatchSchedules(level);
+  const sport      = matches[0]?.sport;
+  const category   = matches[0]?.category;
+
+  const merged = [
+    ...existing.filter(m => !(m.sport === sport && m.category === category)),
+    ...matches,
+  ];
+
+  await setDoc(
+    configRef,
+    { matches: merged, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+
+  return merged;
+}
+
+/**
+ * Adds (or updates) a single manually-entered match — the
+ * "Add Schedule" / "Edit" flow, as opposed to the bulk generator.
+ */
+export async function upsertMatchSchedule(level, match) {
+  if (!db) throw new Error('Firestore not initialized.');
+
+  const existing = await getMatchSchedules(level);
+  const idx = existing.findIndex(m => m.id === match.id);
+  const merged = idx >= 0
+    ? existing.map(m => (m.id === match.id ? match : m))
+    : [...existing, match];
+
+  const configRef = doc(db, 'matchSchedules', level);
+  await setDoc(
+    configRef,
+    { matches: merged, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+
+  return merged;
+}
