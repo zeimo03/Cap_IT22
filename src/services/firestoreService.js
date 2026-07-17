@@ -228,7 +228,7 @@ export async function saveTeamsConfig(level, teams) {
    Match schedules (per school level)
    Stored at: matchSchedules/{level} → { matches: [...] }
 
-   A "match" produced by MatchSchedulesPage's generator looks like:
+   A "match" produced by MatchSchedulesFormatPanel's generator looks like:
    {
      id, sport, category, format, round,
      teamA, teamB,           // team names
