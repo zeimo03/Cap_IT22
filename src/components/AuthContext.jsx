@@ -101,6 +101,18 @@ export function AuthProvider({ children }) {
               role: staffRole !== 'student' ? staffRole : (profile.role || 'student'),
               isAdmin: isAdminRole,
             });
+          } else if (staffRole !== 'student') {
+            // No `users/{uid}` profile doc (e.g. it was deleted, or this
+            // account never went through the sign-up flow that creates
+            // one) — but their email IS listed in admins/moderators/
+            // superadmins, so they're still staff. Don't demote them to
+            // a guest just because the profile doc is missing.
+            setUserProfile({
+              role: staffRole,
+              isAdmin: isAdminRole,
+              email: user.email,
+              name: user.displayName || '',
+            });
           } else {
             setUserProfile(null);
           }
