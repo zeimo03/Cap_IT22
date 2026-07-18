@@ -1,6 +1,6 @@
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import { AuthContext } from '../components/AuthContext';
-import { createRegistration } from '../services/firestoreService';
+import { createRegistration, getSportsTeamsConfig } from '../services/firestoreService';
 import './RegistrationPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import {
@@ -16,15 +16,21 @@ const GRADE_LEVELS = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Gr
 
 const SECTIONS = ['Section A', 'Section B', 'Section C', 'Section D', 'Section E'];
 
-const TEAMS = [
-  'Black Beetles', 'Purple Jaguars', 'Brown Cubs', 'Orange Bulldogs',
-  'Yellow Vipers', 'Maroon Owls', 'Green Gators', 'Red Rhinos',
-];
+/* Sport & Team options aren't hardcoded here — they come from whatever
+   the admin has configured for the student's school level in the
+   "Sports & Teams" manager (see SportsTeamsManager.jsx /
+   getSportsTeamsConfig). Same source, same shape, for both dropdowns. */
+const ELEMENTARY_GRADES = new Set(['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6']);
+const HIGH_SCHOOL_GRADES = new Set(['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12']);
+const COLLEGE_GRADES = new Set(['1st Year', '2nd Year', '3rd Year', '4th Year']);
 
-const SPORTS = [
-  'Basketball', 'Baseball', 'Swimming', 'Volleyball', 'Track & Field',
-  'Badminton', 'Table Tennis', 'Chess',
-];
+function getSchoolLevel(gradeLevel) {
+  if (!gradeLevel) return null;
+  if (ELEMENTARY_GRADES.has(gradeLevel)) return 'elementary';
+  if (HIGH_SCHOOL_GRADES.has(gradeLevel)) return 'highSchool';
+  if (COLLEGE_GRADES.has(gradeLevel)) return 'college';
+  return null;
+}
 
 const POSITIONS = [
   'Forward', 'Guard', 'Center', 'Pitcher', 'Catcher', 'Shortstop',
@@ -56,11 +62,53 @@ export default function RegistrationPage() {
   const [waiver, setWaiver]       = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
+  // Sport / Team options, sourced live from the admin's Sports & Teams
+  // config for whichever school level the selected Grade/Year falls in.
+  const [sportOptions, setSportOptions] = useState([]);
+  const [teamOptions, setTeamOptions]   = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
   const photoRef         = useRef(null);
   const waiverRef        = useRef(null);
   const contactFooterRef = useRef(null);
 
   const set = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }));
+
+  const schoolLevel = getSchoolLevel(form.gradeLevel);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!schoolLevel) {
+      setSportOptions([]);
+      setTeamOptions([]);
+      return;
+    }
+
+    setLoadingOptions(true);
+    getSportsTeamsConfig(schoolLevel)
+      .then(({ sports, teams }) => {
+        if (cancelled) return;
+        const sportNames = [...new Set((sports || []).map(s => s.name).filter(Boolean))].sort();
+        const teamNames  = [...new Set((teams  || []).map(t => t.name).filter(Boolean))].sort();
+        setSportOptions(sportNames);
+        setTeamOptions(teamNames);
+      })
+      .catch((error) => {
+        console.error('Failed to load sports/teams config:', error);
+        if (!cancelled) { setSportOptions([]); setTeamOptions([]); }
+      })
+      .finally(() => { if (!cancelled) setLoadingOptions(false); });
+
+    return () => { cancelled = true; };
+  }, [schoolLevel]);
+
+  // Selected grade level changed school levels — clear any team/sport
+  // pick that no longer belongs to the newly loaded options.
+  useEffect(() => {
+    setForm(prev => ({ ...prev, teamName: '', sport: '' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolLevel]);
 
   const handleFile = (setter) => (e) => {
     const file = e.target.files?.[0];
@@ -223,15 +271,43 @@ export default function RegistrationPage() {
             {/* Row 5: Team / Sport / Position */}
             <div className="reg-row reg-row--3eq">
               <Field label="Team Name" required>
-                <select className="reg-select" value={form.teamName} onChange={set('teamName')} required>
-                  <option value="">Select Team</option>
-                  {TEAMS.map(t => <option key={t}>{t}</option>)}
+                <select
+                  className="reg-select"
+                  value={form.teamName}
+                  onChange={set('teamName')}
+                  disabled={!schoolLevel || loadingOptions}
+                  required
+                >
+                  <option value="">
+                    {!schoolLevel
+                      ? 'Select Grade / Year Level first'
+                      : loadingOptions
+                        ? 'Loading teams…'
+                        : teamOptions.length === 0
+                          ? 'No teams configured yet'
+                          : 'Select Team'}
+                  </option>
+                  {teamOptions.map(t => <option key={t}>{t}</option>)}
                 </select>
               </Field>
               <Field label="Sport / Event" required>
-                <select className="reg-select" value={form.sport} onChange={set('sport')} required>
-                  <option value="">Select Sport / Event</option>
-                  {SPORTS.map(s => <option key={s}>{s}</option>)}
+                <select
+                  className="reg-select"
+                  value={form.sport}
+                  onChange={set('sport')}
+                  disabled={!schoolLevel || loadingOptions}
+                  required
+                >
+                  <option value="">
+                    {!schoolLevel
+                      ? 'Select Grade / Year Level first'
+                      : loadingOptions
+                        ? 'Loading sports…'
+                        : sportOptions.length === 0
+                          ? 'No sports configured yet'
+                          : 'Select Sport / Event'}
+                  </option>
+                  {sportOptions.map(s => <option key={s}>{s}</option>)}
                 </select>
               </Field>
               <Field label="Position" required>

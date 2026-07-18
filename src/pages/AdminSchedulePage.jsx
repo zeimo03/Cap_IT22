@@ -1383,34 +1383,46 @@ const fetchSummary = useCallback(async () => {
       ...doc.data(),
     }));
 
-    // Merge users with registration info
-    const merged = users.map(user => {
-      const registration = registrations.find(
-        r => r.uid === user.id
-      );
+    // This table is the STUDENT registration tabulation — staff accounts
+    // (admin / moderator / super admin) manage it, they don't belong as
+    // rows in it.
+    const studentUsers = users.filter(
+      u => (u.role || 'student').toLowerCase() === 'student'
+    );
+    const studentUids = new Set(studentUsers.map(u => u.id));
+    const studentRegistrations = registrations.filter(r => studentUids.has(r.uid));
 
-      if (registration) {
-        return {
-          ...user,
-          ...registration,
-        };
-      }
+    // One row per STUDENT ACCOUNT (keyed by uid) — never collapsed or
+    // matched by name, since two different accounts can legitimately
+    // share the same name.
+    const merged = studentUsers.map(user => {
+      const registration = studentRegistrations.find(r => r.uid === user.id);
 
-      // User has no player registration yet
       return {
         ...user,
-        fullName: user.name,
-        gender: "—",
-        gradeLevel: "—",
-        section: "—",
-        sport: "—",
-        position: "—",
-        teamName: "—",
+        ...(registration || {}),
+        id: user.id,
+        uid: user.id,
+        fullName: (registration && registration.fullName) || user.name || '',
+        email: (registration && registration.email) || user.email || '',
+        // Gender / Grade-Year / Section always reflect what the student
+        // set when they created their account, not whatever a later
+        // sport-registration form happened to have typed into it.
+        gender: user.gender || '—',
+        gradeLevel: user.gradeLevel || '—',
+        section: user.section || '—',
+        // A student who hasn't registered for a sport yet isn't a
+        // player — say so plainly instead of leaving it blank.
+        sport: (registration && registration.sport) || 'N/A',
+        position: (registration && registration.position) || 'N/A',
+        teamName: (registration && registration.teamName) || 'N/A',
       };
-    });
+    }).sort((a, b) =>
+      (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' })
+    );
 
     setAllRegistrations(merged);
-    setSummaryRows(buildSummary(registrations));
+    setSummaryRows(buildSummary(studentRegistrations));
 
   } catch (err) {
     console.error(err);

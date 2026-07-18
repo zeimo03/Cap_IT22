@@ -6,22 +6,40 @@ import { findStaffAllowlistEntry } from '../../services/firestoreService';
 import './LoginModal.css';
 import srcLogo from '../img/SRCLogo.png';
 
-function LoginScreen({ onSwitchScreen, onLogin, onSuccess }) {
+function LoginScreen({ onSwitchScreen, onLogin, onSuccess, onResendVerification }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setNeedsVerification(false);
     try {
       const { role } = await onLogin(email, password);
       onSuccess(role);
     } catch (error) {
+      if (error.code === 'auth/email-not-verified') {
+        setNeedsVerification(true);
+      }
       alert(error.message || 'Login failed. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await onResendVerification(email, password);
+      alert(`Verification email re-sent to ${email}. Please check your gmail inbox.`);
+    } catch (error) {
+      alert(error.message || 'Could not resend verification email.');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -72,6 +90,19 @@ function LoginScreen({ onSwitchScreen, onLogin, onSuccess }) {
           {submitting ? 'Signing in…' : 'Log In'}
         </button>
       </form>
+
+      {needsVerification && (
+        <div className="auth-footer">
+          <button
+            type="button"
+            className="auth-link"
+            onClick={handleResend}
+            disabled={resending}
+          >
+            {resending ? 'Resending…' : 'Resend verification email'}
+          </button>
+        </div>
+      )}
 
       <div className="auth-footer">
         <button
@@ -188,7 +219,10 @@ function SignUpScreen({ onSwitchScreen, onSignUp, onSuccess }) {
         });
       }
 
-      alert('Account created successfully. Welcome!');
+      alert(
+        `Account created successfully! We sent a verification link to ${formData.email} — ` +
+        'please check your gmail inbox and verify your email before logging in.'
+      );
       onSuccess();
     } catch (error) {
       alert(error.message || 'Sign up failed. Please try again.');
@@ -569,6 +603,7 @@ export default function LoginModal() {
     switchScreen,
     login,
     signup,
+    resendVerificationEmail,
     resetPassword,
     updatePassword,
     currentUser,
@@ -605,6 +640,7 @@ export default function LoginModal() {
             <LoginScreen
               onSwitchScreen={switchScreen}
               onLogin={login}
+              onResendVerification={resendVerificationEmail}
               onSuccess={(role) => {
                 closeAuthModal();
                 // redirect based on the Firestore-verified role returned by login()
@@ -620,8 +656,11 @@ export default function LoginModal() {
               onSwitchScreen={switchScreen}
               onSignUp={signup}
               onSuccess={() => {
-                closeAuthModal();
-                navigate('/dashboard');
+                // The new account is signed out and unverified at this
+                // point — send them to the login screen instead of the
+                // dashboard so they log in for real once they've
+                // clicked the gmail verification link.
+                switchScreen('login');
               }}
             />
           )}

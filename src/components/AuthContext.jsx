@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
   signOut,
   updatePassword as firebaseUpdatePassword,
 } from 'firebase/auth';
@@ -42,6 +43,7 @@ export const AuthContext = createContext({
   authLoading: false,
   login: async () => {},
   signup: async () => {},
+  resendVerificationEmail: async () => {},
   resetPassword: async () => {},
   updatePassword: async () => {},
   logout: async () => {},
@@ -99,6 +101,18 @@ export function AuthProvider({ children }) {
               role: staffRole !== 'student' ? staffRole : (profile.role || 'student'),
               isAdmin: isAdminRole,
             });
+          } else if (staffRole !== 'student') {
+            // No `users/{uid}` profile doc (e.g. it was deleted, or this
+            // account never went through the sign-up flow that creates
+            // one) — but their email IS listed in admins/moderators/
+            // superadmins, so they're still staff. Don't demote them to
+            // a guest just because the profile doc is missing.
+            setUserProfile({
+              role: staffRole,
+              isAdmin: isAdminRole,
+              email: user.email,
+              name: user.displayName || '',
+            });
           } else {
             setUserProfile(null);
           }
@@ -139,6 +153,19 @@ export function AuthProvider({ children }) {
     if (!auth) throw new Error('Firebase Auth not configured. Please add Firebase credentials to .env');
     const credential = await signInWithEmailAndPassword(auth, email, password);
     const user = credential.user;
+
+    // Every account signs up with a gmail address, and every sign-up
+    // gets a verification link sent to it. Don't let anyone in until
+    // that link has been clicked.
+    if (!user.emailVerified) {
+      await signOut(auth);
+      const error = new Error(
+        `Please verify your email before logging in. We sent a verification link to ${email} — check your gmail inbox (and spam folder).`
+      );
+      error.code = 'auth/email-not-verified';
+      throw error;
+    }
+
     const resolvedRole = await resolveStaffRole(user.email);
     return { user, role: resolvedRole };
   };
@@ -154,6 +181,16 @@ export function AuthProvider({ children }) {
     if (!auth) throw new Error('Firebase Auth not configured. Please add Firebase credentials to .env');
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     const user = credential.user;
+
+    // Send the gmail verification link right away. The account exists
+    // in Firebase Auth already, but login() will refuse access until
+    // the person clicks the link.
+    try {
+      await sendEmailVerification(user);
+    } catch (error) {
+      console.warn('Failed to send verification email:', error);
+    }
+
     if (db) {
       const staffRole = await resolveStaffRole(email);
       const profileData = {
@@ -166,9 +203,35 @@ export function AuthProvider({ children }) {
         isAdmin: staffRole === 'admin' || staffRole === 'superadmin',
       };
       await createUserProfile(user.uid, profileData);
-      setUserProfile(profileData);
     }
+
+    // Sign back out immediately — createUserWithEmailAndPassword leaves
+    // the new account signed in, but we don't want a freshly-created,
+    // unverified account to have live access. They'll log back in
+    // (via login(), which enforces the verified-email check) once
+    // they've clicked the gmail link.
+    setUserProfile(null);
+    await signOut(auth);
+
     return user;
+  };
+
+  /**
+   * Signs in just long enough to re-send the gmail verification link,
+   * then signs back out. Used by the "Resend verification email" link
+   * shown after a login attempt fails because the account isn't
+   * verified yet.
+   */
+  const resendVerificationEmail = async (email, password) => {
+    if (!auth) throw new Error('Firebase Auth not configured. Please add Firebase credentials to .env');
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const user = credential.user;
+    if (user.emailVerified) {
+      await signOut(auth);
+      throw new Error('This email is already verified — please log in.');
+    }
+    await sendEmailVerification(user);
+    await signOut(auth);
   };
 
   const resetPassword = async (email) => {
@@ -203,6 +266,7 @@ export function AuthProvider({ children }) {
         authLoading,
         login,
         signup,
+        resendVerificationEmail,
         resetPassword,
         updatePassword,
         logout,
