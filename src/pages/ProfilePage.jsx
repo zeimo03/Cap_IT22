@@ -182,9 +182,6 @@ export default function ProfilePage() {
           <div className="profile-card">
             <div className="profile-card-header">
               <span className="profile-card-title">My Information</span>
-              <button className="profile-card-action profile-card-action--edit">
-                <FaEdit /> Edit Profile
-              </button>
             </div>
             <div className="profile-card-body">
               <InfoRow icon={FaHashtag}       label="Student Number"   value={studentNumber} />

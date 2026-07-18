@@ -327,11 +327,6 @@
   opacity: 0.8;
 }
 
-.profile-card-action--edit {
-  background: #FCBF19;
-  color: #001529;
-}
-
 .profile-card-action--change {
   background: #001529;
   color: #FCBF19;

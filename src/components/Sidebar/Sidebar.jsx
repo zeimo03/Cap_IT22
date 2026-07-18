@@ -55,7 +55,7 @@ function Sidebar() {
               <FaEdit />
             </button>
             <button
-              className="sidebar-btn"
+              className={`sidebar-btn ${location.pathname === "/events" ? "active" : ""}`}
               aria-label="Team and Sports"
               data-label="Team & Sports"
               onClick={() => navigate('/events')}
@@ -63,7 +63,7 @@ function Sidebar() {
               <FaFlag />
             </button>
             <button
-              className="sidebar-btn"
+              className={`sidebar-btn ${location.pathname === "/schedule" ? "active" : ""}`}
               aria-label="Match Schedules"
               data-label="Schedules"
               onClick={() => navigate('/schedule')}
@@ -71,7 +71,7 @@ function Sidebar() {
               <FaCalendarAlt />
             </button>
             <button
-              className="sidebar-btn"
+              className={`sidebar-btn ${location.pathname === "/ranking" ? "active" : ""}`}
               aria-label="Ranking"
               data-label="Ranking"
               onClick={() => navigate('/ranking')}
