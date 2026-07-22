@@ -10,13 +10,12 @@ import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../serv
    CONSTANTS
 ═══════════════════════════════════════════ */
 const FORMAT_OPTIONS = [
-  { id: 'single-time',  label: 'Single Play',         sub: '(with only time basis to win)' },
-  { id: 'single-solo',  label: 'Single Play',         sub: '(with only points basis to win — solo)' },
-  { id: 'single-group', label: 'Single Play (Group)', sub: '(depends on how many players will play in one match)' },
-  { id: 'team-play',    label: 'Team Play',           sub: '(with only points basis to win)' },
+  { id: 'single-time',  label: '1vs1',  sub: '(with only time basis to win {ex. Chess and Swimming 1vs1})' },
+  { id: 'single-solo',  label: '1vs1',  sub: '(with only time basis to win {ex. Taekwondo, Basketball, Badminton, Volleyball, and Tennis})' },
+  { id: 'single-group', label: '1vsMany', sub: '(with only time basis to win {ex. Swimming and Athletics})' },
+  { id: 'team-play',    label: '1vsMany', sub: '(with only time basis to win {ex. Archery})' },
 ];
 
-const DEFAULT_GROUP_LABELS = ['FEMALE', 'MALE', 'MIXED', 'OPEN', 'YOUTH', 'SENIOR', 'JUNIOR', 'VETERAN'];
 const TEAM_COLORS = ['#b45309','#dc2626','#15803d','#6d28d9','#92400e','#9f1239','#374151','#ea580c'];
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -153,7 +152,7 @@ function CategoryModal({ sport, onClose, onSave }) {
       ...ensureId(g),
       divisions: (g.divisions || []).map(ensureId),
     }));
-    return [{ id: uid(), label: 'FEMALE', divisions: [{ id: uid(), name: '', format: '' }] }];
+    return [];
   };
 
   const [groups, setGroups] = useState(initGroups);
@@ -164,8 +163,7 @@ function CategoryModal({ sport, onClose, onSave }) {
     setGroups(prev => {
       const next = [...prev];
       while (next.length < n) {
-        const lbl = DEFAULT_GROUP_LABELS[next.length] || `GROUP ${next.length + 1}`;
-        next.push({ id: uid(), label: lbl, divisions: [{ id: uid(), name: '', format: '' }] });
+        next.push({ id: uid(), label: '', divisions: [{ id: uid(), name: '', format: '' }] });
       }
       while (next.length > n) next.pop();
       return next;
@@ -224,17 +222,23 @@ function CategoryModal({ sport, onClose, onSave }) {
           <div className="stm-catmod-stepper">
             <button type="button" onClick={() => setGroupCount(groups.length + 1)}>+</button>
             <span>{groups.length}</span>
-            <button type="button" onClick={() => setGroupCount(Math.max(1, groups.length - 1))}>−</button>
+            <button type="button" onClick={() => setGroupCount(Math.max(0, groups.length - 1))}>−</button>
           </div>
         </div>
 
         {/* Groups */}
         <div className="stm-cat-groups">
+          {groups.length === 0 && (
+            <p className="stm-cat-groups__empty">
+              Use the <strong>+</strong> above to add your first category.
+            </p>
+          )}
           {groups.map((group, gi) => (
             <div key={group.id} className="stm-cat-group">
               <div className="stm-cat-group__hdr">
                 <input
                   className="stm-cat-group__label"
+                  placeholder="Enter Category (ex. Male, Female, or Mixed)"
                   value={group.label}
                   onChange={e => updateLabel(group.id, e.target.value.toUpperCase())}
                 />
