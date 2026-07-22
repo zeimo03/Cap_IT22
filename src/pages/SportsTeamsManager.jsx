@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaRunning, FaUsers, FaPlus, FaTimes, FaChevronDown,
-  FaEdit, FaCheck, FaEllipsisV, FaSync,
+  FaEdit, FaCheck, FaEllipsisV, FaSync, FaClone, FaTrash,
 } from 'react-icons/fa';
 import './SportsTeamsManager.css';
 import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../services/firestoreService';
@@ -15,6 +15,7 @@ const FORMAT_OPTIONS = [
   { id: 'single-group', label: '1vsMany', sub: '(with only time basis to win {ex. Swimming and Athletics})' },
   { id: 'team-play',    label: '1vsMany', sub: '(with only time basis to win {ex. Archery})' },
 ];
+
 
 const TEAM_COLORS = ['#b45309','#dc2626','#15803d','#6d28d9','#92400e','#9f1239','#374151','#ea580c'];
 
@@ -95,6 +96,58 @@ function NumDropdown({ value, onChange, label, max = 10 }) {
               {n}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   ROW ACTIONS MENU  (the "⋮" kebab button)
+   Was previously wired to a dead `_del` flag that nothing read —
+   this makes it an actual functioning dropdown: Duplicate / Remove.
+═══════════════════════════════════════════ */
+function RowActionsMenu({ onDuplicate, onRemove }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div className="stm-rowmenu-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={`stm-dots-btn ${open ? 'stm-dots-btn--open' : ''}`}
+        onClick={() => setOpen(o => !o)}
+        title="Row actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <FaEllipsisV />
+      </button>
+
+      {open && (
+        <div className="stm-rowmenu" role="menu">
+          <button
+            type="button"
+            className="stm-rowmenu__item"
+            role="menuitem"
+            onClick={() => { onDuplicate(); setOpen(false); }}
+          >
+            <FaClone /> Duplicate sport
+          </button>
+          <button
+            type="button"
+            className="stm-rowmenu__item stm-rowmenu__item--danger"
+            role="menuitem"
+            onClick={() => { onRemove(); setOpen(false); }}
+          >
+            <FaTrash /> Remove sport
+          </button>
         </div>
       )}
     </div>
@@ -191,18 +244,18 @@ function CategoryModal({ sport, onClose, onSave }) {
   const handleReset = () => setGroups(initGroups());
 
   const handleSubmit = () => {
-    const cleaned = groups
-      .filter(g => g.label.trim())
-      .map(g => {
-        // Keep a division if it has a name OR a format selected
-        const filledDivs = g.divisions.filter(d => d.name.trim() || d.format);
-        // If no filled divisions at all, represent the category itself as one entry
-        // so "FEMALE" still appears in the preview even without sub-events
-        const divisions = filledDivs.length > 0
-          ? filledDivs.map(d => ({ ...d, name: d.name.trim() || g.label }))
-          : [{ id: g.id + '_auto', name: g.label, format: g.divisions[0]?.format || '' }];
-        return { ...g, divisions };
-      });
+    const cleaned = groups.map((g, idx) => {
+      // A category the admin stepped up to but never typed a name for still
+      // counts — it just falls back to "Category N" instead of vanishing.
+      const label = g.label.trim() || `Category ${idx + 1}`;
+      const filledDivs = g.divisions.filter(d => d.name.trim() || d.format);
+      // If no filled divisions at all, represent the category itself as one entry
+      // so it still appears in the preview even without sub-events
+      const divisions = filledDivs.length > 0
+        ? filledDivs.map(d => ({ ...d, name: d.name.trim() || label }))
+        : [{ id: g.id + '_auto', name: label, format: g.divisions[0]?.format || '' }];
+      return { ...g, label, divisions };
+    });
     onSave(cleaned);
   };
 
@@ -577,6 +630,27 @@ export default function SportsTeamsManager({ level }) {
   });
   const updateSportRow = (id, patch) =>
     setSportsRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  const removeSportRow = (id) =>
+    setSportsRows(prev => prev.filter(r => r.id !== id));
+  const duplicateSportRow = (id) =>
+    setSportsRows(prev => {
+      const idx = prev.findIndex(r => r.id === id);
+      if (idx === -1) return prev;
+      const source = prev[idx];
+      const copy = {
+        ...source,
+        id: uid(),
+        name: source.name.trim() ? `${source.name} (Copy)` : '',
+        categoryGroups: (source.categoryGroups || []).map(g => ({
+          ...g,
+          id: uid(),
+          divisions: (g.divisions || []).map(d => ({ ...d, id: uid() })),
+        })),
+      };
+      const next = [...prev];
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
   const resetSportsForm = () => setSportsRows([]);
 
   const submitSports = () => {
@@ -743,14 +817,10 @@ export default function SportsTeamsManager({ level }) {
                       </div>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="stm-dots-btn"
-                        onClick={() => updateSportRow(row.id, { _del: !row._del })}
-                        title="Remove"
-                      >
-                        <FaEllipsisV />
-                      </button>
+                      <RowActionsMenu
+                        onDuplicate={() => duplicateSportRow(row.id)}
+                        onRemove={() => removeSportRow(row.id)}
+                      />
                     </td>
                   </tr>
                 ))}
