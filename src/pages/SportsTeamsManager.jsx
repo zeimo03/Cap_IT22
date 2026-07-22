@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaRunning, FaUsers, FaPlus, FaTimes, FaChevronDown,
-  FaEdit, FaCheck, FaEllipsisV, FaSync, FaClone, FaTrash,
+  FaEdit, FaCheck, FaEllipsisV, FaSync,
 } from 'react-icons/fa';
 import './SportsTeamsManager.css';
 import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../services/firestoreService';
@@ -15,7 +15,6 @@ const FORMAT_OPTIONS = [
   { id: 'single-group', label: '1vsMany', sub: '(with only time basis to win {ex. Swimming and Athletics})' },
   { id: 'team-play',    label: '1vsMany', sub: '(with only time basis to win {ex. Archery})' },
 ];
-
 
 const TEAM_COLORS = ['#b45309','#dc2626','#15803d','#6d28d9','#92400e','#9f1239','#374151','#ea580c'];
 
@@ -96,58 +95,6 @@ function NumDropdown({ value, onChange, label, max = 10 }) {
               {n}
             </button>
           ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   ROW ACTIONS MENU  (the "⋮" kebab button)
-   Was previously wired to a dead `_del` flag that nothing read —
-   this makes it an actual functioning dropdown: Duplicate / Remove.
-═══════════════════════════════════════════ */
-function RowActionsMenu({ onDuplicate, onRemove }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useEffect(() => {
-    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <div className="stm-rowmenu-wrap" ref={wrapRef}>
-      <button
-        type="button"
-        className={`stm-dots-btn ${open ? 'stm-dots-btn--open' : ''}`}
-        onClick={() => setOpen(o => !o)}
-        title="Row actions"
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        <FaEllipsisV />
-      </button>
-
-      {open && (
-        <div className="stm-rowmenu" role="menu">
-          <button
-            type="button"
-            className="stm-rowmenu__item"
-            role="menuitem"
-            onClick={() => { onDuplicate(); setOpen(false); }}
-          >
-            <FaClone /> Duplicate sport
-          </button>
-          <button
-            type="button"
-            className="stm-rowmenu__item stm-rowmenu__item--danger"
-            role="menuitem"
-            onClick={() => { onRemove(); setOpen(false); }}
-          >
-            <FaTrash /> Remove sport
-          </button>
         </div>
       )}
     </div>
@@ -244,18 +191,18 @@ function CategoryModal({ sport, onClose, onSave }) {
   const handleReset = () => setGroups(initGroups());
 
   const handleSubmit = () => {
-    const cleaned = groups.map((g, idx) => {
-      // A category the admin stepped up to but never typed a name for still
-      // counts — it just falls back to "Category N" instead of vanishing.
-      const label = g.label.trim() || `Category ${idx + 1}`;
-      const filledDivs = g.divisions.filter(d => d.name.trim() || d.format);
-      // If no filled divisions at all, represent the category itself as one entry
-      // so it still appears in the preview even without sub-events
-      const divisions = filledDivs.length > 0
-        ? filledDivs.map(d => ({ ...d, name: d.name.trim() || label }))
-        : [{ id: g.id + '_auto', name: label, format: g.divisions[0]?.format || '' }];
-      return { ...g, label, divisions };
-    });
+    const cleaned = groups
+      .filter(g => g.label.trim())
+      .map(g => {
+        // Keep a division if it has a name OR a format selected
+        const filledDivs = g.divisions.filter(d => d.name.trim() || d.format);
+        // If no filled divisions at all, represent the category itself as one entry
+        // so "FEMALE" still appears in the preview even without sub-events
+        const divisions = filledDivs.length > 0
+          ? filledDivs.map(d => ({ ...d, name: d.name.trim() || g.label }))
+          : [{ id: g.id + '_auto', name: g.label, format: g.divisions[0]?.format || '' }];
+        return { ...g, divisions };
+      });
     onSave(cleaned);
   };
 
@@ -370,6 +317,91 @@ function CategoryModal({ sport, onClose, onSave }) {
         }}
       />
     )}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   EDIT SPORT MODAL
+   Popup for editing a single saved sport's name,
+   logo, and categories/divisions.
+═══════════════════════════════════════════ */
+function EditSportModal({ sport, saving, onClose, onSave }) {
+  const [name,           setName]           = useState(sport.name || '');
+  const [logo,           setLogo]           = useState(sport.logo || null);
+  const [categoryGroups, setCategoryGroups] = useState(sport.categoryGroups || []);
+  const [showCatModal,   setShowCatModal]   = useState(false);
+
+  const divisions = (categoryGroups || []).flatMap(g => {
+    const divs = g.divisions || [];
+    if (divs.length === 0) return [{ id: g.id + '_lbl', name: g.label, format: '' }];
+    return divs.map(d => ({ ...d, name: d.name || g.label }));
+  });
+
+  return (
+    <>
+      <div className="stm-overlay" onClick={onClose}>
+        <div className="stm-modal stm-modal--edit-sport" onClick={e => e.stopPropagation()}>
+
+          <div className="stm-catmod-head">
+            <button className="stm-icon-btn stm-catmod-close" onClick={onClose}><FaTimes /></button>
+            <h3>EDIT SPORT</h3>
+            <p>Update this sport's name, logo, categories, and format.</p>
+          </div>
+
+          <div className="stm-edit-sport-body">
+            <div className="stm-edit-sport-row">
+              <LogoUpload logo={logo} onUpload={setLogo} />
+              <input
+                className="stm-row-input stm-edit-sport-name"
+                placeholder="Sport name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="stm-edit-sport-cats">
+              <div className="stm-edit-sport-cats__head">
+                <span className="stm-preview-label">CATEGORIES/ DIVISIONS</span>
+                <button type="button" className="stm-link-btn" onClick={() => setShowCatModal(true)}>
+                  <FaEdit /> Edit categories
+                </button>
+              </div>
+              {divisions.length === 0 ? (
+                <p className="stm-empty-note">No categories set.</p>
+              ) : (
+                <ul className="stm-preview-list">
+                  {divisions.map((d, i) => {
+                    const f = FORMAT_OPTIONS.find(o => o.id === d.format);
+                    return <li key={d.id || i}>{d.name}{f ? ` — ${f.label}` : ''}</li>;
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="stm-catmod-actions">
+            <button type="button" className="stm-btn-ghost" onClick={onClose}>Cancel</button>
+            <button
+              type="button"
+              className="stm-btn-primary"
+              disabled={saving || !name.trim()}
+              onClick={() => onSave({ ...sport, name: name.trim(), logo, categoryGroups })}
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {showCatModal && (
+        <CategoryModal
+          sport={{ ...sport, categoryGroups }}
+          onClose={() => setShowCatModal(false)}
+          onSave={(groups) => { setCategoryGroups(groups); setShowCatModal(false); }}
+        />
+      )}
     </>
   );
 }
@@ -579,8 +611,11 @@ export default function SportsTeamsManager({ level }) {
   const [pickerTarget,      setPickerTarget]      = useState(null); // team row id
   const [showSportsConfirm, setShowSportsConfirm] = useState(false);
   const [showTeamsConfirm,  setShowTeamsConfirm]  = useState(false);
+  const [deleteSportTarget, setDeleteSportTarget] = useState(null); // sport object pending delete
+  const [deletingSport,     setDeletingSport]     = useState(false);
+  const [editSportTarget,   setEditSportTarget]   = useState(null); // sport object being edited in popup
+  const [savingEditSport,   setSavingEditSport]   = useState(false);
 
-  const [previewSport, setPreviewSport] = useState('');
   const [previewTeam,  setPreviewTeam]  = useState('');
   const [saving,  setSaving]  = useState(false);
   const [loading, setLoading] = useState(false);
@@ -606,7 +641,6 @@ export default function SportsTeamsManager({ level }) {
       }));
       setSportsList(sports);
       setTeamsList(teams);
-      setPreviewSport(sports[0]?.name || '');
       setPreviewTeam('');   // always start blank so "Team Name" placeholder shows
       setSportsRows([]);
       setTeamsRows([]);
@@ -630,32 +664,46 @@ export default function SportsTeamsManager({ level }) {
   });
   const updateSportRow = (id, patch) =>
     setSportsRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
-  const removeSportRow = (id) =>
-    setSportsRows(prev => prev.filter(r => r.id !== id));
-  const duplicateSportRow = (id) =>
-    setSportsRows(prev => {
-      const idx = prev.findIndex(r => r.id === id);
-      if (idx === -1) return prev;
-      const source = prev[idx];
-      const copy = {
-        ...source,
-        id: uid(),
-        name: source.name.trim() ? `${source.name} (Copy)` : '',
-        categoryGroups: (source.categoryGroups || []).map(g => ({
-          ...g,
-          id: uid(),
-          divisions: (g.divisions || []).map(d => ({ ...d, id: uid() })),
-        })),
-      };
-      const next = [...prev];
-      next.splice(idx + 1, 0, copy);
-      return next;
-    });
   const resetSportsForm = () => setSportsRows([]);
 
   const submitSports = () => {
     if (!sportsRows.some(r => r.name.trim())) { flash('Enter at least one sport name.'); return; }
     setShowSportsConfirm(true);
+  };
+
+  /* ── Edit a saved sport via popup ── */
+  const saveEditedSport = async (updatedSport) => {
+    const merged = sportsList.map(s => s.id === updatedSport.id ? updatedSport : s);
+    setSportsList(merged);
+    setSavingEditSport(true);
+    try {
+      await saveSportsConfig(level, merged);
+      flash(`✓ "${updatedSport.name}" updated.`);
+      setEditSportTarget(null);
+    } catch (e) {
+      console.error(e);
+      flash('Saved locally — Firestore sync failed.');
+      setEditSportTarget(null);
+    } finally {
+      setSavingEditSport(false);
+    }
+  };
+
+  /* ── Delete a saved sport ── */
+  const deleteSport = async (sport) => {
+    const remaining = sportsList.filter(s => s.id !== sport.id);
+    setSportsList(remaining);
+    setDeleteSportTarget(null);
+    setDeletingSport(true);
+    try {
+      await saveSportsConfig(level, remaining);
+      flash(`✓ "${sport.name}" deleted.`);
+    } catch (e) {
+      console.error(e);
+      flash('Deleted locally — Firestore sync failed.');
+    } finally {
+      setDeletingSport(false);
+    }
   };
 
   const saveSports = async () => {
@@ -666,7 +714,6 @@ export default function SportsTeamsManager({ level }) {
     ];
     // Update local state immediately so preview reflects changes right away
     setSportsList(merged);
-    setPreviewSport(merged[0]?.name || '');
     setSportsRows([]);
     setShowSportsConfirm(false);
     // Then persist to Firestore in background
@@ -728,7 +775,6 @@ export default function SportsTeamsManager({ level }) {
   /* ── Derived ── */
   const catSportRow  = sportsRows.find(r => r.id === catTarget)     || null;
   const pickerTeam   = teamsRows.find(r => r.id === pickerTarget)   || null;
-  const activeSport  = sportsList.find(s => s.name === previewSport) || null;
   const activeTeam   = teamsList.find(t => t.name === previewTeam)  || null;
 
   const flatDivisions = (sport) =>
@@ -765,7 +811,7 @@ export default function SportsTeamsManager({ level }) {
         <div className="stm-form-toprow">
           <NumDropdown value={sportsRows.length || null} onChange={setSportsCount} label="Number of sport" />
           <button type="button" className="stm-link-btn" onClick={() => setSportsCount(sportsRows.length + 1)}>
-            <FaPlus /> To add category
+            <FaPlus /> Add Row for Sports
           </button>
         </div>
 
@@ -817,10 +863,14 @@ export default function SportsTeamsManager({ level }) {
                       </div>
                     </td>
                     <td>
-                      <RowActionsMenu
-                        onDuplicate={() => duplicateSportRow(row.id)}
-                        onRemove={() => removeSportRow(row.id)}
-                      />
+                      <button
+                        type="button"
+                        className="stm-dots-btn"
+                        onClick={() => updateSportRow(row.id, { _del: !row._del })}
+                        title="Remove"
+                      >
+                        <FaEllipsisV />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -839,58 +889,101 @@ export default function SportsTeamsManager({ level }) {
 
       {/* ════════ SPORTS PREVIEW ════════ */}
       <div className="stm-card stm-card--preview">
-        <h4 className="stm-preview-title">PREVIEW</h4>
-        <p className="stm-preview-sub">Select a sport to view its categories/divisions.</p>
+        <h4 className="stm-preview-title">SPORTS PREVIEW</h4>
+        <p className="stm-preview-sub">Categories/divisions and format for every sport.</p>
 
-        <div className="stm-preview-row">
-          <div className="stm-preview-block">
-            <span className="stm-preview-label">SPORTS</span>
-            <div className="stm-preview-dd-wrap">
-              <select
-                className="stm-preview-dd"
-                value={previewSport}
-                onChange={e => setPreviewSport(e.target.value)}
-              >
-                {(!previewSport || sportsList.length === 0) && (
-                  <option value="" disabled>Sport Name</option>
-                )}
-                {sportsList.map(s => (
-                  <option key={s.id} value={s.name}>{s.name.toUpperCase()}</option>
-                ))}
-              </select>
-              <FaChevronDown className="stm-preview-dd__arrow" />
-            </div>
-          </div>
+        {sportsList.length === 0 ? (
+          <p className="stm-empty-note">No sports saved yet.</p>
+        ) : (
+          <div className="stm-table-wrap">
+            <table className="stm-table stm-preview-table">
+              <thead>
+                <tr>
+                  <th>Sports</th>
+                  <th>Category</th>
+                  <th>Division</th>
+                  <th>Sports Format</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...sportsList]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .flatMap(sport => {
+                    const divisions = flatDivisions(sport);
 
-          <div className="stm-preview-block">
-            <span className="stm-preview-label">CATEGORIES/ DIVISION</span>
-            <ul className="stm-preview-list">
-              {sportsList.length === 0 ? (
-                <li className="stm-empty-note">No sports saved yet.</li>
-              ) : flatDivisions(activeSport).length === 0 ? (
-                <li className="stm-empty-note">No categories set.</li>
-              ) : (
-                flatDivisions(activeSport).map((d, i) => (
-                  <li key={d.id || i}>{d.name}</li>
-                ))
-              )}
-            </ul>
-          </div>
+                    const EditDeleteActions = (
+                      <div className="stm-preview-table__actions">
+                        <button
+                          type="button"
+                          className="stm-preview-edit-btn"
+                          title="Edit sport"
+                          onClick={() => setEditSportTarget(sport)}
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          type="button"
+                          className="stm-preview-delete-btn"
+                          title="Delete sport"
+                          onClick={() => setDeleteSportTarget(sport)}
+                        >
+                          <FaTimes />
+                        </button>
+                      </div>
+                    );
 
-          <div className="stm-preview-block">
-            <span className="stm-preview-label">SPORTS FORMAT</span>
-            <ul className="stm-preview-list">
-              {flatDivisions(activeSport).length === 0 ? (
-                <li className="stm-empty-note">—</li>
-              ) : (
-                flatDivisions(activeSport).map((d, i) => {
-                  const f = FORMAT_OPTIONS.find(o => o.id === d.format);
-                  return <li key={d.id || i}>{f ? f.label : '—'}</li>;
-                })
-              )}
-            </ul>
+                    if (divisions.length === 0) {
+                      return [(
+                        <tr key={sport.id} className="stm-preview-table__sport-group">
+                          <td className="stm-preview-table__sport">{sport.name.toUpperCase()}</td>
+                          <td><span className="stm-empty-note">—</span></td>
+                          <td><span className="stm-empty-note">No categories set.</span></td>
+                          <td><span className="stm-empty-note">—</span></td>
+                          <td>{EditDeleteActions}</td>
+                        </tr>
+                      )];
+                    }
+
+                    return divisions.map((d, i) => {
+                      const isFirstOfSport = i === 0;
+                      const isFirstOfCategory = i === 0 || divisions[i - 1].groupLabel !== d.groupLabel;
+
+                      // Count how many contiguous rows share this category label
+                      let span = 0;
+                      if (isFirstOfCategory) {
+                        for (let k = i; k < divisions.length && divisions[k].groupLabel === d.groupLabel; k++) span++;
+                      }
+
+                      const f = FORMAT_OPTIONS.find(o => o.id === d.format);
+                      return (
+                        <tr
+                          key={d.id || i}
+                          className={isFirstOfSport ? 'stm-preview-table__sport-group' : ''}
+                        >
+                          {isFirstOfSport && (
+                            <td className="stm-preview-table__sport" rowSpan={divisions.length}>
+                              {sport.name.toUpperCase()}
+                            </td>
+                          )}
+                          {isFirstOfCategory && (
+                            <td className="stm-preview-table__category" rowSpan={span}>
+                              {d.groupLabel}
+                            </td>
+                          )}
+                          <td>{d.name}</td>
+                          <td>{f ? f.label : '—'}</td>
+                          {isFirstOfSport && (
+                            <td rowSpan={divisions.length}>{EditDeleteActions}</td>
+                          )}
+                        </tr>
+                      );
+                    });
+                  })}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ════════ TEAMS FORM ════════ */}
@@ -906,7 +999,7 @@ export default function SportsTeamsManager({ level }) {
         <div className="stm-form-toprow">
           <NumDropdown value={teamsRows.length || null} onChange={setTeamsCount} label="Number of team" />
           <button type="button" className="stm-link-btn" onClick={() => setTeamsCount(teamsRows.length + 1)}>
-            <FaPlus /> To select sports that team participating
+            <FaPlus /> Add row for Teams
           </button>
         </div>
 
@@ -969,7 +1062,7 @@ export default function SportsTeamsManager({ level }) {
 
       {/* ════════ TEAMS PREVIEW ════════ */}
       <div className="stm-card stm-card--preview">
-        <h4 className="stm-preview-title">PREVIEW</h4>
+        <h4 className="stm-preview-title">TEAMS PREVIEW</h4>
         <p className="stm-preview-sub">Select a team to view what sports they participate in.</p>
 
         <div className="stm-preview-row stm-preview-row--teams">
@@ -1029,6 +1122,40 @@ export default function SportsTeamsManager({ level }) {
           onClose={() => setShowSportsConfirm(false)}
           onSave={saveSports}
         />
+      )}
+
+      {editSportTarget && (
+        <EditSportModal
+          sport={editSportTarget}
+          saving={savingEditSport}
+          onClose={() => setEditSportTarget(null)}
+          onSave={saveEditedSport}
+        />
+      )}
+
+      {deleteSportTarget && (
+        <div className="stm-overlay" onClick={() => setDeleteSportTarget(null)}>
+          <div className="stm-modal stm-modal--delete" onClick={e => e.stopPropagation()}>
+            <h3 className="stm-confirm-title">DELETE SPORT?</h3>
+            <p className="stm-delete-msg">
+              Are you sure you want to delete <b>{deleteSportTarget.name.toUpperCase()}</b>?
+              This will remove it and its categories/divisions from {level === 'highSchool' ? 'High School' : level.charAt(0).toUpperCase() + level.slice(1)}.
+            </p>
+            <div className="stm-delete-actions">
+              <button type="button" className="stm-btn-ghost" onClick={() => setDeleteSportTarget(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="stm-btn-danger"
+                disabled={deletingSport}
+                onClick={() => deleteSport(deleteSportTarget)}
+              >
+                {deletingSport ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {pickerTeam && (

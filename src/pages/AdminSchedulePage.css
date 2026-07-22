@@ -45,8 +45,17 @@
    INTRO
    ══════════════════════════════════════════ */
 .asp-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 18px 25px 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.asp-intro__text {
+  min-width: 0;
 }
 
 .asp-intro__title {
@@ -73,6 +82,14 @@
   gap: 10px;
   padding: 12px 25px;
   flex-shrink: 0;
+}
+
+.asp-tabs--header {
+  padding: 0;
+  gap: 8px;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .asp-tab {
@@ -202,6 +219,48 @@
   font-weight: 900;
   color: #1d4ed8;
   line-height: 1;
+}
+
+.asp-total-box--wide {
+  flex-direction: row;
+  align-items: stretch;
+  padding: 8px 22px;
+  gap: 20px;
+}
+
+.asp-total-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 68px;
+}
+
+.asp-total-seg__num {
+  font-family: 'Lalezar', sans-serif;
+  font-size: 1.7rem;
+  font-weight: 900;
+  color: #1d4ed8;
+  line-height: 1;
+}
+
+.asp-total-seg__label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #001529;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.asp-total-seg--grand .asp-total-seg__num {
+  color: #f5a623;
+}
+
+.asp-total-div {
+  width: 1.5px;
+  background: #c5d1df;
+  border-radius: 1px;
 }
 
 .asp-refresh-btn {

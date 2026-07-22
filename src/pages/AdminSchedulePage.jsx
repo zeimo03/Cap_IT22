@@ -1352,7 +1352,6 @@ export default function AdminSchedulePage() {
   const [filterSection,  setFilterSection]  = useState('');
   const [filterSport,    setFilterSport]    = useState('');
   const [filterGender,   setFilterGender]   = useState('');
-  const [filterTeam,     setFilterTeam]     = useState('');
 
   // Student detail modal
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -1434,12 +1433,14 @@ const fetchSummary = useCallback(async () => {
 
   useEffect(() => { if (activeTab === 0) fetchSummary(); }, [activeTab, fetchSummary]);
 
-  const totalPlayers = summaryRows.reduce((s, r) => s + r.elementary + r.highSchool + r.college, 0);
+  const totalElementary = summaryRows.reduce((s, r) => s + r.elementary, 0);
+  const totalHighSchool = summaryRows.reduce((s, r) => s + r.highSchool, 0);
+  const totalCollege    = summaryRows.reduce((s, r) => s + r.college, 0);
+  const totalPlayers    = totalElementary + totalHighSchool + totalCollege;
 
   // Unique filter options from data
   const uniqueSections = [...new Set(allRegistrations.map(r => r.section).filter(Boolean))].sort();
   const uniqueSports   = [...new Set(allRegistrations.map(r => r.sport).filter(Boolean))].sort();
-  const uniqueTeams    = [...new Set(allRegistrations.map(r => r.teamName).filter(Boolean))].sort();
 
   const filteredStudents = allRegistrations.filter(r => {
     const q = searchQuery.toLowerCase();
@@ -1448,13 +1449,12 @@ const fetchSummary = useCallback(async () => {
       (!filterGrade   || r.gradeLevel === filterGrade) &&
       (!filterSection || r.section    === filterSection) &&
       (!filterSport   || r.sport      === filterSport) &&
-      (!filterGender  || (r.gender || '').toLowerCase() === filterGender.toLowerCase()) &&
-      (!filterTeam    || r.teamName   === filterTeam)
+      (!filterGender  || (r.gender || '').toLowerCase() === filterGender.toLowerCase())
     );
   });
 
-  const hasFilters = searchQuery || filterGrade || filterSection || filterSport || filterGender || filterTeam;
-  const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); setFilterTeam(''); };
+  const hasFilters = searchQuery || filterGrade || filterSection || filterSport || filterGender;
+  const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); };
 
   const fmt = (row, level) => row[level] === 0 ? '--' : row[level];
 
@@ -1469,17 +1469,17 @@ const fetchSummary = useCallback(async () => {
 
       {/* Intro */}
       <div className="asp-intro">
-        <h2 className="asp-intro__title">Update &amp; Edit</h2>
-        <p className="asp-intro__sub">Manage registrations, sports, and match schedules</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="asp-tabs">
-        {TABS.map((tab, i) => (
-          <button key={tab} className={`asp-tab${activeTab === i ? ' asp-tab--active' : ''}`} onClick={() => setActiveTab(i)}>
-            {tab}
-          </button>
-        ))}
+        <div className="asp-intro__text">
+          <h2 className="asp-intro__title">Update &amp; Edit</h2>
+          <p className="asp-intro__sub">Manage registrations, sports, and match schedules</p>
+        </div>
+        <div className="asp-tabs asp-tabs--header">
+          {TABS.map((tab, i) => (
+            <button key={tab} className={`asp-tab${activeTab === i ? ' asp-tab--active' : ''}`} onClick={() => setActiveTab(i)}>
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Body */}
@@ -1501,9 +1501,26 @@ const fetchSummary = useCallback(async () => {
                   <button className="asp-refresh-btn" onClick={fetchSummary} disabled={summaryLoading} title="Refresh">
                     <FaSync className={summaryLoading ? 'asp-spin' : ''} />
                   </button>
-                  <div className="asp-total-box">
-                    <span className="asp-total-label">Total</span>
-                    <span className="asp-total-num">{summaryLoading ? '…' : totalPlayers}</span>
+                  <div className="asp-total-box asp-total-box--wide">
+                    <div className="asp-total-seg">
+                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalElementary}</span>
+                      <span className="asp-total-seg__label">Elementary</span>
+                    </div>
+                    <div className="asp-total-div" />
+                    <div className="asp-total-seg">
+                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalHighSchool}</span>
+                      <span className="asp-total-seg__label">High School</span>
+                    </div>
+                    <div className="asp-total-div" />
+                    <div className="asp-total-seg">
+                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalCollege}</span>
+                      <span className="asp-total-seg__label">College</span>
+                    </div>
+                    <div className="asp-total-div" />
+                    <div className="asp-total-seg asp-total-seg--grand">
+                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalPlayers}</span>
+                      <span className="asp-total-seg__label">Total</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1525,22 +1542,17 @@ const fetchSummary = useCallback(async () => {
                         <th>Elementary</th>
                         <th>High School</th>
                         <th>College</th>
-                        <th>Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {summaryRows.map(row => {
-                        const rowTotal = row.elementary + row.highSchool + row.college;
-                        return (
-                          <tr key={`${row.sport}-${row.gender}`}>
-                            <td className="asp-td--sport">{row.sport.toUpperCase()} {row.gender.toUpperCase()}</td>
-                            <td>{fmt(row, 'elementary')}</td>
-                            <td>{fmt(row, 'highSchool')}</td>
-                            <td>{fmt(row, 'college')}</td>
-                            <td className="asp-td--total">{rowTotal}</td>
-                          </tr>
-                        );
-                      })}
+                      {summaryRows.map(row => (
+                        <tr key={`${row.sport}-${row.gender}`}>
+                          <td className="asp-td--sport">{row.sport.toUpperCase()} {row.gender.toUpperCase()}</td>
+                          <td>{fmt(row, 'elementary')}</td>
+                          <td>{fmt(row, 'highSchool')}</td>
+                          <td>{fmt(row, 'college')}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 )}
@@ -1587,10 +1599,6 @@ const fetchSummary = useCallback(async () => {
                   <option value="Female">Female</option>
                   <option value="Others">Others</option>
                 </select>
-                <select className="asp-filter-pill" value={filterTeam} onChange={e => setFilterTeam(e.target.value)}>
-                  <option value="">Team Name ▾</option>
-                  {uniqueTeams.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
                 {hasFilters && (
                   <button className="asp-clear-btn" onClick={clearFilters}>
                     <FaTimes /> Clear Filter
@@ -1614,8 +1622,6 @@ const fetchSummary = useCallback(async () => {
                         <th>Grade/Year</th>
                         <th>Section</th>
                         <th>Sport</th>
-                        <th>Position</th>
-                        <th>Team Name</th>
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -1639,15 +1645,6 @@ const fetchSummary = useCallback(async () => {
                           <td>{reg.gradeLevel || '—'}</td>
                           <td>{reg.section || '—'}</td>
                           <td className="asp-td--sport">{reg.sport || '—'}</td>
-                          <td>{reg.position || '—'}</td>
-                          <td>
-                            <span
-                              className="asp-team-badge"
-                              style={{ background: TEAM_COLORS[reg.teamName] || '#334155' }}
-                            >
-                              {reg.teamName || 'N/A'}
-                            </span>
-                          </td>
                           <td>
                             <button className="asp-btn-view" onClick={() => setSelectedStudent(reg)}>View</button>
                           </td>
