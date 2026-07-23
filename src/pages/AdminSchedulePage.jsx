@@ -563,6 +563,10 @@ function MatchScheduleFormatSection({ level }) {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState({ sport: '', date: '', time: '', location: '', pairs: [{ teamA: '', teamB: '' }] });
 
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState(null); // { id, sport, date, time, location, teamA, teamB }
+  const [savingEdit, setSavingEdit] = useState(false);
+
   /* ── Load Sports & Teams config (admin-entered, per level) ── */
   const load = useCallback(async () => {
     setLoading(true);
@@ -775,6 +779,61 @@ function MatchScheduleFormatSection({ level }) {
     }
     setSavedSchedules(merged);
     setAddModalOpen(false);
+  };
+
+  /* ── Edit an existing scheduled match (team names, teams, venue, time, date) ── */
+  const openEditModal = (match) => {
+    setEditForm({
+      id: match.id,
+      sport: match.sport || '',
+      date: match.date || '',
+      time: match.time || '',
+      location: match.location || '',
+      teamA: match.teamA || '',
+      teamB: match.teamB || '',
+      // Preserved as-is on save — not editable here, this modal only covers
+      // teams/venue/time/date per the request.
+      category: match.category || '',
+      format: match.format || '',
+      round: match.round ?? null,
+      status: match.status || 'scheduled',
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleConfirmEdit = async () => {
+    if (!editForm) return;
+    if (!editForm.sport || !editForm.date || !editForm.time || !editForm.teamA || !editForm.teamB) return;
+    const pool = teamsList.filter(t => (t.sportIds || []).includes(editForm.sport));
+
+    const updated = {
+      id: editForm.id,
+      sport: editForm.sport,
+      category: editForm.category,
+      format: editForm.format,
+      round: editForm.round,
+      teamA: editForm.teamA,
+      teamB: editForm.teamB,
+      teamALogo: pool.find(t => t.name === editForm.teamA)?.logo || null,
+      teamBLogo: pool.find(t => t.name === editForm.teamB)?.logo || null,
+      date: editForm.date,
+      time: editForm.time,
+      location: editForm.location,
+      status: editForm.status,
+    };
+
+    setSavingEdit(true);
+    try {
+      const merged = await upsertMatchSchedule(level, updated);
+      setSavedSchedules(merged);
+      setEditModalOpen(false);
+      setEditForm(null);
+    } catch (e) {
+      console.error('Failed to update match:', e);
+      setToast({ text: 'Could not update the match — check your connection and try again.' });
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   /* ── Grouped list view (by date) ── */
@@ -1206,7 +1265,7 @@ function MatchScheduleFormatSection({ level }) {
                     {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
                   </div>
                   <span className="msf-pill-sport">{m.sport}</span>
-                  <button className="msf-icon-edit"><FaEdit /></button>
+                  <button className="msf-icon-edit" onClick={() => openEditModal(m)} title="Edit match"><FaEdit /></button>
                 </div>
               ))}
             </div>
@@ -1328,6 +1387,76 @@ function MatchScheduleFormatSection({ level }) {
           </div>
         </div>
       )}
+
+      {/* ── Edit Schedule modal — same design as Add Schedule, pre-filled with
+           the match's current teams, venue, time and date ── */}
+      {editModalOpen && editForm && (
+        <div className="msf-overlay" onClick={() => setEditModalOpen(false)}>
+          <div className="msf-addwrap" onClick={e => e.stopPropagation()}>
+            <p className="msf-add-eyebrow">Match Schedule (Time, Date and Venue)</p>
+            <div className="msf-add-card">
+              <h2 className="msf-add-card__title">Edit Match Schedule</h2>
+              <div className="msf-add-card__divider" />
+
+              <div className="msf-form-group">
+                <label>Sport</label>
+                <select
+                  value={editForm.sport}
+                  onChange={e => setEditForm(f => ({ ...f, sport: e.target.value, teamA: '', teamB: '' }))}
+                >
+                  <option value="">Select a sport</option>
+                  {sportOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+
+              <div className="msf-form-row">
+                <div className="msf-form-group">
+                  <label>Time</label>
+                  <input type="time" value={editForm.time} onChange={e => setEditForm(f => ({ ...f, time: e.target.value }))} />
+                </div>
+                <div className="msf-form-group">
+                  <label>Date</label>
+                  <input type="date" value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="msf-form-row msf-form-row--vs">
+                <div className="msf-form-group">
+                  <label>Teams</label>
+                  <select value={editForm.teamA} onChange={e => setEditForm(f => ({ ...f, teamA: e.target.value }))}>
+                    <option value="">Select a teams</option>
+                    {teamsList.filter(t => (t.sportIds || []).includes(editForm.sport)).map(t => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <span className="msf-vs">VS</span>
+                <div className="msf-form-group">
+                  <label>Teams</label>
+                  <select value={editForm.teamB} onChange={e => setEditForm(f => ({ ...f, teamB: e.target.value }))}>
+                    <option value="">Select a teams</option>
+                    {teamsList.filter(t => (t.sportIds || []).includes(editForm.sport)).map(t => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="msf-form-group">
+                <label>Venue</label>
+                <input type="text" placeholder="Input Venue" value={editForm.location} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} />
+              </div>
+
+              <div className="msf-form-actions">
+                <button className="msf-btn-ghost msf-btn-block" onClick={() => setEditModalOpen(false)}>Cancel</button>
+                <button className="msf-btn-primary msf-btn-block" disabled={savingEdit} onClick={handleConfirmEdit}>
+                  {savingEdit ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1352,6 +1481,7 @@ export default function AdminSchedulePage() {
   const [filterSection,  setFilterSection]  = useState('');
   const [filterSport,    setFilterSport]    = useState('');
   const [filterGender,   setFilterGender]   = useState('');
+  const [filterTeam,     setFilterTeam]     = useState('');
 
   // Student detail modal
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -1382,46 +1512,34 @@ const fetchSummary = useCallback(async () => {
       ...doc.data(),
     }));
 
-    // This table is the STUDENT registration tabulation — staff accounts
-    // (admin / moderator / super admin) manage it, they don't belong as
-    // rows in it.
-    const studentUsers = users.filter(
-      u => (u.role || 'student').toLowerCase() === 'student'
-    );
-    const studentUids = new Set(studentUsers.map(u => u.id));
-    const studentRegistrations = registrations.filter(r => studentUids.has(r.uid));
+    // Merge users with registration info
+    const merged = users.map(user => {
+      const registration = registrations.find(
+        r => r.uid === user.id
+      );
 
-    // One row per STUDENT ACCOUNT (keyed by uid) — never collapsed or
-    // matched by name, since two different accounts can legitimately
-    // share the same name.
-    const merged = studentUsers.map(user => {
-      const registration = studentRegistrations.find(r => r.uid === user.id);
+      if (registration) {
+        return {
+          ...user,
+          ...registration,
+        };
+      }
 
+      // User has no player registration yet
       return {
         ...user,
-        ...(registration || {}),
-        id: user.id,
-        uid: user.id,
-        fullName: (registration && registration.fullName) || user.name || '',
-        email: (registration && registration.email) || user.email || '',
-        // Gender / Grade-Year / Section always reflect what the student
-        // set when they created their account, not whatever a later
-        // sport-registration form happened to have typed into it.
-        gender: user.gender || '—',
-        gradeLevel: user.gradeLevel || '—',
-        section: user.section || '—',
-        // A student who hasn't registered for a sport yet isn't a
-        // player — say so plainly instead of leaving it blank.
-        sport: (registration && registration.sport) || 'N/A',
-        position: (registration && registration.position) || 'N/A',
-        teamName: (registration && registration.teamName) || 'N/A',
+        fullName: user.name,
+        gender: "—",
+        gradeLevel: "—",
+        section: "—",
+        sport: "—",
+        position: "—",
+        teamName: "—",
       };
-    }).sort((a, b) =>
-      (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' })
-    );
+    });
 
     setAllRegistrations(merged);
-    setSummaryRows(buildSummary(studentRegistrations));
+    setSummaryRows(buildSummary(registrations));
 
   } catch (err) {
     console.error(err);
@@ -1433,14 +1551,12 @@ const fetchSummary = useCallback(async () => {
 
   useEffect(() => { if (activeTab === 0) fetchSummary(); }, [activeTab, fetchSummary]);
 
-  const totalElementary = summaryRows.reduce((s, r) => s + r.elementary, 0);
-  const totalHighSchool = summaryRows.reduce((s, r) => s + r.highSchool, 0);
-  const totalCollege    = summaryRows.reduce((s, r) => s + r.college, 0);
-  const totalPlayers    = totalElementary + totalHighSchool + totalCollege;
+  const totalPlayers = summaryRows.reduce((s, r) => s + r.elementary + r.highSchool + r.college, 0);
 
   // Unique filter options from data
   const uniqueSections = [...new Set(allRegistrations.map(r => r.section).filter(Boolean))].sort();
   const uniqueSports   = [...new Set(allRegistrations.map(r => r.sport).filter(Boolean))].sort();
+  const uniqueTeams    = [...new Set(allRegistrations.map(r => r.teamName).filter(Boolean))].sort();
 
   const filteredStudents = allRegistrations.filter(r => {
     const q = searchQuery.toLowerCase();
@@ -1449,12 +1565,13 @@ const fetchSummary = useCallback(async () => {
       (!filterGrade   || r.gradeLevel === filterGrade) &&
       (!filterSection || r.section    === filterSection) &&
       (!filterSport   || r.sport      === filterSport) &&
-      (!filterGender  || (r.gender || '').toLowerCase() === filterGender.toLowerCase())
+      (!filterGender  || (r.gender || '').toLowerCase() === filterGender.toLowerCase()) &&
+      (!filterTeam    || r.teamName   === filterTeam)
     );
   });
 
-  const hasFilters = searchQuery || filterGrade || filterSection || filterSport || filterGender;
-  const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); };
+  const hasFilters = searchQuery || filterGrade || filterSection || filterSport || filterGender || filterTeam;
+  const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); setFilterTeam(''); };
 
   const fmt = (row, level) => row[level] === 0 ? '--' : row[level];
 
@@ -1469,17 +1586,17 @@ const fetchSummary = useCallback(async () => {
 
       {/* Intro */}
       <div className="asp-intro">
-        <div className="asp-intro__text">
-          <h2 className="asp-intro__title">Update &amp; Edit</h2>
-          <p className="asp-intro__sub">Manage registrations, sports, and match schedules</p>
-        </div>
-        <div className="asp-tabs asp-tabs--header">
-          {TABS.map((tab, i) => (
-            <button key={tab} className={`asp-tab${activeTab === i ? ' asp-tab--active' : ''}`} onClick={() => setActiveTab(i)}>
-              {tab}
-            </button>
-          ))}
-        </div>
+        <h2 className="asp-intro__title">Update &amp; Edit</h2>
+        <p className="asp-intro__sub">Manage registrations, sports, and match schedules</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="asp-tabs">
+        {TABS.map((tab, i) => (
+          <button key={tab} className={`asp-tab${activeTab === i ? ' asp-tab--active' : ''}`} onClick={() => setActiveTab(i)}>
+            {tab}
+          </button>
+        ))}
       </div>
 
       {/* Body */}
@@ -1501,26 +1618,9 @@ const fetchSummary = useCallback(async () => {
                   <button className="asp-refresh-btn" onClick={fetchSummary} disabled={summaryLoading} title="Refresh">
                     <FaSync className={summaryLoading ? 'asp-spin' : ''} />
                   </button>
-                  <div className="asp-total-box asp-total-box--wide">
-                    <div className="asp-total-seg">
-                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalElementary}</span>
-                      <span className="asp-total-seg__label">Elementary</span>
-                    </div>
-                    <div className="asp-total-div" />
-                    <div className="asp-total-seg">
-                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalHighSchool}</span>
-                      <span className="asp-total-seg__label">High School</span>
-                    </div>
-                    <div className="asp-total-div" />
-                    <div className="asp-total-seg">
-                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalCollege}</span>
-                      <span className="asp-total-seg__label">College</span>
-                    </div>
-                    <div className="asp-total-div" />
-                    <div className="asp-total-seg asp-total-seg--grand">
-                      <span className="asp-total-seg__num">{summaryLoading ? '…' : totalPlayers}</span>
-                      <span className="asp-total-seg__label">Total</span>
-                    </div>
+                  <div className="asp-total-box">
+                    <span className="asp-total-label">Total</span>
+                    <span className="asp-total-num">{summaryLoading ? '…' : totalPlayers}</span>
                   </div>
                 </div>
               </div>
@@ -1542,17 +1642,22 @@ const fetchSummary = useCallback(async () => {
                         <th>Elementary</th>
                         <th>High School</th>
                         <th>College</th>
+                        <th>Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {summaryRows.map(row => (
-                        <tr key={`${row.sport}-${row.gender}`}>
-                          <td className="asp-td--sport">{row.sport.toUpperCase()} {row.gender.toUpperCase()}</td>
-                          <td>{fmt(row, 'elementary')}</td>
-                          <td>{fmt(row, 'highSchool')}</td>
-                          <td>{fmt(row, 'college')}</td>
-                        </tr>
-                      ))}
+                      {summaryRows.map(row => {
+                        const rowTotal = row.elementary + row.highSchool + row.college;
+                        return (
+                          <tr key={`${row.sport}-${row.gender}`}>
+                            <td className="asp-td--sport">{row.sport.toUpperCase()} {row.gender.toUpperCase()}</td>
+                            <td>{fmt(row, 'elementary')}</td>
+                            <td>{fmt(row, 'highSchool')}</td>
+                            <td>{fmt(row, 'college')}</td>
+                            <td className="asp-td--total">{rowTotal}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -1599,6 +1704,10 @@ const fetchSummary = useCallback(async () => {
                   <option value="Female">Female</option>
                   <option value="Others">Others</option>
                 </select>
+                <select className="asp-filter-pill" value={filterTeam} onChange={e => setFilterTeam(e.target.value)}>
+                  <option value="">Team Name ▾</option>
+                  {uniqueTeams.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
                 {hasFilters && (
                   <button className="asp-clear-btn" onClick={clearFilters}>
                     <FaTimes /> Clear Filter
@@ -1622,6 +1731,8 @@ const fetchSummary = useCallback(async () => {
                         <th>Grade/Year</th>
                         <th>Section</th>
                         <th>Sport</th>
+                        <th>Position</th>
+                        <th>Team Name</th>
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -1645,6 +1756,15 @@ const fetchSummary = useCallback(async () => {
                           <td>{reg.gradeLevel || '—'}</td>
                           <td>{reg.section || '—'}</td>
                           <td className="asp-td--sport">{reg.sport || '—'}</td>
+                          <td>{reg.position || '—'}</td>
+                          <td>
+                            <span
+                              className="asp-team-badge"
+                              style={{ background: TEAM_COLORS[reg.teamName] || '#334155' }}
+                            >
+                              {reg.teamName || 'N/A'}
+                            </span>
+                          </td>
                           <td>
                             <button className="asp-btn-view" onClick={() => setSelectedStudent(reg)}>View</button>
                           </td>
