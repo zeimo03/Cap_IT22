@@ -178,6 +178,44 @@
   gap: 4px;
 }
 
+/* ── Validation error state ── */
+.reg-field--error .reg-input,
+.reg-field--error .reg-select {
+  border-color: #C0392B;
+  background: #fdf2f1;
+}
+
+.reg-field--error .reg-upload-icon {
+  border-color: #C0392B;
+  background: #fdf2f1;
+}
+
+.reg-field__error {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #C0392B;
+  line-height: 1.3;
+}
+
+.reg-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fdf2f1;
+  border: 1px solid #f1c2bd;
+  color: #9c2c20;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 18px;
+}
+
+.reg-notice__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .reg-label {
   font-size: 11.5px;
   font-weight: 700;

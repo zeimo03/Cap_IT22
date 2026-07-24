@@ -61,6 +61,8 @@ export default function RegistrationPage() {
   const [photo, setPhoto]         = useState(null);
   const [waiver, setWaiver]       = useState(null);
   const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors]       = useState({});
+  const [showNotice, setShowNotice] = useState(false);
 
   // Sport / Team options, sourced live from the admin's Sports & Teams
   // config for whichever school level the selected Grade/Year falls in.
@@ -71,8 +73,17 @@ export default function RegistrationPage() {
   const photoRef         = useRef(null);
   const waiverRef        = useRef(null);
   const contactFooterRef = useRef(null);
+  const cardRef          = useRef(null);
 
-  const set = (k) => (e) => setForm(prev => ({ ...prev, [k]: e.target.value }));
+  const set = (k) => (e) => {
+    setForm(prev => ({ ...prev, [k]: e.target.value }));
+    setErrors(prev => {
+      if (!prev[k]) return prev;
+      const next = { ...prev };
+      delete next[k];
+      return next;
+    });
+  };
 
   const schoolLevel = getSchoolLevel(form.gradeLevel);
 
@@ -110,9 +121,19 @@ export default function RegistrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schoolLevel]);
 
-  const handleFile = (setter) => (e) => {
+  const handleFile = (setter, key) => (e) => {
     const file = e.target.files?.[0];
-    if (file) setter(file);
+    if (file) {
+      setter(file);
+      if (key) {
+        setErrors(prev => {
+          if (!prev[key]) return prev;
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+      }
+    }
   };
 
   const handleReset = () => {
@@ -120,12 +141,44 @@ export default function RegistrationPage() {
     setPhoto(null);
     setWaiver(null);
     setSubmitted(false);
+    setErrors({});
+    setShowNotice(false);
     if (photoRef.current)  photoRef.current.value  = '';
     if (waiverRef.current) waiverRef.current.value = '';
   };
 
+  const validate = () => {
+    const errs = {};
+    if (!form.fullName.trim())        errs.fullName        = 'Full name is required';
+    if (!form.dob)                    errs.dob              = 'Date of birth is required';
+    if (!form.age)                    errs.age              = 'Age is required';
+    else if (Number(form.age) <= 0)   errs.age              = 'Enter a valid age';
+    if (!form.gender)                 errs.gender           = 'Please select a gender';
+    if (!form.contactNumber.trim())   errs.contactNumber    = 'Contact number is required';
+    if (!form.address.trim())         errs.address          = 'Address is required';
+    if (!form.emergencyContact.trim())errs.emergencyContact = 'Emergency contact is required';
+    if (!form.gradeLevel)             errs.gradeLevel       = 'Please select a grade / year level';
+    if (!form.section)                errs.section          = 'Please select a section';
+    if (!form.teamName)               errs.teamName         = 'Please select a team';
+    if (!form.sport)                  errs.sport            = 'Please select a sport / event';
+    if (!form.position)               errs.position         = 'Please select a position';
+    if (!waiver)                      errs.waiver           = 'Waiver / consent form is required';
+    return errs;
+  };
+
  const handleSave = async (e) => {
     e.preventDefault();
+
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setShowNotice(true);
+      if (cardRef.current) {
+        cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      return;
+    }
+    setShowNotice(false);
 
     try {
 
@@ -191,7 +244,7 @@ export default function RegistrationPage() {
       </div>
 
       <div className="reg-body">
-        <div className="reg-card">
+        <div className="reg-card" ref={cardRef}>
           <div className="reg-card__head">
             <div className="reg-card__icon">
               <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
@@ -199,19 +252,28 @@ export default function RegistrationPage() {
             <h2 className="reg-card__title">Player Registration</h2>
           </div>
 
+          {showNotice && Object.keys(errors).length > 0 && (
+            <div className="reg-notice" role="alert">
+              <svg className="reg-notice__icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2 1 21h22L12 2zm0 5.5 6.9 12H5.1L12 7.5zM11 10v5h2v-5h-2zm0 6.5V18h2v-1.5h-2z"/>
+              </svg>
+              <span>Please fill in all required fields marked with <strong>*</strong> before submitting.</span>
+            </div>
+          )}
+
           <form className="reg-form" onSubmit={handleSave} noValidate>
 
             {/* Row 1: Full Name / DOB / Age */}
             <div className="reg-row reg-row--3">
-              <Field label="Full Name" required>
+              <Field label="Full Name" required error={errors.fullName}>
                 <input className="reg-input" placeholder="Last Name, First Name, Middle Name"
                   value={form.fullName} onChange={set('fullName')} required />
               </Field>
-              <Field label="Date of Birth" required>
+              <Field label="Date of Birth" required error={errors.dob}>
                 <input className="reg-input" type="date"
                   value={form.dob} onChange={set('dob')} required />
               </Field>
-              <Field label="Age" required>
+              <Field label="Age" required error={errors.age}>
                 <input className="reg-input" type="number" placeholder="Enter Age" min={5} max={40}
                   value={form.age} onChange={set('age')} required />
               </Field>
@@ -219,7 +281,7 @@ export default function RegistrationPage() {
 
             {/* Row 2: Gender / Contact / Email */}
             <div className="reg-row reg-row--3">
-              <Field label="Gender" required>
+              <Field label="Gender" required error={errors.gender}>
                 <div className="reg-radio-group">
                   {['Male', 'Female', 'Others'].map(g => (
                     <label className="reg-radio-label" key={g}>
@@ -230,7 +292,7 @@ export default function RegistrationPage() {
                   ))}
                 </div>
               </Field>
-              <Field label="Contact Number" required>
+              <Field label="Contact Number" required error={errors.contactNumber}>
                 <input className="reg-input" placeholder="63+**********"
                   value={form.contactNumber} onChange={set('contactNumber')} required />
               </Field>
@@ -242,11 +304,11 @@ export default function RegistrationPage() {
 
             {/* Row 3: Address / Emergency */}
             <div className="reg-row reg-row--2">
-              <Field label="Address" required>
+              <Field label="Address" required error={errors.address}>
                 <input className="reg-input" placeholder="Complete Address"
                   value={form.address} onChange={set('address')} required />
               </Field>
-              <Field label="Emergency Contact" required>
+              <Field label="Emergency Contact" required error={errors.emergencyContact}>
                 <input className="reg-input" placeholder="Name-63+**********"
                   value={form.emergencyContact} onChange={set('emergencyContact')} required />
               </Field>
@@ -254,13 +316,13 @@ export default function RegistrationPage() {
 
             {/* Row 4: Grade / Section */}
             <div className="reg-row reg-row--2">
-              <Field label="Grade / Year Level" required>
+              <Field label="Grade / Year Level" required error={errors.gradeLevel}>
                 <select className="reg-select" value={form.gradeLevel} onChange={set('gradeLevel')} required>
                   <option value="">Select Grade / Year Level</option>
                   {GRADE_LEVELS.map(g => <option key={g}>{g}</option>)}
                 </select>
               </Field>
-              <Field label="Section" required>
+              <Field label="Section" required error={errors.section}>
                 <select className="reg-select" value={form.section} onChange={set('section')} required>
                   <option value="">Select Section</option>
                   {SECTIONS.map(s => <option key={s}>{s}</option>)}
@@ -270,7 +332,7 @@ export default function RegistrationPage() {
 
             {/* Row 5: Team / Sport / Position */}
             <div className="reg-row reg-row--3eq">
-              <Field label="Team Name" required>
+              <Field label="Team Name" required error={errors.teamName}>
                 <select
                   className="reg-select"
                   value={form.teamName}
@@ -290,7 +352,7 @@ export default function RegistrationPage() {
                   {teamOptions.map(t => <option key={t}>{t}</option>)}
                 </select>
               </Field>
-              <Field label="Sport / Event" required>
+              <Field label="Sport / Event" required error={errors.sport}>
                 <select
                   className="reg-select"
                   value={form.sport}
@@ -310,7 +372,7 @@ export default function RegistrationPage() {
                   {sportOptions.map(s => <option key={s}>{s}</option>)}
                 </select>
               </Field>
-              <Field label="Position" required>
+              <Field label="Position" required error={errors.position}>
                 <select className="reg-select" value={form.position} onChange={set('position')} required>
                   <option value="">Select Position</option>
                   {POSITIONS.map(p => <option key={p}>{p}</option>)}
@@ -332,9 +394,9 @@ export default function RegistrationPage() {
                 </label>
               </Field>
 
-              <Field label={<>Upload Waiver / Consent Form <span style={{ color: '#C0392B' }}>*</span></>}>
+              <Field label="Upload Waiver / Consent Form" required error={errors.waiver}>
                 <label className="reg-upload-box">
-                  <input type="file" accept=".pdf,.doc,.docx,image/*" ref={waiverRef} onChange={handleFile(setWaiver)} />
+                  <input type="file" accept=".pdf,.doc,.docx,image/*" ref={waiverRef} onChange={handleFile(setWaiver, 'waiver')} />
                   <div className="reg-upload-icon">📄</div>
                   <span className="reg-upload-caption">Click to upload waiver</span>
                   {waiver
@@ -382,13 +444,14 @@ export default function RegistrationPage() {
 
 
 
-function Field({ label, required, children }) {
+function Field({ label, required, error, children }) {
   return (
-    <div className="reg-field">
+    <div className={`reg-field${error ? ' reg-field--error' : ''}`}>
       <label className="reg-label">
         {label}{required && <span>*</span>}
       </label>
       {children}
+      {error && <span className="reg-field__error">{error}</span>}
     </div>
   );
 }
