@@ -563,6 +563,10 @@ function MatchScheduleFormatSection({ level }) {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState({ sport: '', date: '', time: '', location: '', pairs: [{ teamA: '', teamB: '' }] });
 
+  /* ── Manual "Edit Schedule" ── */
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState(null); // full match object being edited, or null
+
   /* ── Load Sports & Teams config (admin-entered, per level) ── */
   const load = useCallback(async () => {
     setLoading(true);
@@ -775,6 +779,28 @@ function MatchScheduleFormatSection({ level }) {
     }
     setSavedSchedules(merged);
     setAddModalOpen(false);
+  };
+
+  /* ── Manual "Edit Schedule" ── */
+  const openEditModal = (match) => {
+    setEditForm({ ...match });
+    setEditModalOpen(true);
+  };
+
+  const editPool = teamsList.filter(t => (t.sportIds || []).includes(editForm?.sport));
+
+  const handleConfirmEdit = async () => {
+    if (!editForm || !editForm.date || !editForm.time || !editForm.teamA || !editForm.teamB) return;
+    const updated = {
+      ...editForm,
+      teamALogo: editPool.find(t => t.name === editForm.teamA)?.logo ?? editForm.teamALogo ?? null,
+      teamBLogo: editPool.find(t => t.name === editForm.teamB)?.logo ?? editForm.teamBLogo ?? null,
+    };
+    const merged = await upsertMatchSchedule(level, updated);
+    setSavedSchedules(merged);
+    setEditModalOpen(false);
+    setEditForm(null);
+    setToast({ text: 'Schedule updated successfully.' });
   };
 
   /* ── Grouped list view (by date) ── */
@@ -1206,7 +1232,7 @@ function MatchScheduleFormatSection({ level }) {
                     {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
                   </div>
                   <span className="msf-pill-sport">{m.sport}</span>
-                  <button className="msf-icon-edit"><FaEdit /></button>
+                  <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
                 </div>
               ))}
             </div>
@@ -1323,6 +1349,69 @@ function MatchScheduleFormatSection({ level }) {
               <div className="msf-form-actions">
                 <button className="msf-btn-ghost msf-btn-block" onClick={() => setAddModalOpen(false)}>Cancel</button>
                 <button className="msf-btn-primary msf-btn-block" onClick={handleConfirmAdd}>Add to Schedule</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Schedule modal — same look as the Add Schedule modal ── */}
+      {editModalOpen && editForm && (
+        <div className="msf-overlay" onClick={() => setEditModalOpen(false)}>
+          <div className="msf-addwrap" onClick={e => e.stopPropagation()}>
+            <p className="msf-add-eyebrow">Match Schedule (Time, Date and Venue)</p>
+            <div className="msf-add-card">
+              <h2 className="msf-add-card__title">Edit Match Schedule</h2>
+              <div className="msf-add-card__divider" />
+
+              <div className="msf-form-group">
+                <label>Sport</label>
+                <input type="text" value={editForm.sport || ''} disabled />
+              </div>
+
+              <div className="msf-form-row">
+                <div className="msf-form-group">
+                  <label>Time</label>
+                  <input type="time" value={editForm.time || ''} onChange={e => setEditForm(f => ({ ...f, time: e.target.value }))} />
+                </div>
+                <div className="msf-form-group">
+                  <label>Date</label>
+                  <input type="date" value={editForm.date || ''} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="msf-form-row msf-form-row--vs">
+                <div className="msf-form-group">
+                  <label>Teams</label>
+                  <select value={editForm.teamA || ''} onChange={e => setEditForm(f => ({ ...f, teamA: e.target.value }))}>
+                    <option value="">Select a teams</option>
+                    {editPool.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    {editForm.teamA && !editPool.some(t => t.name === editForm.teamA) && (
+                      <option value={editForm.teamA}>{editForm.teamA}</option>
+                    )}
+                  </select>
+                </div>
+                <span className="msf-vs">VS</span>
+                <div className="msf-form-group">
+                  <label>Teams</label>
+                  <select value={editForm.teamB || ''} onChange={e => setEditForm(f => ({ ...f, teamB: e.target.value }))}>
+                    <option value="">Select a teams</option>
+                    {editPool.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    {editForm.teamB && !editPool.some(t => t.name === editForm.teamB) && (
+                      <option value={editForm.teamB}>{editForm.teamB}</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div className="msf-form-group">
+                <label>Venue</label>
+                <input type="text" placeholder="Input Venue" value={editForm.location || ''} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} />
+              </div>
+
+              <div className="msf-form-actions">
+                <button className="msf-btn-ghost msf-btn-block" onClick={() => { setEditModalOpen(false); setEditForm(null); }}>Cancel</button>
+                <button className="msf-btn-primary msf-btn-block" onClick={handleConfirmEdit}>Save Changes</button>
               </div>
             </div>
           </div>
@@ -1690,17 +1779,17 @@ const fetchSummary = useCallback(async () => {
                   <label>Full Name</label>
                   <p>{selectedStudent.fullName || '—'}</p>
                 </div>
-                <div className="asp-form-group">
+                <div className="asp-form-group asp-form-group--center">
                   <label>Gender</label>
                   <p>{selectedStudent.gender || '—'}</p>
                 </div>
               </div>
               <div className="asp-form-row">
-                <div className="asp-form-group">
+                <div className="asp-form-group asp-form-group--center">
                   <label>Grade / Year Level</label>
                   <p>{selectedStudent.gradeLevel || '—'}</p>
                 </div>
-                <div className="asp-form-group">
+                <div className="asp-form-group asp-form-group--center">
                   <label>Section</label>
                   <p>{selectedStudent.section || '—'}</p>
                 </div>
@@ -1734,16 +1823,16 @@ const fetchSummary = useCallback(async () => {
                 <p>{selectedStudent.emergencyContact || '—'}</p>
               </div>
               <div className="asp-form-row">
-                <div className="asp-form-group">
+                <div className="asp-form-group asp-form-group--center">
                   <label>Sport</label>
                   <p>{selectedStudent.sport || '—'}</p>
                 </div>
-                <div className="asp-form-group">
+                <div className="asp-form-group asp-form-group--center">
                   <label>Position</label>
                   <p>{selectedStudent.position || '—'}</p>
                 </div>
               </div>
-              <div className="asp-form-group">
+              <div className="asp-form-group asp-form-group--center">
                 <label>Team Name</label>
                 <p>{selectedStudent.teamName || '—'}</p>
               </div>

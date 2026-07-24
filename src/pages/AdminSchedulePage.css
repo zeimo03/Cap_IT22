@@ -443,6 +443,14 @@
   font-weight: 500;
 }
 
+/* Registration summary table — the Sports column stays left-aligned (it's a
+   label), but the numeric Elementary / High School / College columns should
+   line up centered under their headers instead of hugging the left edge. */
+.asp-table:not(.asp-table--students) th:not(:first-child),
+.asp-table:not(.asp-table--students) td:not(:first-child) {
+  text-align: center;
+}
+
 .asp-td--sport {
   font-weight: 700 !important;
   color: #001529 !important;
@@ -459,6 +467,19 @@
    ══════════════════════════════════════════ */
 .asp-table--students td {
   white-space: nowrap;
+}
+
+/* Gender, Grade/Year, Section and Sport columns should be centered under
+   their headers — Name (with the avatar) and Action stay as-is. */
+.asp-table--students th:nth-child(3),
+.asp-table--students th:nth-child(4),
+.asp-table--students th:nth-child(5),
+.asp-table--students th:nth-child(6),
+.asp-table--students td:nth-child(3),
+.asp-table--students td:nth-child(4),
+.asp-table--students td:nth-child(5),
+.asp-table--students td:nth-child(6) {
+  text-align: center;
 }
 
 .asp-td--num {
@@ -872,6 +893,14 @@
   color: #1d4ed8;
   font-weight: 600;
   text-decoration: underline;
+}
+
+/* Used in the Student Details modal for Gender, Grade/Year, Section, Sport,
+   Position and Team Name — centers the label and its value instead of the
+   default left alignment. */
+.asp-form-group--center {
+  align-items: center;
+  text-align: center;
 }
 
 .asp-form-row {
