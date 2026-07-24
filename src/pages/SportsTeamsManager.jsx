@@ -78,7 +78,7 @@ function NumDropdown({ value, onChange, label, max = 10 }) {
   return (
     <div className="stm-num-wrap" ref={wrapRef}>
       <button type="button" className="stm-num-btn" onClick={() => setOpen(o => !o)}>
-        {value ? `Number of ${label.toLowerCase().replace('number of ', '')} ✓ ${value}` : label}
+        {value ? `Number of ${label.toLowerCase().replace('number of ', '')} ${value}` : label}
         <FaChevronDown className={`stm-num-arrow ${open ? 'stm-num-arrow--open' : ''}`} />
       </button>
 
@@ -477,9 +477,14 @@ function SportsConfirmModal({ sports, saving, onClose, onSave }) {
           </div>
         </div>
 
-        <button className="stm-btn-primary stm-btn-block" onClick={onSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <div className="stm-confirm-actions">
+          <button className="stm-btn-ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button className="stm-btn-primary" onClick={onSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -590,9 +595,14 @@ function TeamsConfirmModal({ teams, saving, onClose, onSave }) {
             }
           </div>
         </div>
-        <button className="stm-btn-primary stm-btn-block" onClick={onSave} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        <div className="stm-confirm-actions">
+          <button className="stm-btn-ghost" onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button className="stm-btn-primary" onClick={onSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </div>
     </div>
   );

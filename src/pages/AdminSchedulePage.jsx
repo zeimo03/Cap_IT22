@@ -1733,7 +1733,7 @@ const fetchSummary = useCallback(async () => {
                         <th>Sport</th>
                         <th>Position</th>
                         <th>Team Name</th>
-                        <th>Action</th>
+                        <th>Information</th>
                       </tr>
                     </thead>
                     <tbody>
