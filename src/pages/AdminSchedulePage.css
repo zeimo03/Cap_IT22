@@ -1,5 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=Lalezar&family=Inter:wght@400;500;600;700;800;900&display=swap');
-@import url(https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic);
 
 /* ══════════════════════════════════════════
    PAGE SHELL
@@ -187,7 +186,6 @@
 }
 
 .asp-card__subtitle {
-  font-family: "Inter", sans-serif;
   font-size: 0.8rem;
   font-weight: 700;
   color: #001529;
@@ -455,7 +453,6 @@
 }
 
 .asp-td--sport {
-  font-family: "Inter", sans-serif;
   font-weight: 700 !important;
   color: #001529 !important;
   letter-spacing: 0.02em;
@@ -1004,7 +1001,6 @@
 }
 
 .lvls-btn {
-  font-family: "Inter", sans-serif;
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   border: 2px solid rgba(255, 255, 255, 0.5);
@@ -1062,7 +1058,6 @@
 }
 
 .lvls-dropdown__item {
-  font-family: "Inter", sans-serif;
   display: block;
   width: 100%;
   padding: 11px 18px;
@@ -2339,95 +2334,6 @@
   flex: 1;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-}
-
-/* ── Delete Schedule (Edit modal) ── */
-.msf-btn-delete-schedule {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  margin-top: 12px;
-  background: none;
-  border: none;
-  color: #c0392b;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  cursor: pointer;
-  padding: 10px;
-  border-radius: 8px;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.msf-btn-delete-schedule:hover {
-  background: #fdecea;
-  color: #a5281b;
-}
-
-.msf-overlay--nested {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 21, 41, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-}
-
-.msf-confirm-delete {
-  background: #fff;
-  border-radius: 14px;
-  padding: 26px 28px;
-  width: 92%;
-  max-width: 380px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
-}
-
-.msf-confirm-delete h3 {
-  margin: 0 0 10px;
-  font-size: 1.1rem;
-  color: #001529;
-}
-
-.msf-confirm-delete p {
-  margin: 0 0 20px;
-  font-size: 0.88rem;
-  line-height: 1.5;
-  color: #33455c;
-}
-
-.msf-confirm-delete__actions {
-  display: flex;
-  gap: 10px;
-}
-
-.msf-confirm-delete__actions button {
-  flex: 1;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.msf-btn-danger {
-  background: #c0392b;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 11px 18px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.msf-btn-danger:hover {
-  background: #a5281b;
-}
-
-.msf-btn-danger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* ── List view ── */
