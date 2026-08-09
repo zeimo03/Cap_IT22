@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaRunning, FaUsers, FaPlus, FaTimes, FaChevronDown,
-  FaEdit, FaCheck, FaEllipsisV, FaSync,
+  FaEdit, FaCheck, FaEllipsisV, FaSync, FaTrash,
 } from 'react-icons/fa';
 import './SportsTeamsManager.css';
 import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../services/firestoreService';
@@ -25,7 +25,7 @@ const ensureId = (obj) => obj?.id ? obj : { ...obj, id: uid() };
    LOGO UPLOAD
    Resizes to 80×80 before storing as base64
 ═══════════════════════════════════════════ */
-function LogoUpload({ logo, onUpload }) {
+function LogoUpload({ logo, onUpload, onClear, showClearButton = false }) {
   const inputRef = useRef(null);
 
   const handleFile = (e) => {
@@ -48,15 +48,35 @@ function LogoUpload({ logo, onUpload }) {
       URL.revokeObjectURL(url);
     };
     img.src = url;
+    // allow re-selecting the same file after a clear
+    e.target.value = '';
+  };
+
+  const handleClear = (e) => {
+    e.stopPropagation();
+    onClear ? onClear() : onUpload(null);
+    if (inputRef.current) inputRef.current.value = '';
   };
 
   return (
-    <div className="stm-logo-upload" onClick={() => inputRef.current?.click()} title="Click to upload">
-      {logo
-        ? <img src={logo} alt="logo" className="stm-logo-img" />
-        : <span className="stm-logo-placeholder">Upload Image</span>
-      }
-      <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
+    <div className="stm-logo-upload-wrap">
+      <div className="stm-logo-upload" onClick={() => inputRef.current?.click()} title="Click to upload">
+        {logo
+          ? <img src={logo} alt="logo" className="stm-logo-img" />
+          : <span className="stm-logo-placeholder">Upload Image</span>
+        }
+        <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
+      </div>
+      {showClearButton && logo && (
+        <button
+          type="button"
+          className="stm-logo-clear-btn"
+          onClick={handleClear}
+          title="Clear image"
+        >
+          Clear image
+        </button>
+      )}
     </div>
   );
 }
@@ -351,7 +371,7 @@ function EditSportModal({ sport, saving, onClose, onSave }) {
 
           <div className="stm-edit-sport-body">
             <div className="stm-edit-sport-row">
-              <LogoUpload logo={logo} onUpload={setLogo} />
+              <LogoUpload logo={logo} onUpload={setLogo} onClear={() => setLogo(null)} showClearButton />
               <input
                 className="stm-row-input stm-edit-sport-name"
                 placeholder="Sport name"
@@ -623,6 +643,8 @@ export default function SportsTeamsManager({ level }) {
   const [showTeamsConfirm,  setShowTeamsConfirm]  = useState(false);
   const [deleteSportTarget, setDeleteSportTarget] = useState(null); // sport object pending delete
   const [deletingSport,     setDeletingSport]     = useState(false);
+  const [deleteTeamTarget,  setDeleteTeamTarget]  = useState(null); // team object pending delete
+  const [deletingTeam,      setDeletingTeam]      = useState(false);
   const [editSportTarget,   setEditSportTarget]   = useState(null); // sport object being edited in popup
   const [savingEditSport,   setSavingEditSport]   = useState(false);
 
@@ -715,7 +737,6 @@ export default function SportsTeamsManager({ level }) {
       setDeletingSport(false);
     }
   };
-
   const saveSports = async () => {
     const cleaned = sportsRows.filter(r => r.name.trim());
     const merged  = [
@@ -780,6 +801,24 @@ export default function SportsTeamsManager({ level }) {
 
   const resetTeamsForm = () => {
     setTeamsRows([]);
+  };
+
+  /* ── Delete a saved team ── */
+  const deleteTeam = async (team) => {
+    const remaining = teamsList.filter(t => t.id !== team.id);
+    setTeamsList(remaining);
+    if (previewTeam === team.name) setPreviewTeam('');
+    setDeleteTeamTarget(null);
+    setDeletingTeam(true);
+    try {
+      await saveTeamsConfig(level, remaining);
+      flash(`✓ "${team.name}" deleted.`);
+    } catch (e) {
+      console.error(e);
+      flash('Deleted locally — Firestore sync failed.');
+    } finally {
+      setDeletingTeam(false);
+    }
   };
 
   /* ── Derived ── */
@@ -854,6 +893,8 @@ export default function SportsTeamsManager({ level }) {
                       <LogoUpload
                         logo={row.logo}
                         onUpload={(b64) => updateSportRow(row.id, { logo: b64 })}
+                        onClear={() => updateSportRow(row.id, { logo: null })}
+                        showClearButton
                       />
                     </td>
                     <td className="stm-td-center">
@@ -1040,6 +1081,8 @@ export default function SportsTeamsManager({ level }) {
                       <LogoUpload
                         logo={row.logo}
                         onUpload={(b64) => updateTeamRow(row.id, { logo: b64 })}
+                        onClear={() => updateTeamRow(row.id, { logo: null })}
+                        showClearButton
                       />
                     </td>
                     <td>
@@ -1078,21 +1121,32 @@ export default function SportsTeamsManager({ level }) {
         <div className="stm-preview-row stm-preview-row--teams">
           <div className="stm-preview-block">
             <span className="stm-preview-label">Teams</span>
-            <div className="stm-preview-dd-wrap">
-              <select
-                className="stm-preview-dd"
-                value={previewTeam}
-                onChange={e => setPreviewTeam(e.target.value)}
+            <div className="stm-preview-team-row">
+              <div className="stm-preview-dd-wrap">
+                <select
+                  className="stm-preview-dd"
+                  value={previewTeam}
+                  onChange={e => setPreviewTeam(e.target.value)}
+                >
+                  {/* Placeholder shown when no team selected or no teams saved */}
+                  {(!previewTeam || teamsList.length === 0) && (
+                    <option value="" disabled>Team Name</option>
+                  )}
+                  {teamsList.map(t => (
+                    <option key={t.id} value={t.name}>{t.name}</option>
+                  ))}
+                </select>
+                <FaChevronDown className="stm-preview-dd__arrow" />
+              </div>
+              <button
+                type="button"
+                className="stm-preview-team-delete"
+                title="Delete this team"
+                disabled={!activeTeam}
+                onClick={() => activeTeam && setDeleteTeamTarget(activeTeam)}
               >
-                {/* Placeholder shown when no team selected or no teams saved */}
-                {(!previewTeam || teamsList.length === 0) && (
-                  <option value="" disabled>Team Name</option>
-                )}
-                {teamsList.map(t => (
-                  <option key={t.id} value={t.name}>{t.name}</option>
-                ))}
-              </select>
-              <FaChevronDown className="stm-preview-dd__arrow" />
+                <FaTrash />
+              </button>
             </div>
           </div>
 
@@ -1162,6 +1216,31 @@ export default function SportsTeamsManager({ level }) {
                 onClick={() => deleteSport(deleteSportTarget)}
               >
                 {deletingSport ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTeamTarget && (
+        <div className="stm-overlay" onClick={() => setDeleteTeamTarget(null)}>
+          <div className="stm-modal stm-modal--delete" onClick={e => e.stopPropagation()}>
+            <h3 className="stm-confirm-title">DELETE TEAM?</h3>
+            <p className="stm-delete-msg">
+              Are you sure you want to delete <b>{deleteTeamTarget.name.toUpperCase()}</b>?
+              This will remove it from {level === 'highSchool' ? 'High School' : level.charAt(0).toUpperCase() + level.slice(1)} and unassign it from any sports.
+            </p>
+            <div className="stm-delete-actions">
+              <button type="button" className="stm-btn-ghost" onClick={() => setDeleteTeamTarget(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="stm-btn-danger"
+                disabled={deletingTeam}
+                onClick={() => deleteTeam(deleteTeamTarget)}
+              >
+                {deletingTeam ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

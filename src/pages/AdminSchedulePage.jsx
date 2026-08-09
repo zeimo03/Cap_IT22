@@ -2,10 +2,10 @@ import React, { useState, useContext, useEffect, useCallback, useRef } from 'rea
 import { AuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './AdminSchedulePage.css';
-import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy } from 'react-icons/fa';
+import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule } from '../services/firestoreService';
+import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule } from '../services/firestoreService';
 import SportsTeamsManager from './SportsTeamsManager';
 
 const LEVELS = [
@@ -607,19 +607,31 @@ function MatchScheduleFormatSection({ level }) {
       ? [{ value: 'general', label: 'General', format: null }]
       : [];
 
-  /* ── Teams eligible for this sport ──
+  /* ── Teams eligible for a given sport ──
      NOTE: despite the field name, SportsTeamsManager's TeamSportsPickerModal
-     stores sport *names* in team.sportIds, not sport ids. Match on name.
-     Deduped by id (fallback to name) — otherwise a team that was ever saved
-     twice in Firestore produces a round-robin where the same two teams show
-     up in every match. ── */
-  const eligibleTeams = Array.from(
-    new Map(
-      teamsList
-        .filter(t => (t.sportIds || []).includes(selSport?.name))
-        .map(t => [t.id || t.name, t])
-    ).values()
-  );
+     stores sport *names* in team.sportIds, not sport ids. Match on name,
+     case/whitespace-insensitive so a rename or stray casing difference
+     doesn't drop a team the admin genuinely assigned.
+     Also requires a real (non-blank) team name and dedupes by id (fallback
+     to name) — otherwise a team that was ever saved twice in Firestore, or
+     a blank draft row that slipped through, would show up as a selectable
+     "team" the admin never actually added. ── */
+  const norm = (s) => (s || '').trim().toLowerCase();
+  const teamsForSport = (sportName) => {
+    if (!sportName) return [];
+    return Array.from(
+      new Map(
+        teamsList
+          .filter(t =>
+            (t.name || '').trim() &&
+            (t.sportIds || []).some(id => norm(id) === norm(sportName))
+          )
+          .map(t => [t.id || t.name, t])
+      ).values()
+    );
+  };
+
+  const eligibleTeams = teamsForSport(selSport?.name);
 
   const handlePickSport = (opt) => {
     setSelSport(opt.raw);
@@ -785,9 +797,10 @@ function MatchScheduleFormatSection({ level }) {
   const openEditModal = (match) => {
     setEditForm({ ...match });
     setEditModalOpen(true);
+    setDeleteConfirmOpen(false);
   };
 
-  const editPool = teamsList.filter(t => (t.sportIds || []).includes(editForm?.sport));
+  const editPool = teamsForSport(editForm?.sport);
 
   const handleConfirmEdit = async () => {
     if (!editForm || !editForm.date || !editForm.time || !editForm.teamA || !editForm.teamB) return;
@@ -803,6 +816,28 @@ function MatchScheduleFormatSection({ level }) {
     setToast({ text: 'Schedule updated successfully.' });
   };
 
+  /* ── Delete Schedule (from the Edit modal) ── */
+  const [deletingSchedule, setDeletingSchedule] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const handleDeleteSchedule = async () => {
+    if (!editForm?.id) return;
+    setDeletingSchedule(true);
+    try {
+      const merged = await deleteMatchSchedule(level, editForm.id);
+      setSavedSchedules(merged);
+      setDeleteConfirmOpen(false);
+      setEditModalOpen(false);
+      setEditForm(null);
+      setToast({ text: 'Schedule deleted.' });
+    } catch (e) {
+      console.error('Failed to delete schedule:', e);
+      setToast({ text: 'Failed to delete schedule — try again.' });
+    } finally {
+      setDeletingSchedule(false);
+    }
+  };
+
   /* ── Grouped list view (by date) ── */
   const groupedByDate = savedSchedules
     .filter(m => m.date)
@@ -814,7 +849,7 @@ function MatchScheduleFormatSection({ level }) {
   if (loading) return <div className="msf-loading">Loading sports & teams…</div>;
 
   const sportOptions = sportsList.map(s => s.name);
-  const addPool = teamsList.filter(t => (t.sportIds || []).includes(addForm.sport));
+  const addPool = teamsForSport(addForm.sport);
 
   return (
     <div className="msf-wrap">
@@ -1410,11 +1445,44 @@ function MatchScheduleFormatSection({ level }) {
               </div>
 
               <div className="msf-form-actions">
-                <button className="msf-btn-ghost msf-btn-block" onClick={() => { setEditModalOpen(false); setEditForm(null); }}>Cancel</button>
+                <button className="msf-btn-ghost msf-btn-block" onClick={() => { setEditModalOpen(false); setEditForm(null); setDeleteConfirmOpen(false); }}>Cancel</button>
                 <button className="msf-btn-primary msf-btn-block" onClick={handleConfirmEdit}>Save Changes</button>
               </div>
+
+              <button
+                type="button"
+                className="msf-btn-delete-schedule"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <FaTrash /> Delete Schedule
+              </button>
             </div>
           </div>
+
+          {deleteConfirmOpen && (
+            <div className="msf-overlay msf-overlay--nested" onClick={() => setDeleteConfirmOpen(false)}>
+              <div className="msf-confirm-delete" onClick={e => e.stopPropagation()}>
+                <h3>Delete this schedule?</h3>
+                <p>
+                  This will permanently remove <b>{editForm.teamA} vs {editForm.teamB}</b>
+                  {editForm.date ? ` on ${editForm.date}` : ''}. This can't be undone.
+                </p>
+                <div className="msf-confirm-delete__actions">
+                  <button type="button" className="msf-btn-ghost" onClick={() => setDeleteConfirmOpen(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="msf-btn-danger"
+                    disabled={deletingSchedule}
+                    onClick={handleDeleteSchedule}
+                  >
+                    {deletingSchedule ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

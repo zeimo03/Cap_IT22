@@ -304,3 +304,23 @@ export async function upsertMatchSchedule(level, match) {
 
   return merged;
 }
+
+/**
+ * Removes a single match schedule by id — used by the "Delete Schedule"
+ * action in the Edit Match Schedule modal.
+ */
+export async function deleteMatchSchedule(level, matchId) {
+  if (!db) throw new Error('Firestore not initialized.');
+
+  const existing = await getMatchSchedules(level);
+  const merged = existing.filter(m => m.id !== matchId);
+
+  const configRef = doc(db, 'matchSchedules', level);
+  await setDoc(
+    configRef,
+    { matches: merged, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+
+  return merged;
+}

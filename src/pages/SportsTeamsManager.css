@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════════════
    SportsTeamsManager.css
    ═══════════════════════════════════════════ */
+@import url(https://fonts.googleapis.com/css?family=Lalezar:regular);
+@import url(https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic);
 
 @keyframes stm-fade-in {
   from {
@@ -69,6 +71,7 @@
 }
 
 .stm-card__head {
+  font-family: "Inter", sans-serif;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -82,6 +85,7 @@
 }
 
 .stm-card__head h3 {
+  font-family: "inter", sans-serif;
   margin: 0;
   font-size: 1.1rem;
   font-weight: 900;
@@ -89,6 +93,7 @@
 }
 
 .stm-card__head p {
+  font-family: "inter", sans-serif;
   margin: 3px 0 0;
   font-size: 0.78rem;
   color: #6b7c93;
@@ -111,6 +116,7 @@
 }
 
 .stm-num-btn {
+  font-family: "Inter", sans-serif;
   background: #001529;
   color: #fff;
   border: none;
@@ -205,6 +211,7 @@
 
 /* ── Link button ── */
 .stm-link-btn {
+  font-family: "Inter", sans-serif;
   background: none;
   border: none;
   color: #001529;
@@ -235,12 +242,14 @@
 }
 
 .stm-table {
+  font-family: "Inter", sans-serif;
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
 
 .stm-table th {
+  font-family: "Inter", sans-serif;
   text-align: left;
   padding: 8px 10px;
   color: #6b7c93;
@@ -252,6 +261,7 @@
 }
 
 .stm-table td {
+  font-family: "Inter", sans-serif;
   padding: 9px 10px;
   border-bottom: 1px solid #eef1f5;
   vertical-align: middle;
@@ -280,6 +290,7 @@
 }
 
 .stm-row-input {
+  font-family: "Inter", sans-serif;
   width: 100%;
   border: 1.5px solid #e1e6ed;
   border-radius: 7px;
@@ -325,12 +336,40 @@
 }
 
 .stm-logo-placeholder {
+  font-family: "Inter", sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
   color: #9aa9bd;
   text-align: center;
   line-height: 1.2;
   padding: 4px;
+}
+
+/* ── Logo upload wrapper + clear button ── */
+.stm-logo-upload-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.stm-logo-clear-btn {
+  font-family: "Inter", sans-serif;
+  border: none;
+  background: none;
+  color: #d33;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.stm-logo-clear-btn:hover {
+  color: #a00;
+  text-decoration: underline;
 }
 
 .stm-cat-count-cell {
@@ -397,6 +436,7 @@
 }
 
 .stm-btn-ghost {
+  font-family: "Inter", sans-serif;
   background: #fff;
   color: #001529;
   border: 1.5px solid #001529;
@@ -424,6 +464,7 @@
 }
 
 .stm-btn-primary {
+  font-family: "Inter", sans-serif;
   background: #001529;
   color: #fff;
   border: none;
@@ -458,6 +499,7 @@
 }
 
 .stm-btn-secondary {
+  font-family: "Inter", sans-serif;
   background: #001529;
   color: #fff;
   border: none;
@@ -483,6 +525,7 @@
    PREVIEW SECTION
 ════════════════════════════════════════════ */
 .stm-preview-title {
+  font-family: "Inter", sans-serif;
   font-size: 1rem;
   font-weight: 900;
   margin: 0 0 2px;
@@ -490,6 +533,7 @@
 }
 
 .stm-preview-sub {
+  font-family: "Inter", sans-serif;
   margin: 0 0 16px;
   font-size: 0.78rem;
   color: #6b7c93;
@@ -522,6 +566,7 @@
 }
 
 .stm-preview-label {
+  font-family: "Inter", sans-serif;
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.07em;
@@ -532,9 +577,46 @@
 /* Styled native select for preview */
 .stm-preview-dd-wrap {
   position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.stm-preview-team-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stm-preview-team-delete {
+  font-family: "Inter", sans-serif;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1.5px solid #e1e6ed;
+  background: #fff;
+  color: #c0392b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.stm-preview-team-delete:hover:not(:disabled) {
+  background: #fdeaea;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.stm-preview-team-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .stm-preview-dd {
+  font-family: "Inter", sans-serif;
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
@@ -576,6 +658,7 @@
 }
 
 .stm-preview-list li {
+  font-family: "Inter", sans-serif;
   font-size: 0.85rem;
   font-weight: 600;
   color: #001529;
@@ -591,6 +674,7 @@
 }
 
 .stm-empty-note {
+  font-family: "Inter", sans-serif;
   color: #9aa9bd;
   font-size: 0.8rem;
   font-style: italic;
@@ -846,12 +930,14 @@
 }
 
 .stm-modal__head h3 {
+  font-family: "Lalezar", sans-serif;
   margin: 0;
   font-size: 1.2rem;
   font-weight: 900;
 }
 
 .stm-modal__head p {
+  font-family: "Inter", sans-serif;
   margin: 4px 0 0;
   font-size: 0.78rem;
   color: #6b7c93;
@@ -900,6 +986,7 @@
 }
 
 .stm-catmod-head h3 {
+  font-family: "Inter", sans-serif;
   margin: 0 0 4px;
   font-size: 1.15rem;
   font-weight: 900;
@@ -907,6 +994,7 @@
 }
 
 .stm-catmod-head p {
+  font-family: "Inter", sans-serif;
   margin: 0 0 14px;
   font-size: 0.78rem;
   color: #6b7c93;
@@ -924,6 +1012,7 @@
 }
 
 .stm-catmod-stepper button {
+  font-family: "Inter", sans-serif;
   background: #001529;
   border: none;
   color: #fff;
@@ -948,6 +1037,7 @@
 }
 
 .stm-catmod-stepper span {
+  font-family: "Inter", sans-serif;
   width: 36px;
   text-align: center;
   font-size: 0.95rem;
@@ -965,6 +1055,7 @@
 }
 
 .stm-cat-groups__empty {
+  font-family: "Inter", sans-serif;
   font-size: 0.85rem;
   color: #7a879c;
   text-align: center;
@@ -1045,6 +1136,7 @@
 }
 
 .stm-div-input {
+  font-family: "Inter", sans-serif;
   flex: 1;
   border: none;
   font-size: 0.85rem;
@@ -1102,6 +1194,7 @@
 }
 
 .stm-div-fmt-chip__label {
+  font-family: "Inter", sans-serif;
   font-size: 0.75rem;
   font-weight: 800;
   color: #001529;
@@ -1109,6 +1202,7 @@
 }
 
 .stm-div-fmt-chip__sub {
+  font-family: "Inter", sans-serif;
   font-size: 0.6rem;
   line-height: 1.25;
   color: #6b7c93;
@@ -1123,6 +1217,7 @@
 
 /* "+ Add Division" button inside group */
 .stm-add-div-btn {
+  font-family: "Inter", sans-serif;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1189,12 +1284,14 @@
 }
 
 .stm-format-label {
+  font-family: "Inter", sans-serif;
   display: block;
   font-weight: 800;
   font-size: 0.88rem;
 }
 
 .stm-format-sub {
+  font-family: "Inter", sans-serif;
   display: block;
   font-size: 0.7rem;
   color: #6b7c93;
