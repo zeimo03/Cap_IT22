@@ -15,7 +15,7 @@
   height: 100%;
   background-color: #001529;
   color: #fff;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: "Inter", sans-serif;
   overflow: hidden;
 }
 
@@ -58,6 +58,7 @@
 }
 
 .reg-page-title {
+  font-family: "Inter", sans-serif;
   font-size: 26px;
   font-weight: 900;
   color: #FCBF19;
@@ -66,6 +67,7 @@
 }
 
 .reg-page-subtitle {
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
   margin: 0;
@@ -134,9 +136,9 @@
 }
 
 .reg-card__title {
-  font-family: 'Lalezar', sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 16px;
-  font-weight: 400;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin: 0;
@@ -217,6 +219,7 @@
 }
 
 .reg-label {
+  font-family: "Inter", sans-serif;
   font-size: 11.5px;
   font-weight: 700;
   color: #001529;
@@ -272,6 +275,7 @@
 }
 
 .reg-radio-label {
+  font-family: "Inter", sans-serif;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -309,6 +313,7 @@
 }
 
 .reg-upload-icon {
+  font-family: "Inter", sans-serif;
   width: 72px;
   height: 72px;
   border: 1.5px dashed #9bafc4;
@@ -328,6 +333,7 @@
 }
 
 .reg-upload-caption {
+  font-family: "Inter", sans-serif;
   font-size: 10px;
   font-weight: 600;
   color: #001529;
@@ -336,6 +342,7 @@
 }
 
 .reg-upload-sub {
+  font-family: "Inter", sans-serif;
   font-size: 9px;
   color: #8899aa;
   text-align: center;
@@ -393,6 +400,7 @@
 }
 
 .reg-footer__note {
+  font-family: "Inter", sans-serif;
   font-size: 11px;
   color: #5a6a7a;
   display: flex;
@@ -408,6 +416,7 @@
 
 /* Reset button — matches profile-card-action--edit style */
 .reg-btn-reset {
+  font-family: "Inter", sans-serif;
   background: #FCBF19;
   border: none;
   border-radius: 20px;
@@ -428,6 +437,7 @@
 
 /* Save button — matches profile-card-action--change style */
 .reg-btn-save {
+  font-family: "Inter", sans-serif;
   background: #001529;
   border: none;
   border-radius: 20px;

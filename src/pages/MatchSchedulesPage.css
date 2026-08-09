@@ -5,6 +5,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Lalezar&family=Inter:wght@400;600;700;900&display=swap');
 @import url(https://fonts.googleapis.com/css?family=Poppins:100,100italic,200,200italic,300,300italic,regular,italic,500,500italic,600,600italic,700,700italic,800,800italic,900,900italic);
+@import url(https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic);
 
 /* ── Page shell ── */
 .ms-page {
@@ -58,6 +59,7 @@
 }
 
 .ms-page-subtitle {
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
   margin: 0;
@@ -81,6 +83,91 @@
 .ms-body::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 2px;
+}
+
+/* ── Level filter dropdown ── */
+.ms-lvls-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 12px 0 4px;
+}
+
+.ms-lvls-btn {
+  font-family: "Inter", sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.ms-lvls-arrow {
+  transition: transform 0.2s;
+  font-size: 13px;
+}
+
+.ms-lvls-arrow--open {
+  transform: rotate(180deg);
+}
+
+.ms-lvls-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 160px;
+  background: #0A1D52;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+}
+
+.ms-lvls-dropdown--open {
+  display: flex;
+}
+
+.ms-lvls-item {
+  font-family: "Inter", sans-serif;
+  background: transparent;
+  border: none;
+  color: #fff;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ms-lvls-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ms-lvls-item+.ms-lvls-item {
+  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ── Page-level empty / loading state ── */
+.ms-state-note {
+  font-family: "Inter", sans-serif;
+  margin: 20px 0 10px;
+  padding: 22px 18px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
 }
 
 /* ── Toolbar: category tabs + search ── */
@@ -649,4 +736,107 @@
   .ms-row--head .ms-cell {
     font-size: 11px;
   }
+}
+
+/* ═══════════════════════════════════════════
+   ROUNDS VIEW — data-driven bracket/rounds
+   (built from stage/round + matchLabel, no
+   left/right-tree geometry required)
+   ═══════════════════════════════════════════ */
+.ms-rounds-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  overflow-x: auto;
+  width: 100%;
+  padding: 4px 4px 10px;
+}
+
+.ms-rounds-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 180px;
+  flex-shrink: 0;
+}
+
+.ms-rounds-col__title {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #001529;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+.ms-rounds-match {
+  background: #f6f7fb;
+  border: 1px solid #e2e4ee;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ms-rounds-match__label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #8a8fa3;
+  text-transform: uppercase;
+}
+
+.ms-rounds-match__vs {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8a8fa3;
+  text-align: center;
+}
+
+.ms-rounds-col--champion {
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  padding-top: 4px;
+}
+
+/* ── Team pill (avatar + name), used inside rounds cards ── */
+.ms-team-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-team-pill__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ms-team-pill__avatar--img {
+  object-fit: cover;
+}
+
+.ms-team-pill__avatar--tbd {
+  background: #ddd;
+  color: #888;
+}
+
+.ms-team-pill__name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #001529;
+}
+
+.ms-team-pill__name--tbd {
+  color: #aaa;
 }

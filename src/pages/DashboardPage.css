@@ -50,6 +50,7 @@
 }
 
 .lvls-btn {
+  font-family: "Inter", sans-serif;
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   border: 2px solid rgba(255, 255, 255, 0.5);
@@ -72,6 +73,7 @@
 }
 
 .lvls-btn__arrow {
+  font-family: "Inter", sans-serif;
   display: inline-block;
   font-size: 11px;
   transition: transform 0.25s ease;
@@ -82,6 +84,7 @@
 }
 
 .lvls-dropdown {
+  font-family: "Inter", sans-serif;
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -107,6 +110,7 @@
 }
 
 .lvls-dropdown__item {
+  font-family: "Inter", sans-serif;
   display: block;
   width: 100%;
   padding: 11px 18px;
@@ -184,6 +188,7 @@
 }
 
 .arrow-btn {
+  font-family: "Inter", sans-serif;
   width: 24px;
   height: 24px;
   background: rgba(255, 255, 255, 0.08);
@@ -229,6 +234,7 @@
 }
 
 .dash-empty {
+  font-family: "Inter", sans-serif;
   color: rgba(255, 255, 255, 0.6);
   font-size: 13px;
   padding: 18px 4px;

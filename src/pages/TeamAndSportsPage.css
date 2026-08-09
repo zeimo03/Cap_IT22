@@ -52,10 +52,11 @@
   font-weight: 900;
   color: #FCBF19;
   margin: 0 0 4px;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
 .ts-page-subtitle {
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
   margin: 0;
@@ -96,6 +97,7 @@
 }
 
 .ts-stat {
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   font-weight: 700;
   color: #fff;
@@ -114,6 +116,7 @@
 }
 
 .ts-lvls-btn {
+  font-family: "Inter", sans-serif;
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   border: 2px solid rgba(255, 255, 255, 0.5);
@@ -136,6 +139,7 @@
 }
 
 .ts-lvls-arrow {
+  font-family: "Inter", sans-serif;
   display: inline-block;
   font-size: 11px;
   transition: transform 0.25s ease;
@@ -171,6 +175,7 @@
 }
 
 .ts-lvls-item {
+  font-family: "Inter", sans-serif;
   display: block;
   width: 100%;
   padding: 11px 18px;
@@ -195,6 +200,7 @@
 
 /* ── Section title ── */
 .ts-section-title {
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -209,6 +215,30 @@
   flex-direction: column;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+/* ── Empty / loading state (page-level) ── */
+.ts-state-note {
+  margin: 30px 30px 24px;
+  padding: 22px 18px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+}
+
+/* ── Empty state within a team card (no sports assigned) ── */
+.ts-card-empty {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
 }
 
 /* ── Team card ── */
