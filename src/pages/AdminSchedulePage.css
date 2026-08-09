@@ -172,12 +172,12 @@
   font-family: "Inter", sans-serif;
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 0.8rem;
-  font-weight: 600;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 900;
   color: #001529;
   text-transform: uppercase;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.08em;
 }
 
 .asp-card__icon {
