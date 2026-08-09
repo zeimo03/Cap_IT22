@@ -13,24 +13,11 @@ import {
 } from 'react-icons/fa';
 import { AuthContext } from '../components/AuthContext';
 
-/* ── Sample data (replace with real Firestore data later) ── */
-const SAMPLE_EVENTS = [
-  { name: 'Basketball Intramurals 2025', date: 'Aug 15 – Aug 17, 2025', venue: 'Gymnasium', status: 'Completed' },
-  { name: 'Sportsfest Basketball 2026',  date: 'Mar 1 – Mar 3, 2026',   venue: 'Gymnasium', status: 'Completed' },
-  { name: 'Basketball Intramurals 2026', date: 'Aug 20 – Aug 3, 2025',  venue: 'Gymnasium', status: 'Completed' },
-];
-
-const SAMPLE_AWARDS = [
-  { name: 'MVP - Basketball Intramurals 2025',             description: 'Awarded for being the Most Valuable Player', event: 'Basketball Intramurals 2025', date: 'Aug 17, 2026' },
-  { name: 'Champion - Basketball Intramurals 2025',        description: 'Awarded for champion in the tournament',     event: 'Basketball Intramurals 2025', date: 'Aug 17, 2026' },
-  { name: 'Bronze Finished - Basketball Intramurals 2026', description: 'Awarded for earning Bronze Finished',        event: 'Basketball Intramurals 2026', date: 'Aug 23, 2026' },
-];
-
-const SAMPLE_REGISTRATIONS = [
-  { name: 'Basketball Intramurals 2025', date: 'Aug 15 – Aug 17, 2025', status: 'Approved', submittedDate: 'Aug 15, 2025' },
-  { name: 'Sportsfest Basketball 2026',  date: 'Mar 1 – Mar 3, 2026',   status: 'Pending',  submittedDate: 'Aug 15, 2025' },
-  { name: 'Basketball Intramurals 2026', date: 'Aug 20 – Aug 3, 2025',  status: 'Approved', submittedDate: 'Aug 15, 2025' },
-];
+// Staff/role accounts (admin, moderator, superadmin) don't join events,
+// earn awards, or submit player registrations — those concepts only apply
+// to student/player accounts. Anyone whose resolved role falls in here
+// never sees the Events / Awards / Registrations stat cards at all.
+const STAFF_ROLES = ['admin', 'moderator', 'superadmin'];
 
 const CONTACT_ITEMS = [
   { icon: FaMapMarkerAlt, text: 'San Jose, Santa Rita Pampanga, Philippines', href: 'https://www.google.com/maps/place/Santa+Rita+College/@14.9989285,120.6178094,18.6z' },
@@ -84,20 +71,39 @@ export default function ProfilePage() {
 
   const contactFooterRef = React.useRef(null);
 
-  const displayName   = userProfile?.fullName      || currentUser?.displayName || 'JUAN C DELA CRUZ';
-  const studentNumber = userProfile?.studentNumber || '***********';
+  // `users/{uid}` docs are written with a `name` field (see AuthContext.signup /
+  // firestoreService.createUserProfile). `fullName` was never actually stored
+  // there, so reading it always fell through to the hardcoded placeholder
+  // below — that's why every account showed "Juan Dela Cruz". Read the real
+  // field first, and only fall back to values that trace back to this actual
+  // account instead of fake sample data.
+  const displayName   = userProfile?.name || userProfile?.fullName || currentUser?.displayName || currentUser?.email || '';
+  const studentNumber = userProfile?.studentNumber || '';
   const role          = userProfile?.role          || 'Player';
-  const gradeLevel    = userProfile?.gradeLevel    || 'Grade 12';
-  const section       = userProfile?.section       || 'STEM A';
-  const teamName      = userProfile?.teamName      || 'Red Rhinos';
-  const sport         = userProfile?.sport         || 'BASKETBALL';
-  const position      = userProfile?.position      || 'PLAYER';
-  const email         = currentUser?.email         || '@rc_ldelas_ph';
-  const lastUpdate    = userProfile?.lastUpdate    || 'May 29, 2026 – 07:56 PM';
+  const gradeLevel    = userProfile?.gradeLevel    || '';
+  const section       = userProfile?.section       || '';
+  const teamName      = userProfile?.teamName      || '';
+  const sport         = userProfile?.sport         || '';
+  const position      = userProfile?.position      || '';
+  const email         = currentUser?.email         || '';
+  const lastUpdate    = userProfile?.lastUpdate    || '';
 
-  const eventsJoined  = userProfile?.eventsJoined  || SAMPLE_EVENTS;
-  const awards        = userProfile?.awards        || SAMPLE_AWARDS;
-  const registrations = userProfile?.registrations || SAMPLE_REGISTRATIONS;
+  // No sample/placeholder fallback here — these only render once real
+  // Firestore data for events/awards/registrations exists on the profile.
+  const eventsJoined  = userProfile?.eventsJoined  || [];
+  const awards        = userProfile?.awards        || [];
+  const registrations = userProfile?.registrations || [];
+
+  // Staff accounts never show these cards, regardless of array contents.
+  // Player/student accounts only show a given card once they actually
+  // have at least one entry for it — an empty "Total: 0" card isn't
+  // useful and was previously always showing "3" from the removed
+  // sample data.
+  const isStaffAccount   = STAFF_ROLES.includes((role || '').toLowerCase());
+  const showEventsCard   = !isStaffAccount && eventsJoined.length > 0;
+  const showAwardsCard   = !isStaffAccount && awards.length > 0;
+  const showRegCard      = !isStaffAccount && registrations.length > 0;
+  const showStatsRow     = showEventsCard || showAwardsCard || showRegCard;
 
   /* ── Handle password save via AuthContext ── */
   const handlePasswordSave = async (currentPassword, newPassword) => {
@@ -151,30 +157,41 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Stat cards — all three clickable */}
-        <div className="profile-stats-row">
-          <StatCard
-            icon={<FaTrophy className="stat-icon-trophy" />}
-            count={eventsJoined.length}
-            label="Events Joined"
-            arrow
-            onClick={() => setEventsModalOpen(true)}
-          />
-          <StatCard
-            icon={<FaMedal className="stat-icon-medal" />}
-            count={awards.length}
-            label="Awards"
-            arrow
-            onClick={() => setAwardsModalOpen(true)}
-          />
-          <StatCard
-            icon={<FaClipboardList className="stat-icon-reg" />}
-            count={registrations.length}
-            label="Submitted Registrations"
-            arrow
-            onClick={() => setRegistrationsModalOpen(true)}
-          />
-        </div>
+        {/* Stat cards — only rendered for player/student accounts that
+            actually have at least one entry; hidden entirely for staff
+            accounts (admin/moderator/superadmin) and for anyone with
+            nothing to show yet. */}
+        {showStatsRow && (
+          <div className="profile-stats-row">
+            {showEventsCard && (
+              <StatCard
+                icon={<FaTrophy className="stat-icon-trophy" />}
+                count={eventsJoined.length}
+                label="Events Joined"
+                arrow
+                onClick={() => setEventsModalOpen(true)}
+              />
+            )}
+            {showAwardsCard && (
+              <StatCard
+                icon={<FaMedal className="stat-icon-medal" />}
+                count={awards.length}
+                label="Awards"
+                arrow
+                onClick={() => setAwardsModalOpen(true)}
+              />
+            )}
+            {showRegCard && (
+              <StatCard
+                icon={<FaClipboardList className="stat-icon-reg" />}
+                count={registrations.length}
+                label="Submitted Registrations"
+                arrow
+                onClick={() => setRegistrationsModalOpen(true)}
+              />
+            )}
+          </div>
+        )}
 
         {/* Info + Security */}
         <div className="profile-details-grid">
