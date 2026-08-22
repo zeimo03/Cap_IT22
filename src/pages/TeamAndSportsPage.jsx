@@ -1,77 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './TeamAndSportsPage.css';
 import Contact from '../components/Landing/Contact/Contact';
+import { getSportsTeamsConfig } from '../services/firestoreService';
 
-/* ── Sample teams data (replace with Firestore later) ── */
-const TEAMS_DATA = [
-  {
-    id: 1,
-    name: 'PURPLE JAGUARS',
-    year: '2ND YEAR COLLEGE',
-    logo: null,
-    sports: ['BASKETBALL', 'TENNIS', 'VOLLEYBALL', 'SEPAK TAKRAW', 'BADMINTON', 'CHESS', 'ARNIS'],
-  },
-  {
-    id: 2,
-    name: 'RED RHINOS',
-    year: '1ST YEAR COLLEGE',
-    logo: null,
-    sports: ['BASKETBALL', 'CHESS', 'ATHLETICS', 'BADMINTON', 'VOLLYBALL'],
-  },
-  {
-    id: 3,
-    name: 'GREEN GATORS',
-    year: '1ST YEAR COLLEGE',
-    logo: null,
-    sports: ['BASKETBALL', 'CHESS', 'ATHLETICS', 'BADMINTON', 'SEPAK', 'ARNIS', 'TENNIS'],
-  },
-  {
-    id: 4,
-    name: 'ORANGE BULLDOGS',
-    year: '3RD YEAR COLLEGE',
-    logo: null,
-    sports: ['VOLLEYBALL', 'BADMINTON', 'BASKETBALL', 'BASEBALL', 'TENNIS', 'ATHLETICS'],
-  },
-  {
-    id: 5,
-    name: 'BLACK BEETLES',
-    year: '2ND YEAR COLLEGE',
-    logo: null,
-    sports: ['BASKETBALL', 'BASEBALL', 'SWIMMING', 'CHESS', 'ARNIS'],
-  },
-  {
-    id: 6,
-    name: 'BROWN CUBS',
-    year: '4TH YEAR COLLEGE',
-    logo: null,
-    sports: ['BASEBALL', 'TENNIS', 'VOLLEYBALL', 'ATHLETICS', 'BADMINTON'],
-  },
-  {
-    id: 7,
-    name: 'YELLOW VIPERS',
-    year: '3RD YEAR COLLEGE',
-    logo: null,
-    sports: ['BASKETBALL', 'VOLLEYBALL', 'SEPAK TAKRAW', 'ARNIS', 'CHESS', 'ATHLETICS'],
-  },
-  {
-    id: 8,
-    name: 'MAROON OWLS',
-    year: '2ND YEAR COLLEGE',
-    logo: null,
-    sports: ['BASKETBALL', 'TENNIS', 'BADMINTON', 'SWIMMING', 'CHESS'],
-  },
+/* ── Level dropdown options → Firestore level keys ── */
+const LEVELS = [
+  { label: 'All Levels', key: 'all' },
+  { label: 'Elementary', key: 'elementary' },
+  { label: 'High School', key: 'highSchool' },
+  { label: 'College', key: 'college' },
 ];
 
-const LEVELS = ['All Levels', 'Elementary', 'High School', 'College'];
-
-const totalSports = [...new Set(TEAMS_DATA.flatMap(t => t.sports))].length;
+const LEVEL_TAG = {
+  elementary: 'ELEMENTARY',
+  highSchool: 'HIGH SCHOOL',
+  college: 'COLLEGE',
+};
 
 /* ── Team logo placeholder ── */
 function TeamLogo({ name, logo }) {
   if (logo) {
     return <img src={logo} alt={name} className="ts-team-logo" />;
   }
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2);
+  const initials = (name || '')
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2) || '—';
   return (
     <div className="ts-team-logo ts-team-logo--placeholder">
       <span>{initials}</span>
@@ -81,30 +37,93 @@ function TeamLogo({ name, logo }) {
 
 /* ── Single team card ── */
 function TeamCard({ team, index }) {
+  const sports = team.sportIds || [];
   return (
     <div className="ts-team-card" style={{ animationDelay: `${index * 0.07}s` }}>
-      <div className="ts-card-sport-count">{team.sports.length} SPORTS</div>
+      <div className="ts-card-sport-count">{sports.length} SPORT{sports.length === 1 ? '' : 'S'}</div>
       <div className="ts-card-top">
         <TeamLogo name={team.name} logo={team.logo} />
         <div className="ts-card-info">
           <h3 className="ts-card-name">{team.name}</h3>
-          <p className="ts-card-year">{team.year}</p>
+          <p className="ts-card-year">{LEVEL_TAG[team.level] || ''}</p>
           <p className="ts-card-status">SPORTS PARTICIPATING</p>
         </div>
       </div>
-      <div className="ts-sports-tags">
-        {team.sports.map((sport, i) => (
-          <span key={i} className="ts-sport-tag">{sport}</span>
-        ))}
-      </div>
+      {sports.length > 0 ? (
+        <div className="ts-sports-tags">
+          {sports.map((sport, i) => (
+            <span key={i} className="ts-sport-tag">{sport}</span>
+          ))}
+        </div>
+      ) : (
+        <p className="ts-card-empty">No sports assigned to this team yet.</p>
+      )}
     </div>
   );
 }
 
 export default function TeamsAndSportsPage() {
-  const [level, setLevel] = useState('All Levels');
+  const [level, setLevel] = useState(LEVELS[0]);
   const [levelOpen, setLevelOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [teamsByLevel, setTeamsByLevel] = useState({ elementary: [], highSchool: [], college: [] });
   const contactRef = React.useRef(null);
+
+  /* ── Load real data from Firestore for every level ── */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      try {
+        const [elementary, highSchool, college] = await Promise.all([
+          getSportsTeamsConfig('elementary'),
+          getSportsTeamsConfig('highSchool'),
+          getSportsTeamsConfig('college'),
+        ]);
+
+        if (cancelled) return;
+
+        const tag = (levelKey, cfg) =>
+          (cfg.teams || [])
+            .filter(t => t && t.name && t.name.trim())
+            .map(t => ({ ...t, level: levelKey }));
+
+        setTeamsByLevel({
+          elementary: tag('elementary', elementary),
+          highSchool: tag('highSchool', highSchool),
+          college: tag('college', college),
+        });
+      } catch (e) {
+        console.error('Failed to load teams & sports:', e);
+        if (!cancelled) setTeamsByLevel({ elementary: [], highSchool: [], college: [] });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  /* ── Teams visible for the selected level filter ── */
+  const visibleTeams = useMemo(() => {
+    if (level.key === 'all') {
+      return [
+        ...teamsByLevel.elementary,
+        ...teamsByLevel.highSchool,
+        ...teamsByLevel.college,
+      ];
+    }
+    return teamsByLevel[level.key] || [];
+  }, [level, teamsByLevel]);
+
+  /* ── Stats always reflect the currently selected level ── */
+  const totalTeams = visibleTeams.length;
+  const totalSports = useMemo(
+    () => new Set(visibleTeams.flatMap(t => t.sportIds || [])).size,
+    [visibleTeams]
+  );
 
   return (
     <div className="ts-page">
@@ -126,9 +145,9 @@ export default function TeamsAndSportsPage() {
         {/* Sub-header bar */}
         <div className="ts-subheader">
           <div className="ts-subheader-stats">
-            <span className="ts-stat">{TEAMS_DATA.length} TEAMS</span>
+            <span className="ts-stat">{totalTeams} TEAM{totalTeams === 1 ? '' : 'S'}</span>
             <span className="ts-stat-divider">|</span>
-            <span className="ts-stat">{totalSports} SPORTS</span>
+            <span className="ts-stat">{totalSports} SPORT{totalSports === 1 ? '' : 'S'}</span>
           </div>
 
           {/* Levels dropdown */}
@@ -139,19 +158,19 @@ export default function TeamsAndSportsPage() {
               aria-haspopup="listbox"
               aria-expanded={levelOpen}
             >
-              {level}
+              {level.label}
               <span className={`ts-lvls-arrow ${levelOpen ? 'ts-lvls-arrow--open' : ''}`}>▾</span>
             </button>
             <div className={`ts-lvls-dropdown ${levelOpen ? 'ts-lvls-dropdown--open' : ''}`} role="listbox">
               {LEVELS.map(l => (
                 <button
-                  key={l}
+                  key={l.key}
                   className="ts-lvls-item"
                   onClick={() => { setLevel(l); setLevelOpen(false); }}
                   role="option"
-                  aria-selected={level === l}
+                  aria-selected={level.key === l.key}
                 >
-                  {l}
+                  {l.label}
                 </button>
               ))}
             </div>
@@ -161,12 +180,20 @@ export default function TeamsAndSportsPage() {
         {/* Section title */}
         <h2 className="ts-section-title">PARTICIPATING TEAMS</h2>
 
-        {/* Team cards */}
-        <div className="ts-cards-list">
-          {TEAMS_DATA.map((team, i) => (
-            <TeamCard key={team.id} team={team} index={i} />
-          ))}
-        </div>
+        {/* Team cards / states */}
+        {loading ? (
+          <p className="ts-state-note">Loading teams…</p>
+        ) : visibleTeams.length === 0 ? (
+          <p className="ts-state-note">
+            No teams have been added yet{level.key !== 'all' ? ` for ${level.label}` : ''}. Once an admin sets up teams and sports, they'll appear here.
+          </p>
+        ) : (
+          <div className="ts-cards-list">
+            {visibleTeams.map((team, i) => (
+              <TeamCard key={`${team.level}-${team.id}`} team={team} index={i} />
+            ))}
+          </div>
+        )}
 
         {/* Contact footer — reusing existing component, no new CSS needed */}
         <Contact contactFooterRef={contactRef} />

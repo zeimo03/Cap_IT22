@@ -64,6 +64,7 @@
 }
 
 .rk-search-input {
+  font-family: "Inter", sans-serif;
   width: 200px;
   background: rgba(255, 255, 255, 0.06);
   border: 1.5px solid rgba(255, 255, 255, 0.25);
@@ -93,6 +94,7 @@
 }
 
 .rk-lvls-btn {
+  font-family: "Inter", sans-serif;
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
   border: 2px solid rgba(255, 255, 255, 0.5);
@@ -115,6 +117,7 @@
 }
 
 .rk-lvls-arrow {
+  font-family: "Inter", sans-serif;
   display: inline-block;
   font-size: 11px;
   transition: transform 0.25s ease;
@@ -150,6 +153,7 @@
 }
 
 .rk-lvls-item {
+  font-family: "Inter", sans-serif;
   display: block;
   width: 100%;
   padding: 11px 18px;
@@ -223,6 +227,7 @@
 }
 
 .rk-section-title {
+  font-family: "Inter", sans-serif;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -239,6 +244,7 @@
 }
 
 .rk-section-subtitle {
+  font-family: "Inter", sans-serif;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.55);
   margin: 0;
@@ -253,6 +259,7 @@
 }
 
 .rk-sport-tab {
+  font-family: "Inter", sans-serif;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.75);
   border: 1.5px solid rgba(255, 255, 255, 0.25);
@@ -338,6 +345,7 @@
 }
 
 .rk-cell {
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   font-weight: 700;
 }
@@ -359,6 +367,7 @@
 }
 
 .rk-team-logo {
+  font-family: "Inter", sans-serif;
   width: 28px;
   height: 28px;
   border-radius: 50%;

@@ -1,259 +1,129 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import './MatchSchedulesPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import { FaSearch, FaTrophy } from 'react-icons/fa';
+import { FiChevronDown } from 'react-icons/fi';
+import { getMatchSchedules } from '../services/firestoreService';
 
 /* ═══════════════════════════════════════════════════════════
-   DATA STRUCTURE — Admin enters this via your admin panel
-   
-   Each match record:
-   {
-     id: string,
-     round: number,        // 1 = outermost (most teams), increases inward
-     matchNumber: number,  // position within round, 1-based
-     teamA: string | null,
-     teamB: string | null,
-     winner: string | null,
-     nextMatchId: string | null,
-   }
-   
-   The bracket auto-generates from this flat list!
+   This page is fully data-driven: every match shown here comes
+   from what an admin actually saved in the Schedule Manager
+   (matchSchedules/{level} in Firestore). If the admin hasn't
+   generated or added anything yet, nothing renders except an
+   empty-state message — no placeholder/sample data.
    ═══════════════════════════════════════════════════════════ */
 
-/* ── Sample bracket data (replace with Firestore) ── */
-const BRACKET_DATA = {
-  'Basketball Men': [
-    // LEFT SIDE — Round 1 (outermost)
-    { id: 'bm-l-r1-m1', round: 1, matchNumber: 1, side: 'left', teamA: 'RED RHINOS', teamB: null, winner: null, nextMatchId: 'bm-l-r2-m1' },
-    { id: 'bm-l-r1-m2', round: 1, matchNumber: 2, side: 'left', teamA: 'BROWN CUBS', teamB: null, winner: null, nextMatchId: 'bm-l-r2-m1' },
-    { id: 'bm-l-r1-m3', round: 1, matchNumber: 3, side: 'left', teamA: 'YELLOW VIPERS', teamB: null, winner: null, nextMatchId: 'bm-l-r2-m2' },
-    { id: 'bm-l-r1-m4', round: 1, matchNumber: 4, side: 'left', teamA: 'GREEN GATORS', teamB: null, winner: null, nextMatchId: 'bm-l-r2-m2' },
-    // LEFT SIDE — Round 2
-    { id: 'bm-l-r2-m1', round: 2, matchNumber: 1, side: 'left', teamA: null, teamB: null, winner: null, nextMatchId: 'bm-l-r3-m1' },
-    { id: 'bm-l-r2-m2', round: 2, matchNumber: 2, side: 'left', teamA: null, teamB: null, winner: null, nextMatchId: 'bm-l-r3-m1' },
-    // LEFT SIDE — Round 3 (feeds into final)
-    { id: 'bm-l-r3-m1', round: 3, matchNumber: 1, side: 'left', teamA: null, teamB: null, winner: null, nextMatchId: 'bm-final' },
-
-    // RIGHT SIDE — Round 1 (outermost)
-    { id: 'bm-r-r1-m1', round: 1, matchNumber: 1, side: 'right', teamA: 'PURPLE JAGUARS', teamB: null, winner: null, nextMatchId: 'bm-r-r2-m1' },
-    { id: 'bm-r-r1-m2', round: 1, matchNumber: 2, side: 'right', teamA: 'ORANGE BULLDOGS', teamB: null, winner: null, nextMatchId: 'bm-r-r2-m1' },
-    { id: 'bm-r-r1-m3', round: 1, matchNumber: 3, side: 'right', teamA: 'MAROON OWLS', teamB: null, winner: null, nextMatchId: 'bm-r-r2-m2' },
-    { id: 'bm-r-r1-m4', round: 1, matchNumber: 4, side: 'right', teamA: 'BLACK BEETLES', teamB: null, winner: null, nextMatchId: 'bm-r-r2-m2' },
-    // RIGHT SIDE — Round 2
-    { id: 'bm-r-r2-m1', round: 2, matchNumber: 1, side: 'right', teamA: null, teamB: null, winner: null, nextMatchId: 'bm-r-r3-m1' },
-    { id: 'bm-r-r2-m2', round: 2, matchNumber: 2, side: 'right', teamA: null, teamB: null, winner: null, nextMatchId: 'bm-r-r3-m1' },
-    // RIGHT SIDE — Round 3 (feeds into final)
-    { id: 'bm-r-r3-m1', round: 3, matchNumber: 1, side: 'right', teamA: null, teamB: null, winner: null, nextMatchId: 'bm-final' },
-
-    // FINAL (center)
-    { id: 'bm-final', round: 4, matchNumber: 1, side: 'center', teamA: null, teamB: null, winner: null, nextMatchId: null },
-  ],
-};
-
-const CATEGORIES = Object.keys(BRACKET_DATA);
-
-/* ── Team avatar/color mapping ── */
-const TEAM_COLORS = {
-  'RED RHINOS': '#c0392b',
-  'BROWN CUBS': '#8d6e63',
-  'YELLOW VIPERS': '#f1c40f',
-  'GREEN GATORS': '#27ae60',
-  'PURPLE JAGUARS': '#8e44ad',
-  'ORANGE BULLDOGS': '#e67e22',
-  'MAROON OWLS': '#800000',
-  'BLACK BEETLES': '#2c3e50',
-};
-
-function getTeamColor(name) {
-  return TEAM_COLORS[name] || '#95a5a6';
-}
-
-/* ── Sample schedule data ── */
-const SCHEDULE_DATA = [
-  {
-    day: 'THURSDAY, JUN 11',
-    matches: [
-      { time: '7:00–9:00 AM', sport: 'Basketball Men', venue: 'Gym', teamA: 'Purple Jaguars', teamB: 'Brown Cubs' },
-      { time: '9:30–11:30 AM', sport: 'Volleyball Women', venue: 'Gym', teamA: 'Orange Bulldogs', teamB: 'Maroon Owls' },
-      { time: '1:00–3:00 PM', sport: 'Chess', venue: 'AVR', teamA: 'Purple Jaguars', teamB: 'Green Gators' },
-    ],
-  },
-  {
-    day: 'FRIDAY, JUN 12',
-    matches: [
-      { time: '7:00–9:00 AM', sport: 'Basketball Men', venue: 'Gym', teamA: 'Orange Bulldogs', teamB: 'Red Rhinos' },
-      { time: '9:30–11:30 AM', sport: 'Volleyball Men', venue: 'Gym', teamA: 'Purple Jaguars', teamB: 'Black Beetles' },
-      { time: '1:00–3:00 PM', sport: 'Badminton', venue: 'Court 2', teamA: 'Green Gators', teamB: 'Yellow Vipers' },
-    ],
-  },
-  {
-    day: 'SATURDAY, JUN 13',
-    matches: [
-      { time: '7:00–9:00 AM', sport: 'Basketball Men', venue: 'Gym', teamA: 'Green Gators', teamB: 'Maroon Owls' },
-      { time: '9:30–11:30 AM', sport: 'Volleyball Women', venue: 'Gym', teamA: 'Purple Jaguars', teamB: 'Red Rhinos' },
-    ],
-  },
+const LEVELS = [
+  { label: 'All Levels', key: 'all' },
+  { label: 'Elementary', key: 'elementary' },
+  { label: 'High School', key: 'highSchool' },
+  { label: 'College', key: 'college' },
 ];
 
+const LEVEL_TAG = {
+  elementary: 'ELEMENTARY',
+  highSchool: 'HIGH SCHOOL',
+  college: 'COLLEGE',
+};
+
+/* ── Deterministic color per team name, so the same team always
+   gets the same avatar color even without a saved logo ── */
+const PALETTE = ['#c0392b', '#8d6e63', '#f1c40f', '#27ae60', '#8e44ad', '#e67e22', '#800000', '#2c3e50', '#2980b9', '#16a085'];
+function colorFor(name) {
+  if (!name) return '#95a5a6';
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return PALETTE[Math.abs(hash) % PALETTE.length];
+}
+
+/* ── Build the tab key/label for a match's sport + category ── */
+function categoryOf(match) {
+  const sport = (match.sport || '').trim();
+  const cat = (match.category || '').trim();
+  const label = cat && cat.toLowerCase() !== 'general' ? `${sport} ${cat}` : sport;
+  return { key: label.toUpperCase(), label };
+}
+
+/* ── Format a stored yyyy-mm-dd date into "THURSDAY, JUN 11" ── */
+function formatDay(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).toUpperCase();
+}
+
+/* ── Format a stored 24h "HH:MM" time into "7:00 AM" ── */
+function formatTime(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.split(':').map(Number);
+  if (Number.isNaN(h)) return timeStr;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${String(m || 0).padStart(2, '0')} ${period}`;
+}
+
 /* ═══════════════════════════════════════════════════════════
-   TEAM ROW — Single team pill with avatar + name + status dot
+   TEAM PILL — avatar + name, used inside round/bracket cards
    ═══════════════════════════════════════════════════════════ */
-function TeamRow({ teamName, isWinner, isTBD }) {
-  if (isTBD) {
+function TeamPill({ name, logo }) {
+  if (!name) {
     return (
-      <div className="ms-bracket-team-row ms-bracket-team-row--tbd">
-        <div className="ms-bracket-team-avatar" style={{ background: '#eee' }}>
-          <span>?</span>
-        </div>
-        <span className="ms-bracket-team-name ms-bracket-team-name--tbd">TBD</span>
-        <span className="ms-bracket-team-status ms-bracket-team-status--pending" />
+      <div className="ms-team-pill ms-team-pill--tbd">
+        <span className="ms-team-pill__avatar ms-team-pill__avatar--tbd">?</span>
+        <span className="ms-team-pill__name ms-team-pill__name--tbd">TBD</span>
       </div>
     );
   }
-
   return (
-    <div className={`ms-bracket-team-row ${isWinner ? 'ms-bracket-team-row--winner' : ''}`}>
-      <div 
-        className="ms-bracket-team-avatar" 
-        style={{ background: getTeamColor(teamName) }}
-      >
-        <span style={{ color: '#fff', fontSize: '10px', fontWeight: 'bold' }}>
-          {teamName.charAt(0)}
-        </span>
-      </div>
-      <span className="ms-bracket-team-name">{teamName}</span>
-      <span className={`ms-bracket-team-status ${isWinner ? 'ms-bracket-team-status--winner' : ''}`} />
+    <div className="ms-team-pill">
+      {logo
+        ? <img src={logo} alt="" className="ms-team-pill__avatar ms-team-pill__avatar--img" />
+        : <span className="ms-team-pill__avatar" style={{ background: colorFor(name) }}>{name.charAt(0)}</span>
+      }
+      <span className="ms-team-pill__name">{name}</span>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════
-   COMPACT MATCH BOX — For round 2+ with TBD teams
+   ROUNDS VIEW — groups a category's generated matches into
+   columns by stage/round exactly as the admin generated them
+   (round-robin legs, bracket stages, or grand-final matches)
    ═══════════════════════════════════════════════════════════ */
-function CompactMatchBox({ match }) {
-  const hasTeams = match.teamA || match.teamB;
-  
-  if (!hasTeams) {
-    return (
-      <div className="ms-bracket-match-compact ms-bracket-match-compact--tbd">
-        <span className="ms-bracket-match-compact-dot" style={{ background: '#ccc' }} />
-        <span className="ms-bracket-match-compact-text">?</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="ms-bracket-match-compact">
-      <span 
-        className="ms-bracket-match-compact-dot" 
-        style={{ background: match.winner ? '#001529' : '#666' }} 
-      />
-      <span className="ms-bracket-match-compact-text" style={{ color: '#001529' }}>
-        {match.teamA || 'TBD'}
-      </span>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   BRACKET SIDE — Left or right half of the bracket
-   ═══════════════════════════════════════════════════════════ */
-function BracketSide({ matches, side }) {
-  // Group by round
-  const rounds = useMemo(() => {
-    const roundMap = new Map();
+function RoundsView({ matches }) {
+  const columns = useMemo(() => {
+    const map = new Map();
     matches.forEach(m => {
-      if (!roundMap.has(m.round)) roundMap.set(m.round, []);
-      roundMap.get(m.round).push(m);
+      const key = m.stage || (m.round != null ? `Round ${m.round}` : 'Matches');
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(m);
     });
-    const sorted = [];
-    const nums = Array.from(roundMap.keys()).sort((a, b) => a - b);
-    nums.forEach(r => {
-      sorted.push(roundMap.get(r).sort((a, b) => a.matchNumber - b.matchNumber));
-    });
-    return sorted;
+    return Array.from(map.entries());
   }, [matches]);
 
-  // Calculate gap between matches in a round based on round number
-  // Round 1: large gap, Round 2: smaller gap, etc.
-  const getMatchGap = (roundIndex) => {
-    const baseGap = 16;
-    const multiplier = Math.pow(2, rounds.length - roundIndex - 1);
-    return baseGap * multiplier;
-  };
+  if (columns.length === 0) return null;
 
   return (
-    <div className={`ms-bracket-side ms-bracket-side--${side}`}>
-      {rounds.map((roundMatches, roundIndex) => {
-        const isFirstRound = roundIndex === 0;
-        const gap = getMatchGap(roundIndex);
-        
-        return (
-          <div 
-            key={roundIndex} 
-            className="ms-bracket-round"
-            style={{ gap: `${gap}px` }}
-          >
-            {roundMatches.map((match, matchIdx) => {
-              // Determine if this match is part of a pair (has sibling feeding same parent)
-              const isPairTop = matchIdx % 2 === 0 && roundMatches.length > 1;
-              const isPairBottom = matchIdx % 2 === 1;
-              const isSingle = roundMatches.length === 1;
-              
-              // Calculate connector height based on gap
-              const connectorHeight = gap / 2 + 20;
-
-              return (
-                <div
-                  key={match.id}
-                  className={`ms-bracket-match-wrapper 
-                    ${isPairTop ? 'ms-bracket-match-wrapper--pair-top' : ''} 
-                    ${isPairBottom ? 'ms-bracket-match-wrapper--pair-bottom' : ''} 
-                    ${isSingle ? 'ms-bracket-match-wrapper--single' : ''}`}
-                  style={{ '--connector-height': `${connectorHeight}px` }}
-                >
-                  {isFirstRound ? (
-                    // Round 1: Show individual team rows
-                    <TeamRow 
-                      teamName={match.teamA} 
-                      isWinner={match.winner === match.teamA}
-                      isTBD={!match.teamA}
-                    />
-                  ) : (
-                    // Round 2+: Show compact match boxes
-                    <CompactMatchBox match={match} />
-                  )}
-                  
-                  {/* Connector line to next round */}
-                  {roundIndex < rounds.length - 1 && (
-                    <div className="ms-bracket-connector" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   CHAMPION CENTER — Trophy + champion display
-   ═══════════════════════════════════════════════════════════ */
-function ChampionCenter({ finalMatch }) {
-  const hasWinner = finalMatch?.winner;
-
-  return (
-    <div className="ms-bracket-center">
-      <FaTrophy className="ms-bracket-trophy" />
-      <span className="ms-bracket-champion-label">CHAMPION</span>
-      <div className="ms-bracket-champion-box">
-        {hasWinner ? (
-          <span className="ms-bracket-champion-name">{finalMatch.winner}</span>
-        ) : (
+    <div className="ms-rounds-wrap">
+      {columns.map(([label, colMatches]) => (
+        <div key={label} className="ms-rounds-col">
+          <div className="ms-rounds-col__title">{label}</div>
+          {colMatches.map(m => (
+            <div key={m.id} className="ms-rounds-match">
+              {m.matchLabel && <span className="ms-rounds-match__label">{m.matchLabel}</span>}
+              <TeamPill name={m.teamA} logo={m.teamALogo} />
+              <span className="ms-rounds-match__vs">vs</span>
+              <TeamPill name={m.teamB} logo={m.teamBLogo} />
+            </div>
+          ))}
+        </div>
+      ))}
+      <div className="ms-rounds-col ms-rounds-col--champion">
+        <FaTrophy className="ms-bracket-trophy" />
+        <span className="ms-bracket-champion-label">CHAMPION</span>
+        <div className="ms-bracket-champion-box">
           <span className="ms-bracket-champion-placeholder">?</span>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -271,11 +141,11 @@ function ScheduleDayTable({ day, matches }) {
           <div className="ms-cell ms-cell-venue" role="columnheader">VENUE</div>
           <div className="ms-cell ms-cell-team" role="columnheader">TEAM</div>
         </div>
-        {matches.map((m, i) => (
-          <div className="ms-row" role="row" key={i}>
-            <div className="ms-cell ms-cell-time" role="cell">{m.time}</div>
-            <div className="ms-cell ms-cell-sport" role="cell">{m.sport}</div>
-            <div className="ms-cell ms-cell-venue" role="cell">{m.venue}</div>
+        {matches.map((m) => (
+          <div className="ms-row" role="row" key={m.id}>
+            <div className="ms-cell ms-cell-time" role="cell">{formatTime(m.time)}</div>
+            <div className="ms-cell ms-cell-sport" role="cell">{categoryOf(m).label}</div>
+            <div className="ms-cell ms-cell-venue" role="cell">{m.location || '—'}</div>
             <div className="ms-cell ms-cell-team ms-cell-team--body" role="cell">
               <span>{m.teamA}</span>
               <span className="ms-team-vs">vs</span>
@@ -289,34 +159,128 @@ function ScheduleDayTable({ day, matches }) {
 }
 
 export default function MatchSchedulesPage() {
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [level, setLevel] = useState(LEVELS[0]);
+  const [levelOpen, setLevelOpen] = useState(false);
+  const [category, setCategory] = useState(null);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [matchesByLevel, setMatchesByLevel] = useState({ elementary: [], highSchool: [], college: [] });
   const contactRef = React.useRef(null);
 
-  // Get all matches for selected category
-  const allMatches = BRACKET_DATA[category] || [];
-  
-  // Split into left, right, and final
-  const leftMatches = allMatches.filter(m => m.side === 'left');
-  const rightMatches = allMatches.filter(m => m.side === 'right');
-  const finalMatch = allMatches.find(m => m.side === 'center');
+  /* ── Load real data from Firestore for every level ── */
+  useEffect(() => {
+    let cancelled = false;
 
-  // Filter schedule data
-  const filteredSchedule = SCHEDULE_DATA.map(day => ({
-    ...day,
-    matches: day.matches.filter(m => {
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return (
-        m.teamA.toLowerCase().includes(q) ||
-        m.teamB.toLowerCase().includes(q) ||
-        m.sport.toLowerCase().includes(q) ||
-        m.venue.toLowerCase().includes(q)
-      );
-    }),
-  })).filter(day => day.matches.length > 0);
+    async function load() {
+      setLoading(true);
+      try {
+        const [elementary, highSchool, college] = await Promise.all([
+          getMatchSchedules('elementary'),
+          getMatchSchedules('highSchool'),
+          getMatchSchedules('college'),
+        ]);
+        if (cancelled) return;
 
-  const hasBracket = leftMatches.length > 0 || rightMatches.length > 0;
+        const tag = (levelKey, matches) =>
+          (matches || [])
+            .filter(m => m && m.teamA && m.teamB)
+            .map(m => ({ ...m, level: levelKey }));
+
+        setMatchesByLevel({
+          elementary: tag('elementary', elementary),
+          highSchool: tag('highSchool', highSchool),
+          college: tag('college', college),
+        });
+      } catch (e) {
+        console.error('Failed to load match schedules:', e);
+        if (!cancelled) setMatchesByLevel({ elementary: [], highSchool: [], college: [] });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  /* ── Matches visible for the selected level filter ── */
+  const levelMatches = useMemo(() => {
+    if (level.key === 'all') {
+      return [...matchesByLevel.elementary, ...matchesByLevel.highSchool, ...matchesByLevel.college];
+    }
+    return matchesByLevel[level.key] || [];
+  }, [level, matchesByLevel]);
+
+  /* ── Category tabs are built entirely from whatever sports/categories
+     the admin actually has matches for — never a fixed list ── */
+  const categories = useMemo(() => {
+    const map = new Map();
+    levelMatches.forEach(m => {
+      const c = categoryOf(m);
+      if (!map.has(c.key)) map.set(c.key, c.label);
+    });
+    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
+  }, [levelMatches]);
+
+  /* ── Keep the selected category valid as data loads/changes ── */
+  useEffect(() => {
+    if (categories.length === 0) {
+      if (category !== null) setCategory(null);
+      return;
+    }
+    if (!category || !categories.some(c => c.key === category.key)) {
+      setCategory(categories[0]);
+    }
+  }, [categories, category]);
+
+  const categoryMatches = useMemo(() => {
+    if (!category) return [];
+    return levelMatches.filter(m => categoryOf(m).key === category.key);
+  }, [levelMatches, category]);
+
+  /* ── Rounds/bracket view only for matches that came from the generator
+     (they carry a round number or a stage label) ── */
+  const generatedMatches = useMemo(
+    () => categoryMatches.filter(m => m.round != null || m.stage),
+    [categoryMatches]
+  );
+
+  /* ── Schedule table only shows matches an admin has actually pinned
+     to a real date + time — a freshly generated match with blank
+     date/time doesn't belong on the "real-time schedule" yet ── */
+  const scheduledMatches = useMemo(
+    () => levelMatches.filter(m => m.date && m.time),
+    [levelMatches]
+  );
+
+  const filteredSchedule = useMemo(() => {
+    const byDay = new Map();
+    scheduledMatches.forEach(m => {
+      const day = formatDay(m.date);
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push(m);
+    });
+    const days = Array.from(byDay.entries())
+      .map(([day, matches]) => ({
+        day,
+        matches: matches
+          .filter(m => {
+            if (!search.trim()) return true;
+            const q = search.toLowerCase();
+            return (
+              m.teamA.toLowerCase().includes(q) ||
+              m.teamB.toLowerCase().includes(q) ||
+              categoryOf(m).label.toLowerCase().includes(q) ||
+              (m.location || '').toLowerCase().includes(q)
+            );
+          })
+          .sort((a, b) => (a.time || '').localeCompare(b.time || '')),
+      }))
+      .filter(d => d.matches.length > 0);
+    return days;
+  }, [scheduledMatches, search]);
+
+  const hasAnyData = categories.length > 0;
 
   return (
     <div className="ms-page">
@@ -335,58 +299,92 @@ export default function MatchSchedulesPage() {
       {/* ── Scrollable body ── */}
       <div className="ms-body">
 
-        {/* Category selector + search */}
-        <div className="ms-toolbar">
-          <div className="ms-category-tabs">
-            {CATEGORIES.map(c => (
+        {/* Level filter */}
+        <div className="ms-lvls-wrap">
+          <button
+            className="ms-lvls-btn"
+            onClick={() => setLevelOpen(p => !p)}
+            aria-haspopup="listbox"
+            aria-expanded={levelOpen}
+          >
+            {level.label}
+            <FiChevronDown className={`ms-lvls-arrow ${levelOpen ? 'ms-lvls-arrow--open' : ''}`} />
+          </button>
+          <div className={`ms-lvls-dropdown ${levelOpen ? 'ms-lvls-dropdown--open' : ''}`} role="listbox">
+            {LEVELS.map(l => (
               <button
-                key={c}
-                className={`ms-category-tab ${category === c ? 'ms-category-tab--active' : ''}`}
-                onClick={() => setCategory(c)}
+                key={l.key}
+                className="ms-lvls-item"
+                onClick={() => { setLevel(l); setLevelOpen(false); }}
+                role="option"
+                aria-selected={level.key === l.key}
               >
-                {c}
+                {l.label}
               </button>
             ))}
           </div>
-          <div className="ms-search-wrap">
-            <FaSearch className="ms-search-icon" />
-            <input
-              type="text"
-              className="ms-search-input"
-              placeholder="Search team, sport, or venue"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
         </div>
 
-        {/* Bracket section */}
-        <div className="ms-bracket-card">
-          <h3 className="ms-bracket-title">{category}</h3>
-          {hasBracket ? (
-            <div className="ms-bracket-tree">
-              <BracketSide matches={leftMatches} side="left" />
-              <ChampionCenter finalMatch={finalMatch} />
-              <BracketSide matches={rightMatches} side="right" />
+        {loading ? (
+          <p className="ms-state-note">Loading schedules…</p>
+        ) : !hasAnyData ? (
+          <p className="ms-state-note">
+            No game schedules have been posted yet{level.key !== 'all' ? ` for ${level.label}` : ''}. Once an admin generates or adds a schedule, it will appear here.
+          </p>
+        ) : (
+          <>
+            {/* Category selector + search */}
+            <div className="ms-toolbar">
+              <div className="ms-category-tabs">
+                {categories.map(c => (
+                  <button
+                    key={c.key}
+                    className={`ms-category-tab ${category?.key === c.key ? 'ms-category-tab--active' : ''}`}
+                    onClick={() => setCategory(c)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div className="ms-search-wrap">
+                <FaSearch className="ms-search-icon" />
+                <input
+                  type="text"
+                  className="ms-search-input"
+                  placeholder="Search team, sport, or venue"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
             </div>
-          ) : (
-            <p className="ms-bracket-empty">Bracket not yet available for {category}.</p>
-          )}
-        </div>
 
-        {/* Section title */}
-        <h2 className="ms-section-title">MATCH SCHEDULES</h2>
+            {/* Bracket / rounds section */}
+            <div className="ms-bracket-card">
+              <h3 className="ms-bracket-title">{category?.label || ''}</h3>
+              {generatedMatches.length > 0 ? (
+                <RoundsView matches={generatedMatches} />
+              ) : (
+                <p className="ms-bracket-empty">No bracket or rounds generated yet for {category?.label}.</p>
+              )}
+            </div>
 
-        {/* Schedule tables grouped by day */}
-        <div className="ms-schedule-list">
-          {filteredSchedule.length > 0 ? (
-            filteredSchedule.map(day => (
-              <ScheduleDayTable key={day.day} day={day.day} matches={day.matches} />
-            ))
-          ) : (
-            <p className="ms-schedule-empty">No matches found for "{search}".</p>
-          )}
-        </div>
+            {/* Section title */}
+            <h2 className="ms-section-title">MATCH SCHEDULES</h2>
+
+            {/* Schedule tables grouped by day */}
+            <div className="ms-schedule-list">
+              {filteredSchedule.length > 0 ? (
+                filteredSchedule.map(day => (
+                  <ScheduleDayTable key={day.day} day={day.day} matches={day.matches} />
+                ))
+              ) : search.trim() ? (
+                <p className="ms-schedule-empty">No matches found for "{search}".</p>
+              ) : (
+                <p className="ms-schedule-empty">No matches have a confirmed date and time yet.</p>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Contact footer */}
         <Contact contactFooterRef={contactRef} />

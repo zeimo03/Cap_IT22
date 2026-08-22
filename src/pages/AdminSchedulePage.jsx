@@ -1491,7 +1491,7 @@ function MatchScheduleFormatSection({ level }) {
 
 
 export default function AdminSchedulePage() {
-  const { isAdmin } = useContext(AuthContext);
+  const { isAdmin, authLoading } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState(0);
@@ -1614,6 +1614,21 @@ const fetchSummary = useCallback(async () => {
   const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); };
 
   const fmt = (row, level) => row[level] === 0 ? '--' : row[level];
+
+  // ProtectedRoute already gates the /admin route by role, but that check
+  // reads `userRole` while this component reads `isAdmin` — if those two
+  // ever disagree (or this page is reused somewhere ProtectedRoute doesn't
+  // wrap), the old code below only redirected inside a useEffect, which
+  // runs *after* the full admin dashboard had already rendered once. That
+  // let restricted registration data flash on screen for a moment before
+  // navigating away. Bail out of the render itself instead, so nothing in
+  // this page is ever painted for a non-admin account.
+  if (authLoading) {
+    return <div className="asp-page">Loading…</div>;
+  }
+  if (!isAdmin) {
+    return null;
+  }
 
   return (
     <div className="asp-page">
