@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal, FaShieldAlt } from "react-icons/fa";
+import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal, FaShieldAlt, FaUserShield } from "react-icons/fa";
 import { SidebarContext } from "../Sidebar/SidebarContext";
 import { AuthContext } from "../AuthContext";
 import "./Sidebar.css";
@@ -90,6 +90,18 @@ function Sidebar() {
                 <FaShieldAlt />
               </button>
             )}
+
+            {/* Moderator icon — visible to moderators and super admins only (not regular admins) */}
+            {(userProfile?.role === 'moderator' || userProfile?.role === 'superadmin') && (
+              <button
+                className={`sidebar-btn ${location.pathname === "/moderator" ? "active" : ""}`}
+                aria-label="Moderator"
+                data-label="Moderator"
+                onClick={() => navigate('/moderator')}
+              >
+                <FaUserShield />
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -145,8 +157,8 @@ function Sidebar() {
 
           {/* Moderator — visible to moderators and super admins only (not regular admins) */}
           {(userProfile?.role === 'moderator' || userProfile?.role === 'superadmin') && (
-            <Link to="/moderator" className="panel-nav-item">
-              <FaUserCircle className="panel-nav-icon" />
+            <Link to="/moderator" className={`panel-nav-item ${location.pathname === "/moderator" ? "active" : ""}`}>
+              <FaUserShield className="panel-nav-icon" />
               <span>Moderator</span>
             </Link>
           )}

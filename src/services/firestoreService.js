@@ -306,21 +306,106 @@ export async function upsertMatchSchedule(level, match) {
 }
 
 /**
- * Removes a single match schedule by id — used by the "Delete Schedule"
- * action in the Edit Match Schedule modal.
+ * Removes a single match from a level's schedule by id.
  */
 export async function deleteMatchSchedule(level, matchId) {
   if (!db) throw new Error('Firestore not initialized.');
 
   const existing = await getMatchSchedules(level);
-  const merged = existing.filter(m => m.id !== matchId);
+  const remaining = existing.filter(m => m.id !== matchId);
 
   const configRef = doc(db, 'matchSchedules', level);
   await setDoc(
     configRef,
-    { matches: merged, updatedAt: serverTimestamp() },
+    { matches: remaining, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+
+  return remaining;
+}
+
+/* ─────────────────────────────────────────────
+   Match records (moderator "Update Match Records" screen)
+   Stored at: matchRecords/{level} → { records: [...] }
+
+   Shared between Moderator and Admin: both read/write the
+   same document per school level, so anything a moderator
+   confirms shows up for admins (and vice-versa) automatically.
+
+   A "record" looks like:
+   {
+     id, sport, category, gameFormat,
+     teamA: { name, logo }, teamB: { name, logo },
+     timeA, timeB,                 // "HH:MM:SS"
+     violationsA: [{type, count}], violationsB: [...],
+     totalViolationsA, totalViolationsB,
+     comebackA, comebackB,         // boolean|null
+     winner: 'A' | 'B',
+     prevPointsA, prevPointsB,
+     gainedA, gainedB,             // computed score change
+     finalPointsA, finalPointsB,
+     createdAt, updatedAt,
+   }
+───────────────────────────────────────────── */
+export async function getMatchRecords(level) {
+  if (!db) {
+    console.warn('Firestore not initialized. Cannot load match records.');
+    return [];
+  }
+  const configRef = doc(db, 'matchRecords', level);
+  const snapshot = await getDoc(configRef);
+  if (!snapshot.exists()) return [];
+  return snapshot.data().records || [];
+}
+
+/**
+ * Adds (or updates) a single confirmed match record.
+ */
+export async function upsertMatchRecord(level, record) {
+  if (!db) throw new Error('Firestore not initialized.');
+
+  const existing = await getMatchRecords(level);
+  const idx = existing.findIndex(r => r.id === record.id);
+  const merged = idx >= 0
+    ? existing.map(r => (r.id === record.id ? record : r))
+    : [...existing, record];
+
+  const configRef = doc(db, 'matchRecords', level);
+  await setDoc(
+    configRef,
+    { records: merged, updatedAt: serverTimestamp() },
     { merge: true }
   );
 
   return merged;
+}
+
+/* ─────────────────────────────────────────────
+   Team point rankings (per school level)
+   Stored at: teamRankings/{level} → { points: { [teamName]: number } }
+
+   Read by Moderator (as "previous points" before a match)
+   and written back after every confirmed match record, so
+   Admin's Ranking page can eventually read the same source.
+───────────────────────────────────────────── */
+export async function getTeamRankings(level) {
+  if (!db) {
+    console.warn('Firestore not initialized. Cannot load team rankings.');
+    return {};
+  }
+  const configRef = doc(db, 'teamRankings', level);
+  const snapshot = await getDoc(configRef);
+  if (!snapshot.exists()) return {};
+  return snapshot.data().points || {};
+}
+
+export async function saveTeamRankings(level, points) {
+  if (!db) throw new Error('Firestore not initialized.');
+
+  const configRef = doc(db, 'teamRankings', level);
+  await setDoc(
+    configRef,
+    { points, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
 }
