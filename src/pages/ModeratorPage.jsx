@@ -340,7 +340,7 @@ function OptionDropdown({
           disabled={disabled}
           onClick={() => setOpen((p) => !p)}
         >
-          <span>{selected ? selected.label : (placeholder || 'Select')}</span>
+          <span className="mp-select-trigger__label">{selected ? selected.label : (placeholder || 'Select')}</span>
           <FaChevronDown style={{ fontSize: '0.7rem', flexShrink: 0, opacity: 0.6 }} />
         </button>
       )}
@@ -629,21 +629,22 @@ function ResetConfirmModal({ onCancel, onConfirm }) {
    TEAM PANEL (Team 1 / Team 2 form column)
 ═══════════════════════════════════════════ */
 function TeamPanel({
-  side, teamLabel, teamOptions, teamId, onTeamChange,
+  side, teamLabel, teamOptions, teamId, onTeamChange, teamLocked, readOnly,
   mode, time, onTimeChange, points, onPointsChange,
   totalViolations, onOpenViolations,
   comeback, onComebackChange, prevPoints, finalPoints,
-  winner, onMarkWinner,
+  winner,
 }) {
   const isWinner = winner === side;
   // Status label always reflects reality: once a winner is marked, the
   // *other* side's segment flips to "Lose" (this used to stay stuck on
   // "Win" text just unhighlighted, which read as both teams winning).
   const status = winner ? (isWinner ? 'win' : 'lose') : null;
-  const statusText = status === 'win' ? 'Win' : status === 'lose' ? 'Lose' : (side === 'A' ? 'Win' : 'Lose');
+  const statusText = status === 'win' ? 'Win' : status === 'lose' ? 'Lose' : '—';
   const statusClass = status === 'win' ? 'mp-pill__seg--win' : status === 'lose' ? 'mp-pill__seg--lose' : '';
   const statusSeg = <div className={`mp-pill__seg ${statusClass}`}><FaTrophy /> {statusText}</div>;
   const teamSeg = <div className="mp-pill__seg">{teamLabel}</div>;
+  const selectedTeam = teamOptions.find((o) => o.key === teamId);
   const [vBump, setVBump] = useState(false);
   const prevViol = useRef(totalViolations);
   useEffect(() => {
@@ -657,8 +658,16 @@ function TeamPanel({
 
   return (
     <div className="mp-team-panel">
+      {selectedTeam && (
+        <span className="mp-team-panel__badge">
+          {selectedTeam.logo ? <img src={selectedTeam.logo} alt="" /> : initials(selectedTeam.label)}
+        </span>
+      )}
       <div className="mp-field">
-        <div className="mp-field__label">{teamLabel}<span className="mp-required">*</span></div>
+        <div className="mp-field__label">
+          {teamLabel}<span className="mp-required">*</span>
+          {teamLocked && <span className="mp-field__locked-tag"><FaLock /> From schedule</span>}
+        </div>
         <OptionDropdown
           variant="teams"
           panelLabel="Teams"
@@ -666,6 +675,7 @@ function TeamPanel({
           placeholder="Select team"
           options={teamOptions}
           onChange={onTeamChange}
+          disabled={teamLocked}
         />
       </div>
 
@@ -679,6 +689,7 @@ function TeamPanel({
             <input
               className="mp-text-input" type="text" inputMode="numeric" placeholder="Input points" maxLength={5}
               value={points} onChange={(e) => onPointsChange(sanitizePointsInput(e.target.value))}
+              disabled={readOnly}
             />
           </>
         ) : (
@@ -690,6 +701,7 @@ function TeamPanel({
             <input
               className="mp-text-input" type="text" inputMode="numeric" placeholder="HH:MM:SS" maxLength={8}
               value={time} onChange={(e) => onTimeChange(formatDurationInput(e.target.value))}
+              disabled={readOnly}
             />
           </>
         )}
@@ -705,26 +717,27 @@ function TeamPanel({
             <div className="mp-violation-box__label">Total violations</div>
             <div className={`mp-violation-box__num ${vBump ? 'mp-violation-box__num--bump' : ''}`}>{totalViolations}</div>
           </div>
-          <button type="button" className="mp-btn mp-btn--navy" onClick={onOpenViolations}>Add/View violation</button>
+          <button type="button" className="mp-btn mp-btn--navy" onClick={onOpenViolations} disabled={readOnly}>Add/View violation</button>
         </div>
       </div>
 
-      <div className="mp-field">
-        <div className="mp-field__label">
-          Comeback rule
-          <InfoTip caption="Comeback rule info">Set whether the teams are allowed to make a comeback.</InfoTip>
-        </div>
-        <div className="mp-radio-group">
-          <label className="mp-radio">
-            <input type="radio" name={`comeback-${side}`} checked={comeback === true} onChange={() => onComebackChange(true)} />
-            Yes (the team made a comeback and win the game)
+      {winner === side && (
+        <div className="mp-field">
+          <div className="mp-field__label">
+            Comeback rule
+            <InfoTip caption="Comeback rule info">Check this if the team was behind and came back to win the game.</InfoTip>
+          </div>
+          <label className="mp-checkbox">
+            <input
+              type="checkbox"
+              checked={!!comeback}
+              onChange={(e) => onComebackChange(e.target.checked)}
+              disabled={readOnly}
+            />
+            This team made a comeback and won the game
           </label>
-          <label className="mp-radio">
-            <input type="radio" name={`comeback-${side}`} checked={comeback === false} onChange={() => onComebackChange(false)} />
-            No (no comeback)
-          </label>
         </div>
-      </div>
+      )}
 
       <div className="mp-field">
         <div className="mp-points-row">
@@ -739,16 +752,6 @@ function TeamPanel({
         </div>
       </div>
 
-      <div className="mp-field">
-        <button
-          type="button"
-          className={`mp-btn mp-btn--winner ${isWinner ? 'mp-btn--winner--active' : ''}`}
-          onClick={() => onMarkWinner(side)}
-        >
-          {isWinner ? <><FaTrophy /> Marked as winner</> : 'Mark as winner'}
-        </button>
-      </div>
-
       <div className="mp-pill">
         {side === 'A' ? (<>{teamSeg}{statusSeg}</>) : (<>{statusSeg}{teamSeg}</>)}
       </div>
@@ -761,6 +764,7 @@ function TeamPanel({
 ═══════════════════════════════════════════ */
 export default function ModeratorPage() {
   const navigate = useNavigate();
+  const summaryRef = useRef(null);
 
   const [level, setLevel] = useState('highSchool');
   const [sports, setSports] = useState([]);
@@ -821,9 +825,11 @@ export default function ModeratorPage() {
   const [pointsB, setPointsB] = useState('');
   const [violA, setViolA] = useState([]);
   const [violB, setViolB] = useState([]);
-  const [comebackA, setComebackA] = useState(null);
-  const [comebackB, setComebackB] = useState(null);
+  const [comebackA, setComebackA] = useState(false);
+  const [comebackB, setComebackB] = useState(false);
   const [winner, setWinner] = useState(null);
+  const [lockedMatch, setLockedMatch] = useState(null); // finished schedule row picked from the panel below
+  const [lockedRecord, setLockedRecord] = useState(null); // saved record for lockedMatch, if it already has one (form goes read-only)
   const [violModal, setViolModal] = useState(null); // 'A' | 'B' | null
   const [pending, setPending] = useState(null);
   const [invalidReasons, setInvalidReasons] = useState(null);
@@ -899,6 +905,8 @@ export default function ModeratorPage() {
 
       setSportId('');
       setDivisionKey('');
+      setLockedMatch(null);
+      setLockedRecord(null);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -909,8 +917,10 @@ export default function ModeratorPage() {
     setTimeA(''); setTimeB('');
     setPointsA(''); setPointsB('');
     setViolA([]); setViolB([]);
-    setComebackA(null); setComebackB(null);
+    setComebackA(false); setComebackB(false);
     setWinner(null);
+    setLockedMatch(null);
+    setLockedRecord(null);
   }, []);
 
   function handleResetClick() {
@@ -956,6 +966,82 @@ export default function ModeratorPage() {
 
   const teamA = effectiveTeams.find((t) => t.id === teamAId);
   const teamB = effectiveTeams.find((t) => t.id === teamBId);
+
+  /* Finished schedule rows for the current sport/division — the pool the
+     "Finished matches" panel offers moderators to pick from. */
+  const finishedMatches = useMemo(
+    () => scheduleMatchesForSelection.filter(matchHasFinished),
+    [scheduleMatchesForSelection],
+  );
+
+  /* A finished match already has a saved record once both team names show
+     up together (either order) in `records` for this sport/division —
+     surfaced on the card so moderators don't redo one by mistake, and
+     used to pull the saved details back into the form (read-only). */
+  const findRecordForSchedule = useCallback((s) => records.find((r) => {
+    if (norm(r.sportName) !== norm(s.sport)) return false;
+    if (!categoriesMatch(r.category, s.category)) return false;
+    const names = [norm(r.teamA.name), norm(r.teamB.name)];
+    return names.includes(norm(s.teamA)) && names.includes(norm(s.teamB));
+  }), [records]);
+  const isMatchRecorded = useCallback((s) => !!findRecordForSchedule(s), [findRecordForSchedule]);
+
+  /* Inverse of parseDuration() — turns a saved minutes value back into
+     the "HH:MM:SS" / "MM:SS" text the time input displays. */
+  function minutesToDurationString(mins) {
+    if (mins == null || Number.isNaN(mins)) return '';
+    const totalSeconds = Math.round(mins * 60);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+
+  /* Loads a saved record's details straight into the top form, read-only —
+     the moderator can see exactly what was submitted without retyping it.
+     Actually changing any of it happens in the summary table's Edit row. */
+  function applyRecordToForm(rec) {
+    const tA = effectiveTeams.find((t) => norm(t.name) === norm(rec.teamA.name));
+    const tB = effectiveTeams.find((t) => norm(t.name) === norm(rec.teamB.name));
+    setTeamAId(tA ? tA.id : rec.teamA.id);
+    setTeamBId(tB ? tB.id : rec.teamB.id);
+    setTimeA(minutesToDurationString(rec.teamA.minutes));
+    setTimeB(minutesToDurationString(rec.teamB.minutes));
+    setPointsA(rec.teamA.points != null ? String(rec.teamA.points) : '');
+    setPointsB(rec.teamB.points != null ? String(rec.teamB.points) : '');
+    setViolA(rec.teamA.violations || []);
+    setViolB(rec.teamB.violations || []);
+    setComebackA(rec.teamA.comeback ?? false);
+    setComebackB(rec.teamB.comeback ?? false);
+    setWinner(rec.winner || null);
+  }
+
+  /* Clicking a finished-match card fills both team pickers from the
+     schedule row and locks them so the moderator records the two teams
+     the admin actually scheduled, not a mismatched pair. If that match
+     already has a saved record, the whole form is filled in and locked —
+     it's now view-only here; edits happen in the summary table below. */
+  function handlePickFinishedMatch(s) {
+    const rec = findRecordForSchedule(s);
+    if (rec) {
+      applyRecordToForm(rec);
+      setLockedMatch(s);
+      setLockedRecord(rec);
+      return;
+    }
+    const key = (name) => norm(name);
+    const tA = effectiveTeams.find((t) => key(t.name) === key(s.teamA));
+    const tB = effectiveTeams.find((t) => key(t.name) === key(s.teamB));
+    setTeamAId(tA ? tA.id : '');
+    setTeamBId(tB ? tB.id : '');
+    setLockedMatch(s);
+    setLockedRecord(null);
+  }
+
+  function handleUnlockMatch() {
+    resetForm();
+  }
   const totalViolA = violA.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
   const totalViolB = violB.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
 
@@ -968,6 +1054,27 @@ export default function ModeratorPage() {
   const scoreB = mode === 'points' ? pointsValB : minutesB;
   const scoreValid = scoreA != null && !Number.isNaN(scoreA) && scoreB != null && !Number.isNaN(scoreB);
   const diff = scoreValid ? Math.abs(scoreA - scoreB) : null;
+
+  /* Winner is derived automatically from the entered scores, not picked by
+     hand: whichever team has more points wins a points-based match; for
+     time-based ones, the lower time wins. A tie leaves no winner until the
+     scores are corrected. Skipped while viewing an already-saved record
+     (lockedRecord) so its original stored winner isn't overwritten. */
+  useEffect(() => {
+    if (lockedRecord) return;
+    if (!scoreValid || scoreA === scoreB) { setWinner(null); return; }
+    if (mode === 'points') {
+      setWinner(scoreA > scoreB ? 'A' : 'B');
+    } else {
+      setWinner(scoreA < scoreB ? 'A' : 'B');
+    }
+  }, [scoreValid, scoreA, scoreB, mode, lockedRecord]);
+
+  /* Comeback only ever applies to the side that actually won — the
+     checkbox is hidden for the loser in the UI, but this guards the
+     underlying math too in case stale state lingers from a prior winner. */
+  const effectiveComebackA = winner === 'A' ? !!comebackA : false;
+  const effectiveComebackB = winner === 'B' ? !!comebackB : false;
 
   const prevPointsA = teamA ? (rankings[teamA.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS;
   const prevPointsB = teamB ? (rankings[teamB.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS;
@@ -985,8 +1092,8 @@ export default function ModeratorPage() {
   }
 
   const canPreview = diff != null && winner;
-  const changeA = canPreview ? computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: !!comebackA }) : null;
-  const changeB = canPreview ? computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: !!comebackB }) : null;
+  const changeA = canPreview ? computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: effectiveComebackA }) : null;
+  const changeB = canPreview ? computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: effectiveComebackB }) : null;
   const finalPointsA = changeA != null ? Math.round(prevPointsA + changeA) : null;
   const finalPointsB = changeB != null ? Math.round(prevPointsB + changeB) : null;
 
@@ -1007,16 +1114,18 @@ export default function ModeratorPage() {
       if (minutesA == null) reasons.push('Enter a valid time duration for team 1 (HH:MM:SS).');
       if (minutesB == null) reasons.push('Enter a valid time duration for team 2 (HH:MM:SS).');
     }
-    if (comebackA === null) reasons.push('Set the comeback rule for team 1.');
-    if (comebackB === null) reasons.push('Set the comeback rule for team 2.');
-    if (!winner) reasons.push('Mark a winner.');
+    if (scoreValid && scoreA === scoreB) {
+      reasons.push('Scores are tied — the system can\'t determine a winner automatically.');
+    } else if (!winner) {
+      reasons.push('Enter both teams\' scores so the winner can be determined automatically.');
+    }
 
     if (reasons.length) { setInvalidReasons(reasons); return; }
 
-    const cA = computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: !!comebackA });
-    const cB = computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: !!comebackB });
-    const eqA = computeEqualPoints({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: !!comebackA });
-    const eqB = computeEqualPoints({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: !!comebackB });
+    const cA = computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: effectiveComebackA });
+    const cB = computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: effectiveComebackB });
+    const eqA = computeEqualPoints({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: effectiveComebackA });
+    const eqB = computeEqualPoints({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: effectiveComebackB });
 
     setPending({
       mode,
@@ -1030,14 +1139,14 @@ export default function ModeratorPage() {
         id: teamA.id, name: teamA.name, logo: teamA.logo,
         minutes: mode === 'time' ? minutesA : null,
         points: mode === 'points' ? pointsValA : null,
-        totalViolations: totalViolA, violations: violA, comeback: !!comebackA,
+        totalViolations: totalViolA, violations: violA, comeback: effectiveComebackA,
         prevPoints: prevPointsA, change: cA, equalPoints: eqA, finalPoints: Math.round(prevPointsA + cA),
       },
       teamB: {
         id: teamB.id, name: teamB.name, logo: teamB.logo,
         minutes: mode === 'time' ? minutesB : null,
         points: mode === 'points' ? pointsValB : null,
-        totalViolations: totalViolB, violations: violB, comeback: !!comebackB,
+        totalViolations: totalViolB, violations: violB, comeback: effectiveComebackB,
         prevPoints: prevPointsB, change: cB, equalPoints: eqB, finalPoints: Math.round(prevPointsB + cB),
       },
     });
@@ -1104,6 +1213,15 @@ export default function ModeratorPage() {
       pointsA: record.teamA.points ?? '',
       pointsB: record.teamB.points ?? '',
     });
+  }
+
+  /* "Edit in summary table" link on the read-only locked-record view above —
+     clears the top form's lock, opens that record's inline edit row in the
+     summary table, and scrolls it into view. */
+  function handleEditLockedRecord(record) {
+    resetForm();
+    startEdit(record);
+    summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function saveEdit(record) {
@@ -1192,6 +1310,52 @@ export default function ModeratorPage() {
           <div className="mp-levelband__bar"><div className="mp-levelband__seg" /></div>
         </div>
 
+        {activeSport && finishedMatches.length > 0 && (
+          <div className="mp-finished-panel">
+            <div className="mp-finished-panel__head">
+              <div className="mp-finished-panel__title">Finished matches</div>
+              {lockedMatch && (
+                <button type="button" className="mp-finished-panel__unlock" onClick={handleUnlockMatch}>
+                  Change match
+                </button>
+              )}
+            </div>
+            <div className="mp-finished-panel__list">
+              {finishedMatches.map((s) => {
+                const active = lockedMatch?.id === s.id;
+                const done = isMatchRecorded(s);
+                return (
+                  <button
+                    type="button"
+                    key={s.id}
+                    className={`mp-finished-card ${active ? 'mp-finished-card--active' : ''} ${done ? 'mp-finished-card--done' : ''}`}
+                    onClick={() => handlePickFinishedMatch(s)}
+                  >
+                    <div className="mp-finished-card__teams">
+                      <span className="mp-finished-card__logo">
+                        {s.teamALogo ? <img src={s.teamALogo} alt="" /> : initials(s.teamA)}
+                      </span>
+                      <span className="mp-finished-card__vs">vs</span>
+                      <span className="mp-finished-card__logo">
+                        {s.teamBLogo ? <img src={s.teamBLogo} alt="" /> : initials(s.teamB)}
+                      </span>
+                    </div>
+                    <div className="mp-finished-card__names">{s.teamA} <span>vs</span> {s.teamB}</div>
+                    {(s.date || s.time) && (
+                      <div className="mp-finished-card__meta">{s.date}{s.date && s.time ? ' · ' : ''}{s.time}</div>
+                    )}
+                    {done ? (
+                      <div className="mp-finished-card__status">Already recorded</div>
+                    ) : active ? (
+                      <div className="mp-finished-card__status mp-finished-card__status--active"><FaLock /> Selected</div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="mp-card">
           <h3 className="mp-card__title">Update match record</h3>
           <p className="mp-card__sub">Fill in the required details for both teams.</p>
@@ -1211,37 +1375,45 @@ export default function ModeratorPage() {
               <FaInfo /> The admin hasn't scheduled any matches for this division yet — showing all registered teams for now.
             </p>
           )}
+          {lockedRecord && (
+            <p className="mp-schedule-hint mp-schedule-hint--locked">
+              <FaLock /> This match is already recorded — shown here read-only. To change any details, edit it in the summary table below.
+              <button type="button" className="mp-schedule-hint__edit-link" onClick={() => handleEditLockedRecord(lockedRecord)}>
+                Edit in summary table
+              </button>
+            </p>
+          )}
 
           <div className="mp-matchup">
             <TeamPanel
               side="A" teamLabel="Team 1"
-              teamOptions={teamOptionsForSport} teamId={teamAId} onTeamChange={setTeamAId}
+              teamOptions={teamOptionsForSport} teamId={teamAId} onTeamChange={setTeamAId} teamLocked={!!lockedMatch} readOnly={!!lockedRecord}
               mode={mode} time={timeA} onTimeChange={setTimeA} points={pointsA} onPointsChange={setPointsA}
               totalViolations={totalViolA} onOpenViolations={() => setViolModal('A')}
               comeback={comebackA} onComebackChange={setComebackA}
               prevPoints={prevPointsA} finalPoints={finalPointsA}
-              winner={winner} onMarkWinner={setWinner}
+              winner={winner}
             />
             <div className="mp-vs">VS</div>
             <TeamPanel
               side="B" teamLabel="Team 2"
-              teamOptions={teamOptionsForSport} teamId={teamBId} onTeamChange={setTeamBId}
+              teamOptions={teamOptionsForSport} teamId={teamBId} onTeamChange={setTeamBId} teamLocked={!!lockedMatch} readOnly={!!lockedRecord}
               mode={mode} time={timeB} onTimeChange={setTimeB} points={pointsB} onPointsChange={setPointsB}
               totalViolations={totalViolB} onOpenViolations={() => setViolModal('B')}
               comeback={comebackB} onComebackChange={setComebackB}
               prevPoints={prevPointsB} finalPoints={finalPointsB}
-              winner={winner} onMarkWinner={setWinner}
+              winner={winner}
             />
           </div>
 
           <div className="mp-update-row">
             <button type="button" className="mp-btn mp-btn--reset" onClick={handleResetClick}>Reset</button>
-            <button type="button" className="mp-btn mp-btn--update" onClick={handleUpdateClick}>Update</button>
+            <button type="button" className="mp-btn mp-btn--update" onClick={handleUpdateClick} disabled={!!lockedRecord}>Update</button>
           </div>
         </div>
 
         {/* ── Updated match summary ── */}
-        <div className="mp-summary">
+        <div className="mp-summary" ref={summaryRef}>
           <div className="mp-summary__head">
             <h3 className="mp-summary__title"><FaUsers className="mp-summary__title-icon" /> Updated match summary</h3>
             <div className="mp-summary__count">
