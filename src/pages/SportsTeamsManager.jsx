@@ -11,9 +11,9 @@ import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../serv
 ═══════════════════════════════════════════ */
 const FORMAT_OPTIONS = [
   { id: 'single-time',  label: '1vs1',  sub: '(with only time basis to win {ex. Chess and Swimming 1vs1})' },
-  { id: 'single-solo',  label: '1vs1',  sub: '(with only time basis to win {ex. Taekwondo, Basketball, Badminton, Volleyball, and Tennis})' },
+  { id: 'single-solo',  label: '1vs1',  sub: '(with only point basis to win {ex. Taekwondo, Basketball, Badminton, Volleyball, and Tennis})' },
   { id: 'single-group', label: '1vsMany', sub: '(with only time basis to win {ex. Swimming and Athletics})' },
-  { id: 'team-play',    label: '1vsMany', sub: '(with only time basis to win {ex. Archery})' },
+  { id: 'team-play',    label: '1vsMany', sub: '(with only point basis to win {ex. Archery})' },
 ];
 
 const TEAM_COLORS = ['#b45309','#dc2626','#15803d','#6d28d9','#92400e','#9f1239','#374151','#ea580c'];

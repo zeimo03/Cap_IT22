@@ -7,6 +7,7 @@ import {
 import './ModeratorPage.css';
 import {
   getSportsTeamsConfig,
+  getMatchSchedules,
   getMatchRecords,
   upsertMatchRecord,
   getTeamRankings,
@@ -73,6 +74,92 @@ function buildSportOptions(sports) {
     }
   });
   return opts;
+}
+
+/* One row per sport (no division baked in) — feeds the "Select sport" dropdown. */
+function buildSportOnlyOptions(sports) {
+  return (sports || []).map((sport) => ({
+    key: sport.id, sportId: sport.id, label: sport.name, logo: sport.logo,
+  }));
+}
+
+/* Divisions belonging to a single sport — feeds the "Select division" dropdown.
+   Sports with no configured divisions yield an empty list, which the UI
+   treats as "this sport has nothing to pick" rather than an error.
+   Prefixes the category-group label (e.g. "MEN") onto the division name
+   when they differ, so two divisions that share a name across groups
+   (e.g. "MEN 5v5" vs "WOMEN 5v5") stay distinguishable in the dropdown —
+   and, since this combined string is also what gets used as `category`,
+   distinguishable in the saved schedule/record data too. */
+function buildDivisionOptionsForSport(sport) {
+  if (!sport) return [];
+  return flatDivisions(sport).map((d) => {
+    const name = (d.name || '').trim();
+    const group = (d.groupLabel || '').trim();
+    const label = (group && norm(group) !== norm(name)) ? `${group} ${name}`.trim() : name;
+    return { key: d.id, label, category: label, format: d.format || '' };
+  });
+}
+
+/* Case/whitespace-insensitive compare — schedules & team.sportIds store
+   sport/team *names* (free text from Admin), never ids, so every match
+   against those needs to go through this rather than ===. */
+function norm(str) {
+  return (str || '').trim().toLowerCase();
+}
+
+/* Today as 'YYYY-MM-DD', matching the <input type="date"> format Admin's
+   schedule saves — plain string comparison against that sorts correctly. */
+function todayStr() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/* Fallback for when Sports & Teams (sportsTeamsConfig/{level}) is empty
+   even though matches have already been scheduled for this level — e.g.
+   it was reset separately, or never (re)saved after a data wipe. Rebuilds
+   a sport/division list straight from the schedule rows Admin already
+   created, so Moderator isn't stuck with an empty picker. Only used when
+   the real config has nothing. */
+function deriveSportsFromSchedules(schedules) {
+  const bySport = new Map();
+  (schedules || []).forEach((s) => {
+    if (!s.sport) return;
+    const key = norm(s.sport);
+    if (!bySport.has(key)) {
+      bySport.set(key, { id: `sched__${key}`, name: s.sport, logo: null, categoryGroups: [] });
+    }
+    const sport = bySport.get(key);
+    if (s.category) {
+      const catKey = norm(s.category);
+      if (!sport.categoryGroups.some((g) => norm(g.label) === catKey)) {
+        sport.categoryGroups.push({
+          id: `${sport.id}__${catKey}`, label: s.category,
+          divisions: [{ id: `${sport.id}__${catKey}__d`, name: s.category, format: '' }],
+        });
+      }
+    }
+  });
+  return [...bySport.values()];
+}
+
+/* Same idea for the team roster: pulled from teamA/teamB names + logos
+   already saved on each schedule row, when Sports & Teams has no teams. */
+function deriveTeamsFromSchedules(schedules) {
+  const byName = new Map();
+  (schedules || []).forEach((s) => {
+    [[s.teamA, s.teamALogo], [s.teamB, s.teamBLogo]].forEach(([name, logo]) => {
+      if (!name) return;
+      const key = norm(name);
+      if (!byName.has(key)) {
+        byName.set(key, { id: `sched-team__${key}`, name, logo: logo || null, sportIds: s.sport ? [s.sport] : [] });
+      } else if (s.sport && !byName.get(key).sportIds.includes(s.sport)) {
+        byName.get(key).sportIds.push(s.sport);
+      }
+    });
+  });
+  return [...byName.values()];
 }
 
 /* "HH:MM:SS" / "MM:SS" free-typed duration -> minutes (float), or null */
@@ -559,13 +646,52 @@ export default function ModeratorPage() {
   const [level, setLevel] = useState('highSchool');
   const [sports, setSports] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   const [rankings, setRankings] = useState({});
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  const sportOptions = useMemo(() => buildSportOptions(sports), [sports]);
-  const [sportKey, setSportKey] = useState('');
-  const activeSport = sportOptions.find((o) => o.key === sportKey) || null;
+  // Sports & Teams (sportsTeamsConfig/{level}) is the normal source, but if
+  // it's empty even though matches have already been scheduled for this
+  // level, fall back to building the sport/division/team lists straight
+  // from the schedule rows rather than leaving the moderator with nothing
+  // to pick from.
+  const effectiveSports = useMemo(
+    () => (sports.length > 0 ? sports : deriveSportsFromSchedules(schedules)),
+    [sports, schedules],
+  );
+  const effectiveTeams = useMemo(
+    () => (teams.length > 0 ? teams : deriveTeamsFromSchedules(schedules)),
+    [teams, schedules],
+  );
+  const usingScheduleFallback = sports.length === 0 && effectiveSports.length > 0;
+
+  const sportOptions = useMemo(() => buildSportOnlyOptions(effectiveSports), [effectiveSports]);
+  const [sportId, setSportId] = useState('');
+  const selectedSport = effectiveSports.find((s) => s.id === sportId) || null;
+
+  const divisionOptions = useMemo(
+    () => buildDivisionOptionsForSport(selectedSport),
+    [selectedSport],
+  );
+  const [divisionKey, setDivisionKey] = useState('');
+  const selectedDivision = divisionOptions.find((d) => d.key === divisionKey) || null;
+  const divisionRequired = divisionOptions.length > 0;
+
+  // Combines the sport + division picks back into the shape the rest of the
+  // form (team matching, validation, confirmation summary) already expects.
+  const activeSport = useMemo(() => {
+    if (!selectedSport) return null;
+    if (!divisionRequired) {
+      return { sportId: selectedSport.id, sportName: selectedSport.name, category: '', logo: selectedSport.logo, format: '' };
+    }
+    if (!selectedDivision) return null;
+    return {
+      sportId: selectedSport.id, sportName: selectedSport.name,
+      category: selectedDivision.category, logo: selectedSport.logo, format: selectedDivision.format,
+    };
+  }, [selectedSport, divisionRequired, selectedDivision]);
 
   // form state
   const [teamAId, setTeamAId] = useState('');
@@ -589,22 +715,68 @@ export default function ModeratorPage() {
   const [editDraft, setEditDraft] = useState(null);
   const [flashId, setFlashId] = useState(null);
 
-  /* ── load config, records & rankings whenever the level changes ── */
+  /* ── load config, schedules, records & rankings whenever the level changes ──
+     Promise.allSettled (not .all) so that one denied/failed collection
+     doesn't wipe out data that loaded fine from the others — e.g. Sports &
+     Teams being blocked by a rules issue shouldn't also blank out
+     schedules that loaded successfully. Any failures are surfaced instead
+     of failing silently. */
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
     (async () => {
-      const [config, recs, ranks] = await Promise.all([
+      const [configR, schedsR, recsR, ranksR] = await Promise.allSettled([
         getSportsTeamsConfig(level),
+        getMatchSchedules(level),
         getMatchRecords(level),
         getTeamRankings(level),
       ]);
       if (cancelled) return;
-      setSports(config.sports || []);
-      setTeams(config.teams || []);
-      setRecords(recs || []);
-      setRankings(ranks || {});
-      setSportKey('');
+
+      const failed = [];
+      if (configR.status === 'fulfilled') {
+        setSports(configR.value.sports || []);
+        setTeams(configR.value.teams || []);
+      } else {
+        console.error('Failed to load Sports & Teams config:', configR.reason);
+        setSports([]); setTeams([]);
+        failed.push('Sports & Teams');
+      }
+      if (schedsR.status === 'fulfilled') {
+        setSchedules(schedsR.value || []);
+      } else {
+        console.error('Failed to load match schedules:', schedsR.reason);
+        setSchedules([]);
+        failed.push('Match Schedules');
+      }
+      if (recsR.status === 'fulfilled') {
+        setRecords(recsR.value || []);
+      } else {
+        console.error('Failed to load match records:', recsR.reason);
+        setRecords([]);
+        failed.push('Match Records');
+      }
+      if (ranksR.status === 'fulfilled') {
+        setRankings(ranksR.value || {});
+      } else {
+        console.error('Failed to load team rankings:', ranksR.reason);
+        setRankings({});
+        failed.push('Team Rankings');
+      }
+
+      if (failed.length) {
+        const reason = [configR, schedsR, recsR, ranksR].find((r) => r.status === 'rejected')?.reason;
+        const isPermission = reason?.code === 'permission-denied' || /permission/i.test(reason?.message || '');
+        setLoadError(
+          isPermission
+            ? `Couldn't load ${failed.join(', ')} — your account doesn't have permission to read this data (check Firestore rules).`
+            : `Couldn't load ${failed.join(', ')} — check your connection and try refreshing.`,
+        );
+      }
+
+      setSportId('');
+      setDivisionKey('');
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -618,15 +790,45 @@ export default function ModeratorPage() {
     setWinner(null);
   }, []);
 
-  const teamOptionsForSport = useMemo(() => {
-    if (!activeSport) return teams.map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
-    const matched = teams.filter((t) => (t.sportIds || []).includes(activeSport.sportId));
-    const pool = matched.length ? matched : teams;
-    return pool.map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
-  }, [teams, activeSport]);
+  /* Schedule entries Admin created for the currently selected sport +
+     division, regardless of date. */
+  const scheduleMatchesForSelection = useMemo(() => {
+    if (!activeSport) return [];
+    return schedules.filter((s) =>
+      norm(s.sport) === norm(activeSport.sportName)
+      && (divisionRequired ? norm(s.category) === norm(activeSport.category) : true));
+  }, [schedules, activeSport, divisionRequired]);
 
-  const teamA = teams.find((t) => t.id === teamAId);
-  const teamB = teams.find((t) => t.id === teamBId);
+  /* Of those, the ones actually due — dated today or earlier. Schedule rows
+     Admin generated but hasn't dated yet (date: '') never count as "ready". */
+  const readyTeamNames = useMemo(() => {
+    const today = todayStr();
+    const names = new Set();
+    scheduleMatchesForSelection.forEach((s) => {
+      if (!s.date || s.date > today) return;
+      if (s.teamA) names.add(norm(s.teamA));
+      if (s.teamB) names.add(norm(s.teamB));
+    });
+    return names;
+  }, [scheduleMatchesForSelection]);
+
+  const hasScheduleForSelection = scheduleMatchesForSelection.length > 0;
+
+  const teamOptionsForSport = useMemo(() => {
+    if (!activeSport) return effectiveTeams.map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
+    const bySport = effectiveTeams.filter((t) => (t.sportIds || []).includes(activeSport.sportName));
+    const pool = bySport.length ? bySport : effectiveTeams;
+    // No schedule made for this sport/division yet — fall back to every
+    // registered team rather than blocking the moderator entirely.
+    if (!hasScheduleForSelection) return pool.map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
+    // Schedule exists — only teams with a match dated today or earlier show up.
+    return pool
+      .filter((t) => readyTeamNames.has(norm(t.name)))
+      .map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
+  }, [effectiveTeams, activeSport, hasScheduleForSelection, readyTeamNames]);
+
+  const teamA = effectiveTeams.find((t) => t.id === teamAId);
+  const teamB = effectiveTeams.find((t) => t.id === teamBId);
   const totalViolA = violA.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
   const totalViolB = violB.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
   const minutesA = parseDuration(timeA);
@@ -651,7 +853,8 @@ export default function ModeratorPage() {
   /* ── validation + update flow ── */
   function handleUpdateClick() {
     const reasons = [];
-    if (!activeSport) reasons.push('Select a sport.');
+    if (!selectedSport) reasons.push('Select a sport.');
+    if (selectedSport && divisionRequired && !selectedDivision) reasons.push('Select a division.');
     if (!teamA) reasons.push('Select team 1.');
     if (!teamB) reasons.push('Select team 2.');
     if (teamA && teamB && teamA.id === teamB.id) reasons.push('Team 1 and team 2 must be different.');
@@ -750,8 +953,8 @@ export default function ModeratorPage() {
   }
 
   async function saveEdit(record) {
-    const teamAObj = teams.find((t) => t.id === editDraft.teamAId) || { id: record.teamA.id, name: record.teamA.name, logo: record.teamA.logo };
-    const teamBObj = teams.find((t) => t.id === editDraft.teamBId) || { id: record.teamB.id, name: record.teamB.name, logo: record.teamB.logo };
+    const teamAObj = effectiveTeams.find((t) => t.id === editDraft.teamAId) || { id: record.teamA.id, name: record.teamA.name, logo: record.teamA.logo };
+    const teamBObj = effectiveTeams.find((t) => t.id === editDraft.teamBId) || { id: record.teamB.id, name: record.teamB.name, logo: record.teamB.logo };
 
     const updated = {
       ...record,
@@ -800,14 +1003,28 @@ export default function ModeratorPage() {
         <div className="mp-intro">
           <h2 className="mp-intro__title">Update match records</h2>
         </div>
+        {loadError && (
+          <p className="mp-schedule-hint mp-schedule-hint--empty">
+            <FaExclamationTriangle /> {loadError}
+          </p>
+        )}
         <div className="mp-sport-row">
           <OptionDropdown
             variant="pill"
             panelLabel="Sports option"
             placeholder="Select sport"
-            value={sportKey}
+            value={sportId}
             options={sportOptions}
-            onChange={(k) => { setSportKey(k); resetForm(); }}
+            onChange={(k) => { setSportId(k); setDivisionKey(''); resetForm(); }}
+          />
+          <OptionDropdown
+            variant="pill"
+            panelLabel="Division"
+            placeholder={divisionOptions.length === 0 ? 'No divisions' : 'Select division'}
+            value={divisionKey}
+            options={divisionOptions}
+            disabled={!selectedSport || divisionOptions.length === 0}
+            onChange={(k) => { setDivisionKey(k); resetForm(); }}
           />
         </div>
         <div className="mp-header-divider" />
@@ -820,6 +1037,22 @@ export default function ModeratorPage() {
         <div className="mp-card">
           <h3 className="mp-card__title">Update match record</h3>
           <p className="mp-card__sub">Fill in the required details for both teams.</p>
+
+          {usingScheduleFallback && (
+            <p className="mp-schedule-hint">
+              <FaExclamationTriangle /> Sports &amp; Teams hasn't been (re)configured for this level — showing the sports, divisions, and teams found in existing schedules instead. Ask the admin to check the Sports &amp; Teams page.
+            </p>
+          )}
+          {activeSport && hasScheduleForSelection && readyTeamNames.size === 0 && (
+            <p className="mp-schedule-hint mp-schedule-hint--empty">
+              <FaExclamationTriangle /> No matches for this division are due yet — the admin has scheduled some, but all are dated in the future.
+            </p>
+          )}
+          {activeSport && !hasScheduleForSelection && (
+            <p className="mp-schedule-hint">
+              <FaInfo /> The admin hasn't scheduled any matches for this division yet — showing all registered teams for now.
+            </p>
+          )}
 
           <div className="mp-matchup">
             <TeamPanel
@@ -890,11 +1123,11 @@ export default function ModeratorPage() {
                       <td colSpan={6}>
                         <div className="mp-edit-form">
                           <select value={editDraft.teamAId} onChange={(e) => setEditDraft((d) => ({ ...d, teamAId: e.target.value }))}>
-                            {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            {effectiveTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                           </select>
                           <span className="mp-vs-mini">vs</span>
                           <select value={editDraft.teamBId} onChange={(e) => setEditDraft((d) => ({ ...d, teamBId: e.target.value }))}>
-                            {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            {effectiveTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                           </select>
                           <div className="mp-edit-form__score">
                             <input type="number" min="0" value={editDraft.totalViolationsA} onChange={(e) => setEditDraft((d) => ({ ...d, totalViolationsA: e.target.value }))} />

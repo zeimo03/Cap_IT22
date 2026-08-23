@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect, useCallback, useRef } from 'rea
 import { AuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './AdminSchedulePage.css';
-import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash } from 'react-icons/fa';
+import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule } from '../services/firestoreService';
@@ -114,6 +114,18 @@ const FORMATS = [
 const uid = () => Math.random().toString(36).slice(2, 10);
 const LEVEL_LABELS = { elementary: 'Elementary', highSchool: 'High School', college: 'College' };
 
+/* Was this match produced by the round-robin/bracket generator (as opposed
+   to the manual "Add Schedule" form)? Newer records carry an explicit
+   `source` flag, but matches saved before that flag existed don't — for
+   those, fall back to shape: only the generator ever sets `round` to a
+   number or attaches `stage`/`matchLabel`; the manual form always saves
+   `round: null` and never sets those fields. */
+function isGeneratedMatch(m) {
+  if (!m) return false;
+  if (m.source) return m.source === 'generated';
+  return m.round != null || !!m.stage || !!m.matchLabel;
+}
+
 /* ── Circular team network — visual overview of who's in the pool ── */
 function TeamNetwork({ teams }) {
   const width = 620, height = 220, cx = width / 2, cy = height / 2, r = 82;
@@ -129,13 +141,32 @@ function TeamNetwork({ teams }) {
   }
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="msf-network">
+      <defs>
+        {pts.map((p, i) => p.t.logo && (
+          <clipPath key={`clip-${i}`} id={`msf-network-clip-${i}`}>
+            <circle cx={p.x} cy={p.y} r="18" />
+          </clipPath>
+        ))}
+      </defs>
       {lines}
       {pts.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r="18" fill={p.t.color || '#5b678a'} stroke="#fff" strokeWidth="2" />
-          <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff">
-            {(p.t.name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-          </text>
+          {p.t.logo ? (
+            <>
+              <image
+                href={p.t.logo} x={p.x - 18} y={p.y - 18} width="36" height="36"
+                clipPath={`url(#msf-network-clip-${i})`} preserveAspectRatio="xMidYMid slice"
+              />
+              <circle cx={p.x} cy={p.y} r="18" fill="none" stroke="#fff" strokeWidth="2" />
+            </>
+          ) : (
+            <>
+              <circle cx={p.x} cy={p.y} r="18" fill={p.t.color || '#5b678a'} stroke="#fff" strokeWidth="2" />
+              <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff">
+                {(p.t.name || '??').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+              </text>
+            </>
+          )}
         </g>
       ))}
     </svg>
@@ -593,13 +624,20 @@ function MatchScheduleFormatSection({ level }) {
 
   /* ── Category options come from the selected sport's own divisions.
      If the admin never set up divisions for this sport, fall back to a
-     single "General" category so the flow isn't blocked. ── */
+     single "General" category so the flow isn't blocked.
+     Prefixes the group label (e.g. "MEN") onto the division name when
+     they differ, so two divisions with the same name in different
+     groups (e.g. "MEN 5v5" vs "WOMEN 5v5") don't render as identical,
+     indistinguishable entries — this combined label is also what gets
+     saved as `category` on the schedule, so it stays distinguishable
+     downstream too (Moderator, rankings, etc). ── */
   const rawCategoryOptions = (selSport?.categoryGroups || []).flatMap(g =>
-    (g.divisions || []).map(d => ({
-      value: d.id,
-      label: d.name || g.label,
-      format: d.format,
-    }))
+    (g.divisions || []).map(d => {
+      const name = (d.name || g.label || '').trim();
+      const group = (g.label || '').trim();
+      const label = (group && group.toLowerCase() !== name.toLowerCase()) ? `${group} ${name}`.trim() : name;
+      return { value: d.id, label, format: d.format };
+    })
   );
   const categoryOptions = rawCategoryOptions.length > 0
     ? rawCategoryOptions
@@ -689,6 +727,7 @@ function MatchScheduleFormatSection({ level }) {
       time: '',
       location: '',
       status: 'scheduled',
+      source: 'generated',
       ...extra,
     });
 
@@ -786,6 +825,7 @@ function MatchScheduleFormatSection({ level }) {
         time: addForm.time,
         location: addForm.location,
         status: 'scheduled',
+        source: 'manual',
       };
       merged = await upsertMatchSchedule(level, match);
     }
@@ -838,7 +878,12 @@ function MatchScheduleFormatSection({ level }) {
     }
   };
 
-  /* ── Grouped list view (by date) ── */
+  /* ── Grouped list view (by date) ──
+     Anything saved without a date yet (every match that just came out of
+     the generator) is surfaced separately up top instead of being
+     silently dropped, so it's always reachable via Edit to add the
+     date/time/venue. */
+  const undatedMatches = savedSchedules.filter(m => !m.date);
   const groupedByDate = savedSchedules
     .filter(m => m.date)
     .reduce((acc, m) => {
@@ -1253,25 +1298,44 @@ function MatchScheduleFormatSection({ level }) {
           <button className="msf-btn-primary" onClick={openAddModal}><FaPlus /> Add schedule</button>
         </div>
 
-        {Object.keys(groupedByDate).length === 0 ? (
-          <p className="msf-empty">No dated matches yet. Generate a schedule above, or add one manually.</p>
+        {undatedMatches.length === 0 && Object.keys(groupedByDate).length === 0 ? (
+          <p className="msf-empty">No matches yet. Generate a schedule above, or add one manually.</p>
         ) : (
-          Object.entries(groupedByDate).map(([date, matches]) => (
-            <div key={date} className="msf-daygroup">
-              <div className="msf-daygroup__head">{new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-              {matches.map(m => (
-                <div key={m.id} className="msf-matchrow">
-                  <div className="msf-matchrow__time">{m.time}</div>
-                  <div className="msf-matchrow__mid">
-                    <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
-                    {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
-                  </div>
-                  <span className="msf-pill-sport">{m.sport}</span>
-                  <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
+          <>
+            {undatedMatches.length > 0 && (
+              <div className="msf-daygroup msf-daygroup--undated">
+                <div className="msf-daygroup__head msf-daygroup__head--undated">
+                  <FaExclamationTriangle /> Needs date &amp; venue ({undatedMatches.length})
                 </div>
-              ))}
-            </div>
-          ))
+                {undatedMatches.map(m => (
+                  <div key={m.id} className="msf-matchrow">
+                    <div className="msf-matchrow__time msf-matchrow__time--muted">TBD</div>
+                    <div className="msf-matchrow__mid">
+                      <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
+                    </div>
+                    <span className="msf-pill-sport">{m.sport}</span>
+                    <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {Object.entries(groupedByDate).map(([date, matches]) => (
+              <div key={date} className="msf-daygroup">
+                <div className="msf-daygroup__head">{new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                {matches.map(m => (
+                  <div key={m.id} className="msf-matchrow">
+                    <div className="msf-matchrow__time">{m.time}</div>
+                    <div className="msf-matchrow__mid">
+                      <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
+                      {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
+                    </div>
+                    <span className="msf-pill-sport">{m.sport}</span>
+                    <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
         )}
       </div>
 
@@ -1415,29 +1479,42 @@ function MatchScheduleFormatSection({ level }) {
                 </div>
               </div>
 
-              <div className="msf-form-row msf-form-row--vs">
-                <div className="msf-form-group">
-                  <label>Teams</label>
-                  <select value={editForm.teamA || ''} onChange={e => setEditForm(f => ({ ...f, teamA: e.target.value }))}>
-                    <option value="">Select a teams</option>
-                    {editPool.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                    {editForm.teamA && !editPool.some(t => t.name === editForm.teamA) && (
-                      <option value={editForm.teamA}>{editForm.teamA}</option>
-                    )}
-                  </select>
-                </div>
-                <span className="msf-vs">VS</span>
-                <div className="msf-form-group">
-                  <label>Teams</label>
-                  <select value={editForm.teamB || ''} onChange={e => setEditForm(f => ({ ...f, teamB: e.target.value }))}>
-                    <option value="">Select a teams</option>
-                    {editPool.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-                    {editForm.teamB && !editPool.some(t => t.name === editForm.teamB) && (
-                      <option value={editForm.teamB}>{editForm.teamB}</option>
-                    )}
-                  </select>
-                </div>
+              <div className="msf-form-group">
+                <label>Teams</label>
               </div>
+              <div className="msf-teams-row">
+                <select
+                  className="msf-teams-row__select"
+                  value={editForm.teamA || ''}
+                  disabled={isGeneratedMatch(editForm)}
+                  onChange={e => setEditForm(f => ({ ...f, teamA: e.target.value }))}
+                >
+                  <option value="">Select a teams</option>
+                  {editPool.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {editForm.teamA && !editPool.some(t => t.name === editForm.teamA) && (
+                    <option value={editForm.teamA}>{editForm.teamA}</option>
+                  )}
+                </select>
+                <span className="msf-vs">VS</span>
+                <select
+                  className="msf-teams-row__select"
+                  value={editForm.teamB || ''}
+                  disabled={isGeneratedMatch(editForm)}
+                  onChange={e => setEditForm(f => ({ ...f, teamB: e.target.value }))}
+                >
+                  <option value="">Select a teams</option>
+                  {editPool.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {editForm.teamB && !editPool.some(t => t.name === editForm.teamB) && (
+                    <option value={editForm.teamB}>{editForm.teamB}</option>
+                  )}
+                </select>
+              </div>
+              {isGeneratedMatch(editForm) && (
+                <p className="msf-form-note">
+                  Teams are locked because this match came from the schedule generator. Delete and re-generate to change matchups.
+                </p>
+              )}
+
 
               <div className="msf-form-group">
                 <label>Venue</label>

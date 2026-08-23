@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { FiAward, FiAlertTriangle, FiChevronDown, FiChevronLeft, FiChevronRight, FiStar, FiTrendingUp, FiZap } from 'react-icons/fi';
+import { FiAward, FiAlertTriangle, FiChevronDown, FiChevronLeft, FiChevronRight, FiStar, FiTrendingUp, FiZap, FiClock, FiMapPin } from 'react-icons/fi';
 import './DashboardPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import { getMatchSchedules, getSportsTeamsConfig } from '../services/firestoreService';
@@ -39,6 +39,13 @@ function formatDatePill(dateStr) {
   const d = new Date(`${dateStr}T00:00`);
   if (Number.isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }).toUpperCase();
+}
+
+function formatTimePill(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return 'TBA';
+  const d = new Date(`${dateStr}T${timeStr}`);
+  if (Number.isNaN(d.getTime())) return timeStr;
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
 const FINISHED = [
@@ -132,7 +139,7 @@ function OngoingCard({ match }) {
 
 function UpcomingCard({ match }) {
   return (
-    <div className="upcoming-card">
+    <div className="upcoming-card" tabIndex={0}>
       <div className="uc-banners">
         <TeamBanner team={match.teamA} size="uc" />
         {match.teamB ? <TeamBanner team={match.teamB} size="uc" /> : <div className="tbd-slot" />}
@@ -144,6 +151,15 @@ function UpcomingCard({ match }) {
         {match.teamB && <span className="ft-label">{match.teamB.label}</span>}
       </div>
       <div className="uc-sport-row"><span className="sport-pill">{match.sport}</span></div>
+
+      <div className="uc-hover-info">
+        <div className="uc-hover-info__teams">
+          {match.teamA.label}{match.teamB ? ` VS ${match.teamB.label}` : ''}
+        </div>
+        <div className="uc-hover-info__row"><FiClock /> {match.date} &middot; {match.time}</div>
+        <div className="uc-hover-info__row"><FiMapPin /> {match.venue}</div>
+        <span className="uc-hover-info__sport">{match.sport}</span>
+      </div>
     </div>
   );
 }
@@ -377,6 +393,8 @@ export default function DashboardPage() {
       .map(({ m }) => ({
         id: m.id,
         date: formatDatePill(m.date),
+        time: formatTimePill(m.date, m.time),
+        venue: (m.location || 'TBA').toUpperCase(),
         teamA: toCardTeam(m.teamA, m.teamALogo),
         teamB: toCardTeam(m.teamB, m.teamBLogo),
         sport: (m.sport || '').toUpperCase(),
