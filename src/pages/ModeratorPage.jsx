@@ -369,9 +369,9 @@ function OptionDropdown({
 /* ═══════════════════════════════════════════
    INFO TOOLTIP
 ═══════════════════════════════════════════ */
-function InfoTip({ caption, children }) {
+function InfoTip({ caption, children, placement = 'top' }) {
   return (
-    <span className="mp-info-btn" tabIndex={0}>
+    <span className={`mp-info-btn${placement === 'bottom' ? ' mp-info-btn--drop' : ''}`} tabIndex={0}>
       <FaInfo style={{ fontSize: '0.5rem' }} />
       <span className="mp-tooltip">
         <span className="mp-tooltip__cap">{caption}</span>
@@ -609,6 +609,22 @@ function InvalidModal({ reasons, onClose }) {
   );
 }
 
+function ResetConfirmModal({ onCancel, onConfirm }) {
+  return (
+    <div className="mp-modal-overlay" onClick={onCancel}>
+      <div className="mp-modal mp-result-modal mp-reset-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="mp-result-icon mp-result-icon--warn"><FaExclamationTriangle /></div>
+        <h2 className="mp-result-title">Reset this match record form?</h2>
+        <p className="mp-result-sub">Everything you've entered for both teams will be cleared.</p>
+        <div className="mp-result-actions">
+          <button className="mp-btn mp-btn--cancel" onClick={onCancel} style={{ flex: 1 }}>Cancel</button>
+          <button className="mp-btn mp-btn--reset-solid" onClick={onConfirm} style={{ flex: 1 }}>Reset</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════
    TEAM PANEL (Team 1 / Team 2 form column)
 ═══════════════════════════════════════════ */
@@ -812,6 +828,7 @@ export default function ModeratorPage() {
   const [pending, setPending] = useState(null);
   const [invalidReasons, setInvalidReasons] = useState(null);
   const [successRecord, setSuccessRecord] = useState(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // summary table
@@ -895,6 +912,10 @@ export default function ModeratorPage() {
     setComebackA(null); setComebackB(null);
     setWinner(null);
   }, []);
+
+  function handleResetClick() {
+    setResetConfirmOpen(true);
+  }
 
   /* Schedule entries Admin created for the currently selected sport +
      division, regardless of date. */
@@ -1214,6 +1235,7 @@ export default function ModeratorPage() {
           </div>
 
           <div className="mp-update-row">
+            <button type="button" className="mp-btn mp-btn--reset" onClick={handleResetClick}>Reset</button>
             <button type="button" className="mp-btn mp-btn--update" onClick={handleUpdateClick}>Update</button>
           </div>
         </div>
@@ -1246,7 +1268,7 @@ export default function ModeratorPage() {
                   <th>Team</th>
                   <th>Violation</th>
                   <th>Duration / Score</th>
-                  <th>Final points</th>
+                  <th>Final points <InfoTip caption="Final points info" placement="bottom">Final points = Previous final points + ((Point difference − Violations + Match result (+30 win / −30 loss) + Comeback bonus (10 if comeback, 0 if not)) ÷ 4).</InfoTip></th>
                   <th style={{ width: 60 }}>Edit</th>
                 </tr>
               </thead>
@@ -1340,6 +1362,13 @@ export default function ModeratorPage() {
 
       {invalidReasons && (
         <InvalidModal reasons={invalidReasons} onClose={() => setInvalidReasons(null)} />
+      )}
+
+      {resetConfirmOpen && (
+        <ResetConfirmModal
+          onCancel={() => setResetConfirmOpen(false)}
+          onConfirm={() => { resetForm(); setResetConfirmOpen(false); }}
+        />
       )}
     </div>
   );
