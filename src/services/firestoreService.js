@@ -380,6 +380,26 @@ export async function upsertMatchRecord(level, record) {
   return merged;
 }
 
+/**
+ * Removes a single confirmed match record by id — e.g. to clear out a
+ * test entry from the Moderator's "Updated match summary" table.
+ */
+export async function deleteMatchRecord(level, recordId) {
+  if (!db) throw new Error('Firestore not initialized.');
+
+  const existing = await getMatchRecords(level);
+  const remaining = existing.filter(r => r.id !== recordId);
+
+  const configRef = doc(db, 'matchRecords', level);
+  await setDoc(
+    configRef,
+    { records: remaining, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+
+  return remaining;
+}
+
 /* ─────────────────────────────────────────────
    Team point rankings (per school level)
    Stored at: teamRankings/{level} → { points: { [teamName]: number } }

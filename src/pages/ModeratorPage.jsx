@@ -29,6 +29,19 @@ const GAME_FORMATS = [
   { id: 'team-play', label: 'Team Play' },
 ];
 
+/* Which stat a sport is judged on: points scored, or elapsed time.
+   Anything not explicitly listed falls back to time-based, matching the
+   app's original (pre-points) behavior. */
+const POINTS_BASED_SPORTS = ['basketball', 'volleyball', 'table tennis', 'sepak takraw', 'badminton'];
+const TIME_BASED_SPORTS = ['mobile legends', 'chess', 'athletics'];
+
+function scoringModeForSport(sportName) {
+  const n = norm(sportName);
+  if (POINTS_BASED_SPORTS.includes(n)) return 'points';
+  if (TIME_BASED_SPORTS.includes(n)) return 'time';
+  return 'time';
+}
+
 const DEFAULT_POINTS = 1000;
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -108,12 +121,36 @@ function norm(str) {
   return (str || '').trim().toLowerCase();
 }
 
-/* Today as 'YYYY-MM-DD', matching the <input type="date"> format Admin's
-   schedule saves — plain string comparison against that sorts correctly. */
-function todayStr() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/* Category/division match, tolerant of schedules saved before divisions
+   started getting a group-label prefix (e.g. "5v5" vs "MEN 5v5") — a
+   bare old value is treated as matching any division whose combined
+   label ends with it, so pre-existing schedules aren't orphaned by that
+   naming change. Ambiguous only if a sport genuinely has two same-named
+   divisions across groups, which is exactly the case this is meant to
+   paper over until the schedule is regenerated with the new label. */
+function categoriesMatch(scheduleCategory, activeCategory) {
+  const a = norm(scheduleCategory);
+  const b = norm(activeCategory);
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.endsWith(` ${b}`) || b.endsWith(` ${a}`);
+}
+
+/* Assumed match duration, same 2-hour window the Home dashboard uses to
+   decide "ongoing" vs "finished" — there's no real end-time saved per
+   match, so this stand-in decides when a scheduled game counts as over. */
+const ASSUMED_MATCH_MINUTES = 120;
+
+/* Has this scheduled match actually finished (start time + assumed
+   duration already passed)? Moderator should only offer a match for
+   recording once it's genuinely over — not merely "today or earlier",
+   which could still be in progress or not yet started. */
+function matchHasFinished(schedule) {
+  if (!schedule.date || !schedule.time) return false;
+  const start = new Date(`${schedule.date}T${schedule.time}`);
+  if (Number.isNaN(start.getTime())) return false;
+  const end = new Date(start.getTime() + ASSUMED_MATCH_MINUTES * 60000);
+  return Date.now() >= end.getTime();
 }
 
 /* Fallback for when Sports & Teams (sportsTeamsConfig/{level}) is empty
@@ -176,9 +213,56 @@ function parseDuration(str) {
   return isNaN(total) ? null : total;
 }
 
+/* Digits-only auto-formatter for the duration field: strips anything
+   that isn't 0-9, caps at 6 digits (HHMMSS), and inserts the ":"
+   separators as you type — so typing "013045" becomes "01:30:45"
+   without ever having to type ":" yourself. */
+function formatDurationInput(raw) {
+  const digits = (raw || '').replace(/\D/g, '').slice(0, 6);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4)}`;
+}
+
+/* Digits-only sanitizer for the Points field (points-based sports) —
+   same "can't type letters" guarantee as the duration field. */
+function sanitizePointsInput(raw) {
+  return (raw || '').replace(/\D/g, '').slice(0, 5);
+}
+
 function formatMinutes(mins) {
   if (mins == null) return '--';
   return `${Number.isInteger(mins) ? mins : mins.toFixed(2)} mins`;
+}
+
+/* Recomputes both teams' final points live from whatever's currently in
+   the inline edit row (violations, points/minutes) — same formula the
+   main "Update match record" form uses (computeChange, ÷4), applied on
+   top of each team's original prevPoints from when the record was first
+   saved. Winner and comeback aren't editable in this row, so those stay
+   fixed from the record. */
+function computeEditFinalPoints(record, editDraft, isPoints) {
+  const violA = parseInt(editDraft.totalViolationsA, 10) || 0;
+  const violB = parseInt(editDraft.totalViolationsB, 10) || 0;
+
+  let diff = record.diff || 0;
+  if (isPoints) {
+    const pA = editDraft.pointsA === '' ? record.teamA.points : Number(editDraft.pointsA);
+    const pB = editDraft.pointsB === '' ? record.teamB.points : Number(editDraft.pointsB);
+    diff = (pA != null && pB != null && !Number.isNaN(pA) && !Number.isNaN(pB)) ? Math.abs(pA - pB) : 0;
+  }
+  // Time-mode records share a single "minutes" field across both teams in
+  // this row (no per-team time input here), so there's no two-sided time
+  // diff to recompute from — the record's original diff is kept as-is.
+
+  const isWinnerA = record.winner === 'A';
+  const changeA = (diff - violA + (isWinnerA ? 30 : -30) + (record.teamA.comeback ? 10 : 0)) / 4;
+  const changeB = (diff - violB + (!isWinnerA ? 30 : -30) + (record.teamB.comeback ? 10 : 0)) / 4;
+
+  return {
+    finalPointsA: Math.round((record.teamA.prevPoints ?? 0) + changeA),
+    finalPointsB: Math.round((record.teamB.prevPoints ?? 0) + changeB),
+  };
 }
 
 function initials(name) {
@@ -389,8 +473,11 @@ function ViolationsModal({ sideLabel, teamLabel, teamLogo, initialRows, onClose,
    CONFIRMATION MODAL
 ═══════════════════════════════════════════ */
 function ConfirmModal({ pending, levelLabel, onCancel, onConfirm, saving }) {
-  const { sportName, category, teamA, teamB, winner } = pending;
+  const { sportName, category, teamA, teamB, winner, mode } = pending;
   const winnerTeam = winner === 'A' ? teamA : teamB;
+  const diffLabel = mode === 'points' ? 'Points difference' : 'Time difference';
+  const statLabel = mode === 'points' ? 'Points' : 'Time';
+  const statValue = (team) => (mode === 'points' ? `${team.points} points` : formatMinutes(team.minutes));
 
   return (
     <div className="mp-modal-overlay" onClick={saving ? undefined : onCancel}>
@@ -409,16 +496,16 @@ function ConfirmModal({ pending, levelLabel, onCancel, onConfirm, saving }) {
             <div className="mp-confirm__team-name">{teamA.name}</div>
             <div className="mp-confirm__logo">{teamA.logo ? <img src={teamA.logo} alt="" /> : initials(teamA.name)}</div>
             <div className="mp-confirm__stat-row">
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Time</div><div className="mp-confirm__stat-num">{formatMinutes(teamA.minutes)}</div></div>
+              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">{statLabel}</div><div className="mp-confirm__stat-num">{statValue(teamA)}</div></div>
               <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Prev pts</div><div className="mp-confirm__stat-num">{teamA.prevPoints}</div></div>
               <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Final pts</div><div className="mp-confirm__stat-num">{teamA.finalPoints}</div></div>
             </div>
             <div className="mp-confirm__facts">
-              <div>Time difference: <b>{pending.timeDiff.toFixed(2)}</b></div>
+              <div>{diffLabel}: <b>{pending.diff.toFixed(2)}</b></div>
               <div>Violations: <b>{teamA.totalViolations}</b></div>
               <div>Standing: <b>{winner === 'A' ? 'Winner' : 'Loser'}</b></div>
               <div>Comeback: <b>{teamA.comeback ? 'Yes' : 'No'}</b></div>
-              <div>Score change: <b className={teamA.change >= 0 ? 'mp-gain' : 'mp-loss'}>{teamA.change >= 0 ? '+' : ''}{teamA.change.toFixed(2)}</b></div>
+              <div>Equal points: <b className={teamA.equalPoints >= 0 ? 'mp-gain' : 'mp-loss'}>{teamA.equalPoints >= 0 ? '+' : ''}{teamA.equalPoints.toFixed(2)}</b></div>
             </div>
           </div>
 
@@ -428,16 +515,16 @@ function ConfirmModal({ pending, levelLabel, onCancel, onConfirm, saving }) {
             <div className="mp-confirm__team-name">{teamB.name}</div>
             <div className="mp-confirm__logo">{teamB.logo ? <img src={teamB.logo} alt="" /> : initials(teamB.name)}</div>
             <div className="mp-confirm__stat-row">
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Time</div><div className="mp-confirm__stat-num">{formatMinutes(teamB.minutes)}</div></div>
+              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">{statLabel}</div><div className="mp-confirm__stat-num">{statValue(teamB)}</div></div>
               <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Prev pts</div><div className="mp-confirm__stat-num">{teamB.prevPoints}</div></div>
               <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Final pts</div><div className="mp-confirm__stat-num">{teamB.finalPoints}</div></div>
             </div>
             <div className="mp-confirm__facts">
-              <div>Time difference: <b>{pending.timeDiff.toFixed(2)}</b></div>
+              <div>{diffLabel}: <b>{pending.diff.toFixed(2)}</b></div>
               <div>Violations: <b>{teamB.totalViolations}</b></div>
               <div>Standing: <b>{winner === 'B' ? 'Winner' : 'Loser'}</b></div>
               <div>Comeback: <b>{teamB.comeback ? 'Yes' : 'No'}</b></div>
-              <div>Score change: <b className={teamB.change >= 0 ? 'mp-gain' : 'mp-loss'}>{teamB.change >= 0 ? '+' : ''}{teamB.change.toFixed(2)}</b></div>
+              <div>Equal points: <b className={teamB.equalPoints >= 0 ? 'mp-gain' : 'mp-loss'}>{teamB.equalPoints >= 0 ? '+' : ''}{teamB.equalPoints.toFixed(2)}</b></div>
             </div>
           </div>
         </div>
@@ -447,7 +534,7 @@ function ConfirmModal({ pending, levelLabel, onCancel, onConfirm, saving }) {
           <div className="mp-confirm__compute-row">
             <span className="mp-confirm__compute-team">{teamA.name}</span>
             <span>
-              Computation: {pending.timeDiff.toFixed(2)} time difference ({formatMinutes(teamA.minutes)}) {winner === 'A' ? '+' : '-'} {teamA.totalViolations} (violation)
+              Computation: {pending.diff.toFixed(2)} {mode === 'points' ? 'points difference' : 'time difference'} ({statValue(teamA)}) {winner === 'A' ? '+' : '-'} {teamA.totalViolations} (violation)
               {' '}{winner === 'A' ? '+ 30 (winner)' : '- 30 (loser)'} {teamA.comeback ? '+ 10 (comeback)' : '+ 0 (no comeback)'} / 4 =
               {' '}<span className={teamA.change >= 0 ? 'mp-gain' : 'mp-loss'}>{teamA.change >= 0 ? '+' : ''}{teamA.change.toFixed(2)} ({teamA.change >= 0 ? 'gained' : 'lost'} points)</span>
             </span>
@@ -455,7 +542,7 @@ function ConfirmModal({ pending, levelLabel, onCancel, onConfirm, saving }) {
           <div className="mp-confirm__compute-row">
             <span className="mp-confirm__compute-team">{teamB.name}</span>
             <span>
-              Computation: {pending.timeDiff.toFixed(2)} time difference ({formatMinutes(teamB.minutes)}) {winner === 'B' ? '+' : '-'} {teamB.totalViolations} (violation)
+              Computation: {pending.diff.toFixed(2)} {mode === 'points' ? 'points difference' : 'time difference'} ({statValue(teamB)}) {winner === 'B' ? '+' : '-'} {teamB.totalViolations} (violation)
               {' '}{winner === 'B' ? '+ 30 (winner)' : '- 30 (loser)'} {teamB.comeback ? '+ 10 (comeback)' : '+ 0 (no comeback)'} / 4 =
               {' '}<span className={teamB.change >= 0 ? 'mp-gain' : 'mp-loss'}>{teamB.change >= 0 ? '+' : ''}{teamB.change.toFixed(2)} ({teamB.change >= 0 ? 'gained' : 'lost'} points)</span>
             </span>
@@ -527,7 +614,8 @@ function InvalidModal({ reasons, onClose }) {
 ═══════════════════════════════════════════ */
 function TeamPanel({
   side, teamLabel, teamOptions, teamId, onTeamChange,
-  time, onTimeChange, totalViolations, onOpenViolations,
+  mode, time, onTimeChange, points, onPointsChange,
+  totalViolations, onOpenViolations,
   comeback, onComebackChange, prevPoints, finalPoints,
   winner, onMarkWinner,
 }) {
@@ -566,14 +654,29 @@ function TeamPanel({
       </div>
 
       <div className="mp-field">
-        <div className="mp-field__label">
-          Time duration<span className="mp-required">*</span>
-          <InfoTip caption="Time duration info">Please input the time duration to analyze performance.</InfoTip>
-        </div>
-        <input
-          className="mp-text-input" type="text" placeholder="HH:MM:SS"
-          value={time} onChange={(e) => onTimeChange(e.target.value)}
-        />
+        {mode === 'points' ? (
+          <>
+            <div className="mp-field__label">
+              Points<span className="mp-required">*</span>
+              <InfoTip caption="Points info">Please input the points score of this team to analyze performance.</InfoTip>
+            </div>
+            <input
+              className="mp-text-input" type="text" inputMode="numeric" placeholder="Input points" maxLength={5}
+              value={points} onChange={(e) => onPointsChange(sanitizePointsInput(e.target.value))}
+            />
+          </>
+        ) : (
+          <>
+            <div className="mp-field__label">
+              Time duration<span className="mp-required">*</span>
+              <InfoTip caption="Time duration info">Please input the time duration to analyze performance.</InfoTip>
+            </div>
+            <input
+              className="mp-text-input" type="text" inputMode="numeric" placeholder="HH:MM:SS" maxLength={8}
+              value={time} onChange={(e) => onTimeChange(formatDurationInput(e.target.value))}
+            />
+          </>
+        )}
       </div>
 
       <div className="mp-field">
@@ -698,6 +801,8 @@ export default function ModeratorPage() {
   const [teamBId, setTeamBId] = useState('');
   const [timeA, setTimeA] = useState('');
   const [timeB, setTimeB] = useState('');
+  const [pointsA, setPointsA] = useState('');
+  const [pointsB, setPointsB] = useState('');
   const [violA, setViolA] = useState([]);
   const [violB, setViolB] = useState([]);
   const [comebackA, setComebackA] = useState(null);
@@ -785,6 +890,7 @@ export default function ModeratorPage() {
   const resetForm = useCallback(() => {
     setTeamAId(''); setTeamBId('');
     setTimeA(''); setTimeB('');
+    setPointsA(''); setPointsB('');
     setViolA([]); setViolB([]);
     setComebackA(null); setComebackB(null);
     setWinner(null);
@@ -796,16 +902,16 @@ export default function ModeratorPage() {
     if (!activeSport) return [];
     return schedules.filter((s) =>
       norm(s.sport) === norm(activeSport.sportName)
-      && (divisionRequired ? norm(s.category) === norm(activeSport.category) : true));
+      && (divisionRequired ? categoriesMatch(s.category, activeSport.category) : true));
   }, [schedules, activeSport, divisionRequired]);
 
-  /* Of those, the ones actually due — dated today or earlier. Schedule rows
-     Admin generated but hasn't dated yet (date: '') never count as "ready". */
+  /* Of those, the ones whose match has actually finished — not just
+     "today or earlier", but past the assumed match duration. Schedule
+     rows Admin generated but hasn't dated/timed yet never count. */
   const readyTeamNames = useMemo(() => {
-    const today = todayStr();
     const names = new Set();
     scheduleMatchesForSelection.forEach((s) => {
-      if (!s.date || s.date > today) return;
+      if (!matchHasFinished(s)) return;
       if (s.teamA) names.add(norm(s.teamA));
       if (s.teamB) names.add(norm(s.teamB));
     });
@@ -821,7 +927,7 @@ export default function ModeratorPage() {
     // No schedule made for this sport/division yet — fall back to every
     // registered team rather than blocking the moderator entirely.
     if (!hasScheduleForSelection) return pool.map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
-    // Schedule exists — only teams with a match dated today or earlier show up.
+    // Schedule exists — only teams whose match has actually finished show up.
     return pool
       .filter((t) => readyTeamNames.has(norm(t.name)))
       .map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
@@ -831,9 +937,16 @@ export default function ModeratorPage() {
   const teamB = effectiveTeams.find((t) => t.id === teamBId);
   const totalViolA = violA.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
   const totalViolB = violB.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
+
+  const mode = activeSport ? scoringModeForSport(activeSport.sportName) : 'time';
   const minutesA = parseDuration(timeA);
   const minutesB = parseDuration(timeB);
-  const timeDiff = (minutesA != null && minutesB != null) ? Math.abs(minutesA - minutesB) : null;
+  const pointsValA = pointsA === '' ? null : Number(pointsA);
+  const pointsValB = pointsB === '' ? null : Number(pointsB);
+  const scoreA = mode === 'points' ? pointsValA : minutesA;
+  const scoreB = mode === 'points' ? pointsValB : minutesB;
+  const scoreValid = scoreA != null && !Number.isNaN(scoreA) && scoreB != null && !Number.isNaN(scoreB);
+  const diff = scoreValid ? Math.abs(scoreA - scoreB) : null;
 
   const prevPointsA = teamA ? (rankings[teamA.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS;
   const prevPointsB = teamB ? (rankings[teamB.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS;
@@ -842,9 +955,17 @@ export default function ModeratorPage() {
     return (diff - violations + (isWinner ? 30 : -30) + (comeback ? 10 : 0)) / 4;
   }
 
-  const canPreview = timeDiff != null && winner;
-  const changeA = canPreview ? computeChange({ diff: timeDiff, violations: totalViolA, isWinner: winner === 'A', comeback: !!comebackA }) : null;
-  const changeB = canPreview ? computeChange({ diff: timeDiff, violations: totalViolB, isWinner: winner === 'B', comeback: !!comebackB }) : null;
+  /* Display-only breakdown shown as "Equal points" in the confirmation
+     modal — same inputs as computeChange, but NOT divided by 4. This is
+     purely informational; Final Points Rating always comes from
+     computeChange (above), never from this. */
+  function computeEqualPoints({ diff, violations, isWinner, comeback }) {
+    return diff - violations + (isWinner ? 30 : -30) + (comeback ? 10 : 0);
+  }
+
+  const canPreview = diff != null && winner;
+  const changeA = canPreview ? computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: !!comebackA }) : null;
+  const changeB = canPreview ? computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: !!comebackB }) : null;
   const finalPointsA = changeA != null ? Math.round(prevPointsA + changeA) : null;
   const finalPointsB = changeB != null ? Math.round(prevPointsB + changeB) : null;
 
@@ -858,34 +979,45 @@ export default function ModeratorPage() {
     if (!teamA) reasons.push('Select team 1.');
     if (!teamB) reasons.push('Select team 2.');
     if (teamA && teamB && teamA.id === teamB.id) reasons.push('Team 1 and team 2 must be different.');
-    if (minutesA == null) reasons.push('Enter a valid time duration for team 1 (HH:MM:SS).');
-    if (minutesB == null) reasons.push('Enter a valid time duration for team 2 (HH:MM:SS).');
+    if (mode === 'points') {
+      if (pointsValA == null || Number.isNaN(pointsValA)) reasons.push('Enter a valid points score for team 1.');
+      if (pointsValB == null || Number.isNaN(pointsValB)) reasons.push('Enter a valid points score for team 2.');
+    } else {
+      if (minutesA == null) reasons.push('Enter a valid time duration for team 1 (HH:MM:SS).');
+      if (minutesB == null) reasons.push('Enter a valid time duration for team 2 (HH:MM:SS).');
+    }
     if (comebackA === null) reasons.push('Set the comeback rule for team 1.');
     if (comebackB === null) reasons.push('Set the comeback rule for team 2.');
     if (!winner) reasons.push('Mark a winner.');
 
     if (reasons.length) { setInvalidReasons(reasons); return; }
 
-    const diff = Math.abs(minutesA - minutesB);
     const cA = computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: !!comebackA });
     const cB = computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: !!comebackB });
+    const eqA = computeEqualPoints({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: !!comebackA });
+    const eqB = computeEqualPoints({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: !!comebackB });
 
     setPending({
+      mode,
       sportId: activeSport.sportId,
       sportName: activeSport.sportName,
       category: activeSport.category,
       format: activeSport.format,
-      timeDiff: diff,
+      diff,
       winner,
       teamA: {
-        id: teamA.id, name: teamA.name, logo: teamA.logo, minutes: minutesA,
+        id: teamA.id, name: teamA.name, logo: teamA.logo,
+        minutes: mode === 'time' ? minutesA : null,
+        points: mode === 'points' ? pointsValA : null,
         totalViolations: totalViolA, violations: violA, comeback: !!comebackA,
-        prevPoints: prevPointsA, change: cA, finalPoints: Math.round(prevPointsA + cA),
+        prevPoints: prevPointsA, change: cA, equalPoints: eqA, finalPoints: Math.round(prevPointsA + cA),
       },
       teamB: {
-        id: teamB.id, name: teamB.name, logo: teamB.logo, minutes: minutesB,
+        id: teamB.id, name: teamB.name, logo: teamB.logo,
+        minutes: mode === 'time' ? minutesB : null,
+        points: mode === 'points' ? pointsValB : null,
         totalViolations: totalViolB, violations: violB, comeback: !!comebackB,
-        prevPoints: prevPointsB, change: cB, finalPoints: Math.round(prevPointsB + cB),
+        prevPoints: prevPointsB, change: cB, equalPoints: eqB, finalPoints: Math.round(prevPointsB + cB),
       },
     });
   }
@@ -896,12 +1028,13 @@ export default function ModeratorPage() {
     const record = {
       id: uid(),
       level,
+      mode: pending.mode,
       sportId: pending.sportId,
       sportName: pending.sportName,
       category: pending.category,
       format: pending.format,
       label: `${pending.sportName} ${pending.category}`.trim(),
-      timeDiff: pending.timeDiff,
+      diff: pending.diff,
       winner: pending.winner,
       teamA: pending.teamA,
       teamB: pending.teamB,
@@ -947,14 +1080,16 @@ export default function ModeratorPage() {
       totalViolationsA: record.teamA.totalViolations,
       totalViolationsB: record.teamB.totalViolations,
       minutes: record.teamA.minutes ?? '',
-      finalPointsA: record.teamA.finalPoints,
-      finalPointsB: record.teamB.finalPoints,
+      pointsA: record.teamA.points ?? '',
+      pointsB: record.teamB.points ?? '',
     });
   }
 
   async function saveEdit(record) {
     const teamAObj = effectiveTeams.find((t) => t.id === editDraft.teamAId) || { id: record.teamA.id, name: record.teamA.name, logo: record.teamA.logo };
     const teamBObj = effectiveTeams.find((t) => t.id === editDraft.teamBId) || { id: record.teamB.id, name: record.teamB.name, logo: record.teamB.logo };
+    const isPoints = record.mode === 'points' || record.teamA.points != null;
+    const { finalPointsA, finalPointsB } = computeEditFinalPoints(record, editDraft, isPoints);
 
     const updated = {
       ...record,
@@ -962,15 +1097,17 @@ export default function ModeratorPage() {
         ...record.teamA,
         id: teamAObj.id, name: teamAObj.name, logo: teamAObj.logo,
         totalViolations: parseInt(editDraft.totalViolationsA, 10) || 0,
-        minutes: editDraft.minutes === '' ? record.teamA.minutes : Number(editDraft.minutes),
-        finalPoints: parseInt(editDraft.finalPointsA, 10) || 0,
+        minutes: isPoints ? record.teamA.minutes : (editDraft.minutes === '' ? record.teamA.minutes : Number(editDraft.minutes)),
+        points: isPoints ? (editDraft.pointsA === '' ? record.teamA.points : Number(editDraft.pointsA)) : record.teamA.points,
+        finalPoints: finalPointsA,
       },
       teamB: {
         ...record.teamB,
         id: teamBObj.id, name: teamBObj.name, logo: teamBObj.logo,
         totalViolations: parseInt(editDraft.totalViolationsB, 10) || 0,
-        minutes: editDraft.minutes === '' ? record.teamB.minutes : Number(editDraft.minutes),
-        finalPoints: parseInt(editDraft.finalPointsB, 10) || 0,
+        minutes: isPoints ? record.teamB.minutes : (editDraft.minutes === '' ? record.teamB.minutes : Number(editDraft.minutes)),
+        points: isPoints ? (editDraft.pointsB === '' ? record.teamB.points : Number(editDraft.pointsB)) : record.teamB.points,
+        finalPoints: finalPointsB,
       },
       updatedAt: Date.now(),
     };
@@ -1045,7 +1182,7 @@ export default function ModeratorPage() {
           )}
           {activeSport && hasScheduleForSelection && readyTeamNames.size === 0 && (
             <p className="mp-schedule-hint mp-schedule-hint--empty">
-              <FaExclamationTriangle /> No matches for this division are due yet — the admin has scheduled some, but all are dated in the future.
+              <FaExclamationTriangle /> No matches for this division have finished yet — the admin has scheduled some, but they're upcoming or still in progress.
             </p>
           )}
           {activeSport && !hasScheduleForSelection && (
@@ -1058,7 +1195,7 @@ export default function ModeratorPage() {
             <TeamPanel
               side="A" teamLabel="Team 1"
               teamOptions={teamOptionsForSport} teamId={teamAId} onTeamChange={setTeamAId}
-              time={timeA} onTimeChange={setTimeA}
+              mode={mode} time={timeA} onTimeChange={setTimeA} points={pointsA} onPointsChange={setPointsA}
               totalViolations={totalViolA} onOpenViolations={() => setViolModal('A')}
               comeback={comebackA} onComebackChange={setComebackA}
               prevPoints={prevPointsA} finalPoints={finalPointsA}
@@ -1068,7 +1205,7 @@ export default function ModeratorPage() {
             <TeamPanel
               side="B" teamLabel="Team 2"
               teamOptions={teamOptionsForSport} teamId={teamBId} onTeamChange={setTeamBId}
-              time={timeB} onTimeChange={setTimeB}
+              mode={mode} time={timeB} onTimeChange={setTimeB} points={pointsB} onPointsChange={setPointsB}
               totalViolations={totalViolB} onOpenViolations={() => setViolModal('B')}
               comeback={comebackB} onComebackChange={setComebackB}
               prevPoints={prevPointsB} finalPoints={finalPointsB}
@@ -1108,7 +1245,7 @@ export default function ModeratorPage() {
                   <th>Sports</th>
                   <th>Team</th>
                   <th>Violation</th>
-                  <th>Time duration</th>
+                  <th>Duration / Score</th>
                   <th>Final points</th>
                   <th style={{ width: 60 }}>Edit</th>
                 </tr>
@@ -1117,8 +1254,10 @@ export default function ModeratorPage() {
                 {!loading && filteredRecords.length === 0 && (
                   <tr><td colSpan={6} className="mp-table__empty">No match records yet — update one above to see it here.</td></tr>
                 )}
-                {filteredRecords.map((r) => (
-                  editingId === r.id ? (
+                {filteredRecords.map((r) => {
+                  const rowIsPoints = r.mode === 'points' || r.teamA.points != null;
+                  const editPreview = editingId === r.id ? computeEditFinalPoints(r, editDraft, rowIsPoints) : null;
+                  return editingId === r.id ? (
                     <tr className="mp-edit-row" key={r.id}>
                       <td colSpan={6}>
                         <div className="mp-edit-form">
@@ -1134,11 +1273,19 @@ export default function ModeratorPage() {
                             <span className="mp-vs-mini">-</span>
                             <input type="number" min="0" value={editDraft.totalViolationsB} onChange={(e) => setEditDraft((d) => ({ ...d, totalViolationsB: e.target.value }))} />
                           </div>
-                          <input className="mp-edit-time" type="text" placeholder="mins" value={editDraft.minutes} onChange={(e) => setEditDraft((d) => ({ ...d, minutes: e.target.value }))} />
-                          <div className="mp-edit-form__score">
-                            <input type="number" value={editDraft.finalPointsA} onChange={(e) => setEditDraft((d) => ({ ...d, finalPointsA: e.target.value }))} />
+                          {rowIsPoints ? (
+                            <div className="mp-edit-form__score">
+                              <input className="mp-edit-time" type="number" min="0" placeholder="pts" value={editDraft.pointsA} onChange={(e) => setEditDraft((d) => ({ ...d, pointsA: e.target.value }))} />
+                              <span className="mp-vs-mini">-</span>
+                              <input className="mp-edit-time" type="number" min="0" placeholder="pts" value={editDraft.pointsB} onChange={(e) => setEditDraft((d) => ({ ...d, pointsB: e.target.value }))} />
+                            </div>
+                          ) : (
+                            <input className="mp-edit-time" type="text" placeholder="mins" value={editDraft.minutes} onChange={(e) => setEditDraft((d) => ({ ...d, minutes: e.target.value }))} />
+                          )}
+                          <div className="mp-edit-form__score mp-edit-form__score--auto" title="Recalculated automatically from violations/score above">
+                            <span>{editPreview.finalPointsA}</span>
                             <span className="mp-vs-mini">-</span>
-                            <input type="number" value={editDraft.finalPointsB} onChange={(e) => setEditDraft((d) => ({ ...d, finalPointsB: e.target.value }))} />
+                            <span>{editPreview.finalPointsB}</span>
                           </div>
                           <button className="mp-edit-form__save" onClick={() => saveEdit(r)}>Save</button>
                           <button className="mp-edit-form__cancel" onClick={() => { setEditingId(null); setEditDraft(null); }}>Cancel</button>
@@ -1150,12 +1297,12 @@ export default function ModeratorPage() {
                       <td>{(r.label || r.sportName || '').toUpperCase()}</td>
                       <td>{r.teamA.name} vs {r.teamB.name}</td>
                       <td>{(r.teamA.totalViolations || r.teamB.totalViolations) ? `${r.teamA.totalViolations}-${r.teamB.totalViolations}` : '--'}</td>
-                      <td>{r.teamA.minutes != null ? formatMinutes(r.teamA.minutes) : '--'}</td>
+                      <td>{rowIsPoints ? (r.teamA.points != null ? `${r.teamA.points} - ${r.teamB.points} pts` : '--') : (r.teamA.minutes != null ? formatMinutes(r.teamA.minutes) : '--')}</td>
                       <td className="mp-table__points">{r.teamA.finalPoints} - {r.teamB.finalPoints}</td>
                       <td><button className="mp-table__edit-btn" onClick={() => startEdit(r)} aria-label="Edit"><FaEdit /></button></td>
                     </tr>
-                  )
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
