@@ -378,6 +378,7 @@ function OptionDropdown({
    INFO TOOLTIP
 ═══════════════════════════════════════════ */
 function InfoTip({ caption, children, placement = 'top' }) {
+function InfoTip({ caption, children, placement = 'top' }) {
   return (
     <span className={`mp-info-btn${placement === 'bottom' ? ' mp-info-btn--drop' : ''}`} tabIndex={0}>
       <FaInfo style={{ fontSize: '0.5rem' }} />
