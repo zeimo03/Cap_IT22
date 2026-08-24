@@ -258,6 +258,42 @@
   margin-bottom: 14px;
 }
 
+.rk-division-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -6px 0 14px;
+}
+
+.rk-division-label {
+  font-family: "Inter", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.rk-division-select {
+  font-family: "Inter", sans-serif;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rk-division-select:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.rk-division-select option {
+  color: #0b2447;
+}
+
 .rk-sport-tab {
   font-family: "Inter", sans-serif;
   background: rgba(255, 255, 255, 0.06);
@@ -379,6 +415,36 @@
   color: #fff;
   letter-spacing: 0.02em;
   flex-shrink: 0;
+}
+
+.rk-team-logo--img {
+  background: #eef1f8;
+  overflow: hidden;
+}
+
+.rk-team-logo--img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rk-table-empty {
+  padding: 30px 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #8593ad;
+  font-weight: 600;
+}
+
+.rk-load-error {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  background: #fdeeea;
+  border: 1px solid #f2b8a8;
+  border-radius: 10px;
+  color: #7a2c1e;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .rk-cell-team {
