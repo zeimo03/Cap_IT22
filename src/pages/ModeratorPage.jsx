@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaChevronDown, FaTrophy, FaPlus, FaTimes, FaCheck, FaEdit,
-  FaExclamationTriangle, FaUsers, FaLock, FaInfo,
+  FaExclamationTriangle, FaUsers, FaLock, FaInfo, FaSync,
 } from 'react-icons/fa';
 import './ModeratorPage.css';
 import {
@@ -119,6 +119,14 @@ function buildDivisionOptionsForSport(sport) {
    against those needs to go through this rather than ===. */
 function norm(str) {
   return (str || '').trim().toLowerCase();
+}
+
+/* Team rankings are scoped per sport + division (e.g. Basketball MEN 5v5
+   and Basketball WOMEN 5v5 track completely independent points for the
+   same team name), rather than one global score per team at the level.
+   The stored shape is teamRankings/{level}.points = { [scopeKey]: { [teamName]: points } }. */
+function rankingScopeKey(sportName, category) {
+  return `${norm(sportName)}::${norm(category || '')}`;
 }
 
 /* Category/division match, tolerant of schedules saved before divisions
@@ -618,7 +626,7 @@ function ResetConfirmModal({ onCancel, onConfirm }) {
         <p className="mp-result-sub">Everything you've entered for both teams will be cleared.</p>
         <div className="mp-result-actions">
           <button className="mp-btn mp-btn--cancel" onClick={onCancel} style={{ flex: 1 }}>Cancel</button>
-          <button className="mp-btn mp-btn--reset-solid" onClick={onConfirm} style={{ flex: 1 }}>Reset</button>
+          <button className="mp-btn mp-btn--reset-solid" onClick={onConfirm} style={{ flex: 1 }}><FaSync /> Reset</button>
         </div>
       </div>
     </div>
@@ -657,7 +665,7 @@ function TeamPanel({
   }, [totalViolations]);
 
   return (
-    <div className="mp-team-panel">
+    <div className={`mp-team-panel${status ? ` mp-team-panel--${status}` : ''}`}>
       {selectedTeam && (
         <span className="mp-team-panel__badge">
           {selectedTeam.logo ? <img src={selectedTeam.logo} alt="" /> : initials(selectedTeam.label)}
@@ -1033,6 +1041,15 @@ export default function ModeratorPage() {
     const key = (name) => norm(name);
     const tA = effectiveTeams.find((t) => key(t.name) === key(s.teamA));
     const tB = effectiveTeams.find((t) => key(t.name) === key(s.teamB));
+    // No saved record for this match — clear out whatever was left in the
+    // form from a previously-viewed match (points, violations, comeback,
+    // winner) before loading this one in, instead of leaving stale values
+    // sitting there under the new team names.
+    setTimeA(''); setTimeB('');
+    setPointsA(''); setPointsB('');
+    setViolA([]); setViolB([]);
+    setComebackA(false); setComebackB(false);
+    setWinner(null);
     setTeamAId(tA ? tA.id : '');
     setTeamBId(tB ? tB.id : '');
     setLockedMatch(s);
@@ -1076,8 +1093,19 @@ export default function ModeratorPage() {
   const effectiveComebackA = winner === 'A' ? !!comebackA : false;
   const effectiveComebackB = winner === 'B' ? !!comebackB : false;
 
-  const prevPointsA = teamA ? (rankings[teamA.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS;
-  const prevPointsB = teamB ? (rankings[teamB.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS;
+  // For an already-recorded (locked) match, current `rankings` already
+  // reflects this match's effect — it's the post-match value, not the
+  // "previous" one. Show the record's own saved snapshot instead of
+  // pulling from live rankings and re-running the formula on top of an
+  // already-updated number, which was double-applying the score change.
+  const scopeKey = activeSport ? rankingScopeKey(activeSport.sportName, activeSport.category) : null;
+  const scopedRankings = scopeKey ? (rankings[scopeKey] || {}) : {};
+  const prevPointsA = lockedRecord
+    ? lockedRecord.teamA.prevPoints
+    : (teamA ? (scopedRankings[teamA.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS);
+  const prevPointsB = lockedRecord
+    ? lockedRecord.teamB.prevPoints
+    : (teamB ? (scopedRankings[teamB.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS);
 
   function computeChange({ diff, violations, isWinner, comeback }) {
     return (diff - violations + (isWinner ? 30 : -30) + (comeback ? 10 : 0)) / 4;
@@ -1094,8 +1122,8 @@ export default function ModeratorPage() {
   const canPreview = diff != null && winner;
   const changeA = canPreview ? computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: effectiveComebackA }) : null;
   const changeB = canPreview ? computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: effectiveComebackB }) : null;
-  const finalPointsA = changeA != null ? Math.round(prevPointsA + changeA) : null;
-  const finalPointsB = changeB != null ? Math.round(prevPointsB + changeB) : null;
+  const finalPointsA = lockedRecord ? lockedRecord.teamA.finalPoints : (changeA != null ? Math.round(prevPointsA + changeA) : null);
+  const finalPointsB = lockedRecord ? lockedRecord.teamB.finalPoints : (changeB != null ? Math.round(prevPointsB + changeB) : null);
 
   const levelLabel = LEVELS.find((l) => l.key === level)?.label || level;
 
@@ -1176,10 +1204,14 @@ export default function ModeratorPage() {
       const merged = await upsertMatchRecord(level, record);
       setRecords(merged);
 
+      const confirmScopeKey = rankingScopeKey(pending.sportName, pending.category);
       const newRankings = {
         ...rankings,
-        [pending.teamA.name]: pending.teamA.finalPoints,
-        [pending.teamB.name]: pending.teamB.finalPoints,
+        [confirmScopeKey]: {
+          ...(rankings[confirmScopeKey] || {}),
+          [pending.teamA.name]: pending.teamA.finalPoints,
+          [pending.teamB.name]: pending.teamB.finalPoints,
+        },
       };
       await saveTeamRankings(level, newRankings);
       setRankings(newRankings);
@@ -1254,10 +1286,14 @@ export default function ModeratorPage() {
     const merged = await upsertMatchRecord(level, updated);
     setRecords(merged);
 
+    const editScopeKey = rankingScopeKey(updated.sportName, updated.category);
     const newRankings = {
       ...rankings,
-      [updated.teamA.name]: updated.teamA.finalPoints,
-      [updated.teamB.name]: updated.teamB.finalPoints,
+      [editScopeKey]: {
+        ...(rankings[editScopeKey] || {}),
+        [updated.teamA.name]: updated.teamA.finalPoints,
+        [updated.teamB.name]: updated.teamB.finalPoints,
+      },
     };
     await saveTeamRankings(level, newRankings);
     setRankings(newRankings);
@@ -1407,7 +1443,7 @@ export default function ModeratorPage() {
           </div>
 
           <div className="mp-update-row">
-            <button type="button" className="mp-btn mp-btn--reset" onClick={handleResetClick}>Reset</button>
+            <button type="button" className="mp-btn mp-btn--reset" onClick={handleResetClick}><FaSync /> Reset</button>
             <button type="button" className="mp-btn mp-btn--update" onClick={handleUpdateClick} disabled={!!lockedRecord}>Update</button>
           </div>
         </div>
