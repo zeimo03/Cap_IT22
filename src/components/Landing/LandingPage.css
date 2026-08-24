@@ -428,6 +428,18 @@
   justify-content: space-between;
 }
 
+.match-card-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  padding: 0 0.5rem;
+}
+
 /* ── Match switch transition ── */
 .match-card-body {
   animation-duration: 0.32s;
@@ -510,12 +522,6 @@
 
 .nav-btn:hover {
   background: rgba(255, 255, 255, 0.2);
-}
-
-.dropdown-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 400;
 }
 
 /* ══════════════════════════════════════════════

@@ -6,7 +6,7 @@ import HighlightsBanner from './HighlightsBanner';
 import ImageCarousel from './ImageCarousel';
 import { AuthContext } from '../AuthContext';
 import { FaArrowRightLong } from "react-icons/fa6";
-import { fetchCollectionData } from '../../services/firestoreService';
+import { fetchCollectionData, getMatchSchedules } from '../../services/firestoreService';
 import Contact from './Contact/Contact';
 
 /* ── NEW — additional icons for the scrollable content sections ── */
@@ -57,6 +57,73 @@ const CONTACT_ITEMS = [
 
 
 const LEVELS = ["Elementary", "High School", "College"];
+
+/* Maps the dropdown's display labels to the level keys used everywhere
+   else in the app (Admin's schedule builder, Moderator's record screen) —
+   this is how the hero card knows which level's schedule to read. */
+const LEVEL_KEY_MAP = { Elementary: 'elementary', 'High School': 'highSchool', College: 'college' };
+
+/* Same assumed match length Admin/Moderator use to decide whether a
+   scheduled match is "over" — there's no real end-time saved per match,
+   so a match counts as finished once this long has passed its start. */
+const ASSUMED_MATCH_MINUTES = 120;
+
+function scheduleStart(schedule) {
+  if (!schedule.date || !schedule.time) return null;
+  const d = new Date(`${schedule.date}T${schedule.time}`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function scheduleHasFinished(schedule) {
+  const start = scheduleStart(schedule);
+  if (!start) return false; // no date/time set yet — treat as upcoming, not finished
+  return Date.now() >= start.getTime() + ASSUMED_MATCH_MINUTES * 60000;
+}
+
+function formatScheduleDate(dateStr) {
+  if (!dateStr) return 'Date TBA';
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function formatScheduleTime(timeStr) {
+  if (!timeStr) return 'Time TBA';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return timeStr;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${(mStr || '00').padStart(2, '0')} ${suffix}`;
+}
+
+const TEAM_BADGE_COLORS = ['#d0021b', '#1a6bbd', '#f5a623', '#7b2d8b', '#1d9e75', '#c04828', '#0f6e56'];
+function colorForTeamName(name) {
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return TEAM_BADGE_COLORS[hash % TEAM_BADGE_COLORS.length];
+}
+function initialsForTeamName(name) {
+  return (name || '?').split(' ').map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+}
+function buildTeamBadge(name, logo) {
+  return { name: name || 'TBD', logo: logo || null, initials: initialsForTeamName(name), color: colorForTeamName(name) };
+}
+
+/* Turns a Sports & Teams / Admin schedule row into the shape the hero
+   match card already renders. `_start` is kept only for sorting. */
+function mapScheduleToCardMatch(schedule) {
+  return {
+    id: schedule.id,
+    sport: schedule.sport || '',
+    date: formatScheduleDate(schedule.date),
+    time: formatScheduleTime(schedule.time),
+    venue: schedule.location || 'Venue TBA',
+    teamA: buildTeamBadge(schedule.teamA, schedule.teamALogo),
+    teamB: buildTeamBadge(schedule.teamB, schedule.teamBLogo),
+    _start: scheduleStart(schedule),
+  };
+}
 
 /* ── NEW — data for the scrollable content sections ── */
 const INFO_CARDS = [
@@ -172,16 +239,33 @@ function LandingPage() {
 
   const { openAuthModal = () => {} } = useContext(AuthContext);
   const contactFooterRef = useRef(null);
+  const levelDropdownRef = useRef(null);
+
+  /* Closes the level dropdown on an outside click. Deliberately not a
+     full-screen overlay div (the previous approach) — an overlay sitting
+     as a sibling of `.hero` ends up painted above `.hero-topbar`'s own
+     internal stacking context regardless of z-index, silently swallowing
+     clicks meant for the menu items themselves. A ref + document listener
+     sidesteps that class of bug entirely. */
+  useEffect(() => {
+    if (!levelOpen) return undefined;
+    const onClickOutside = (e) => {
+      if (levelDropdownRef.current && !levelDropdownRef.current.contains(e.target)) {
+        setLevelOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [levelOpen]);
 
   useEffect(() => {
     const loadFirestoreData = async () => {
       try {
-        const [fireInfo, fireStats, fireSports, fireSteps, fireMatches, fireContacts] = await Promise.all([
+        const [fireInfo, fireStats, fireSports, fireSteps, fireContacts] = await Promise.all([
           fetchCollectionData('infoCards').catch(() => null),
           fetchCollectionData('stats').catch(() => null),
           fetchCollectionData('sports').catch(() => null),
           fetchCollectionData('steps').catch(() => null),
-          fetchCollectionData('matches').catch(() => null),
           fetchCollectionData('contactItems').catch(() => null),
         ]);
 
@@ -189,7 +273,6 @@ function LandingPage() {
         if (Array.isArray(fireStats) && fireStats.length) setStats(fireStats);
         if (Array.isArray(fireSports) && fireSports.length) setSports(fireSports);
         if (Array.isArray(fireSteps) && fireSteps.length) setSteps(fireSteps);
-        if (Array.isArray(fireMatches) && fireMatches.length) setMatches(fireMatches);
         if (Array.isArray(fireContacts) && fireContacts.length) setContactItems(fireContacts);
       } catch (error) {
         console.log('Firestore not available, using default data.');
@@ -198,6 +281,37 @@ function LandingPage() {
 
     loadFirestoreData();
   }, []);
+
+  /* "Ongoing matches" card, wired straight to what the Administrator has
+     actually put on the schedule (matchSchedules/{level}) — not sample
+     data. Re-runs whenever the visitor switches level in the dropdown.
+     Defaults to High School while the dropdown still shows the generic
+     "Levels" placeholder, so the card has real data on first load. */
+  const activeLevelKey = LEVEL_KEY_MAP[selectedLevel] || 'highSchool';
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const schedules = await getMatchSchedules(activeLevelKey);
+        const upcoming = (schedules || [])
+          .filter((s) => s.teamA && s.teamB && !scheduleHasFinished(s))
+          .map(mapScheduleToCardMatch)
+          .sort((a, b) => {
+            if (!a._start && !b._start) return 0;
+            if (!a._start) return 1;
+            if (!b._start) return -1;
+            return a._start - b._start;
+          });
+        if (cancelled) return;
+        setMatches(upcoming);
+        setMatchIndex(0);
+      } catch (error) {
+        console.error('Failed to load match schedules for the landing page:', error);
+        if (!cancelled) { setMatches([]); setMatchIndex(0); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeLevelKey]);
 
   const currentMatch = matches[matchIndex] || matches[0] || null;
   const prevMatch = () => {
@@ -248,7 +362,7 @@ function LandingPage() {
           {/* Right controls */}
           <div className="header-controls">
             {/* Level dropdown */}
-            <div className="level-dropdown">
+            <div className="level-dropdown" ref={levelDropdownRef}>
               <button
                 className="level-btn"
                 onClick={() => setLevelOpen((prev) => !prev)}
@@ -318,51 +432,57 @@ function LandingPage() {
           <div className="match-card">
             <p className="match-card-label">ONGOING MATCHES</p>
 
-            <div
-              className={`match-card-body match-anim-${matchDirection}`}
-              key={matchAnimKey}
-            >
-              <div className="match-teams">
-                <TeamBadge team={currentMatch.teamA} />
-                <span className="vs-label">VS</span>
-                <TeamBadge team={currentMatch.teamB} />
-              </div>
-                <div className="linespace">
-                  
+            {currentMatch ? (
+              <>
+                <div
+                  className={`match-card-body match-anim-${matchDirection}`}
+                  key={matchAnimKey}
+                >
+                  <div className="match-teams">
+                    <TeamBadge team={currentMatch.teamA} />
+                    <span className="vs-label">VS</span>
+                    <TeamBadge team={currentMatch.teamB} />
+                  </div>
+                    <div className="linespace">
+                      
+                    </div>
+                  <div className="match-info">
+                    <FaCalendarAlt className="match-info-icon" />
+                    <span>{currentMatch.date}</span>
+                    <span className="dot">·</span>
+                    <span>{currentMatch.time}</span>
+                    <span className="dot">·</span>
+                    <span>{currentMatch.venue}</span>
+                  </div>
                 </div>
-              <div className="match-info">
-                <FaCalendarAlt className="match-info-icon" />
-                <span>{currentMatch.date}</span>
-                <span className="dot">·</span>
-                <span>{currentMatch.time}</span>
-                <span className="dot">·</span>
-                <span>{currentMatch.venue}</span>
-              </div>
-            </div>
 
-            <div className="match-card-footer">
-              <span
-                className={`match-sport match-anim-${matchDirection}`}
-                key={`sport-${matchAnimKey}`}
-              >
-                {currentMatch.sport.toUpperCase()}
-              </span>
-              <div className="match-nav-btns">
-                <button className="nav-btn" onClick={prevMatch} aria-label="Previous match">
-                  <FaChevronLeft />
-                </button>
-                <button className="nav-btn" onClick={nextMatch} aria-label="Next match">
-                  <FaChevronRight />
-                </button>
+                <div className="match-card-footer">
+                  <span
+                    className={`match-sport match-anim-${matchDirection}`}
+                    key={`sport-${matchAnimKey}`}
+                  >
+                    {currentMatch.sport.toUpperCase()}
+                  </span>
+                  {matches.length > 1 && (
+                    <div className="match-nav-btns">
+                      <button className="nav-btn" onClick={prevMatch} aria-label="Previous match">
+                        <FaChevronLeft />
+                      </button>
+                      <button className="nav-btn" onClick={nextMatch} aria-label="Next match">
+                        <FaChevronRight />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="match-card-empty">
+                No matches scheduled for {selectedLevel === 'Levels' ? 'this level' : selectedLevel} yet — check back soon.
               </div>
-            </div>
+            )}
           </div>
         </div>
       </section>
-
-      {levelOpen && (
-        <div className="dropdown-backdrop" onClick={() => setLevelOpen(false)} />
-      )}
 
       {/* ══════════════════════════════════════════════
           NEW — Scrollable content below the hero
