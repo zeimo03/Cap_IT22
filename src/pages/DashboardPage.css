@@ -266,10 +266,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #fff;
+  padding: 14px;
+  box-sizing: border-box;
 }
 
 .team-banner--oc {
-  height: 150px;
+  flex: 1;
+  height: 21.375rem;
 }
 
 .team-banner--uc {
@@ -282,20 +286,22 @@
   width: 90px;
   height: 90px;
   border-radius: 10px;
+  padding: 8px;
 }
 
 .team-banner--fc-small {
   width: 60px;
   height: 60px;
   border-radius: 8px;
+  padding: 6px;
 }
 
 .team-banner__img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
-  border-radius: inherit;
 }
 
 .team-banner--placeholder {
@@ -348,13 +354,17 @@
   color: #fff;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  text-align: center;
 }
 
 .ft-vs {
-  font-size: 7.5px;
-  font-weight: 900;
-  color: #888;
+  font-size: 11px;
+  font-weight: 800;
+  color: #b9c6e8;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 0 2px;
 }
 
 .ft-venue {
@@ -387,6 +397,8 @@
   flex-direction: column;
   gap: 4px;
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
 }
 
 .oc-banners {
@@ -403,22 +415,25 @@
   margin-top: 2px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   overflow: hidden;
 }
 
 .oc-date-row {
   display: flex;
   justify-content: center;
+  width: 100%;
   margin-bottom: 2px;
 }
 
 .oc-teams-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
-  gap: 3px;
+  column-gap: 4px;
+  row-gap: 2px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 /* ══════════════════════════════════════════
@@ -432,7 +447,7 @@
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 10px;
   box-sizing: border-box;
   height: 30.821rem;
   position: relative;
@@ -457,20 +472,32 @@
 .uc-date-row {
   display: flex;
   justify-content: center;
+  width: 100%;
 }
 
+/* Centered as a single block, sized to its actual content — not a
+   fixed-width grid. A grid with equal-width team-name columns keeps
+   "VS" pixel-perfect centered, but when one team's name is much shorter
+   than the other's, its column ends up mostly empty navy space, which
+   reads as more obviously "wrong" than VS sitting a few px off-center.
+   This trades a little positional precision on VS for a layout that
+   never has dead space next to a short team name. */
 .uc-teams-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
-  gap: 5px;
+  column-gap: 6px;
+  row-gap: 2px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 .uc-sport-row {
   display: flex;
   justify-content: center;
+  width: 100%;
   padding-bottom: 2px;
+  margin-top: 2px;
 }
 
 /* Hover overlay — full match info, revealed on hover/focus */
@@ -492,7 +519,9 @@
 }
 
 .upcoming-card:hover .uc-hover-info,
-.upcoming-card:focus-within .uc-hover-info {
+.upcoming-card:focus-within .uc-hover-info,
+.ongoing-card:hover .uc-hover-info,
+.ongoing-card:focus-within .uc-hover-info {
   opacity: 1;
   pointer-events: auto;
 }

@@ -6,7 +6,7 @@ import HighlightsBanner from './HighlightsBanner';
 import ImageCarousel from './ImageCarousel';
 import { AuthContext } from '../AuthContext';
 import { FaArrowRightLong } from "react-icons/fa6";
-import { fetchCollectionData, getMatchSchedules } from '../../services/firestoreService';
+import { fetchCollectionData, getMatchSchedules, getSportsTeamsConfig, getLiveStatsCounters } from '../../services/firestoreService';
 import Contact from './Contact/Contact';
 
 /* ── NEW — additional icons for the scrollable content sections ── */
@@ -62,6 +62,16 @@ const LEVELS = ["Elementary", "High School", "College"];
    else in the app (Admin's schedule builder, Moderator's record screen) —
    this is how the hero card knows which level's schedule to read. */
 const LEVEL_KEY_MAP = { Elementary: 'elementary', 'High School': 'highSchool', College: 'college' };
+
+/* Every level's Firestore key, for stats that sum across the whole
+   school (Elementary + High School + College) rather than one level. */
+const ALL_LEVEL_KEYS = ['elementary', 'highSchool', 'college'];
+
+/* Case/whitespace-insensitive compare, for deduping sport names that
+   Admin may have entered with different capitalization per level. */
+function norm(str) {
+  return (str || '').trim().toLowerCase();
+}
 
 /* Same assumed match length Admin/Moderator use to decide whether a
    scheduled match is "over" — there's no real end-time saved per match,
@@ -144,7 +154,7 @@ const INFO_CARDS = [
 
 const STATS = [
   { icon: FaTrophy, value: 120, label: "Total Matches" },
-  { icon: FaBullseye, value: 9, label: "Sports" },
+  { icon: FaBullseye, value: 8, label: "Sports" },
   { icon: FaUsers, value: 15, label: "Teams" },
   { icon: FaUserFriends, value: 350, label: "Players" },
 ];
@@ -270,7 +280,14 @@ function LandingPage() {
         ]);
 
         if (Array.isArray(fireInfo) && fireInfo.length) setInfoCards(fireInfo);
-        if (Array.isArray(fireStats) && fireStats.length) setStats(fireStats);
+        // Only accept `stats` docs shaped like the cards this section
+        // actually renders (icon + label) — a stray/malformed document
+        // in that collection (wrong shape) used to crash the whole page
+        // trying to render it as a stat card; now it's just skipped.
+        if (Array.isArray(fireStats)) {
+          const validStats = fireStats.filter((s) => s && typeof s.label === 'string' && typeof s.icon === 'function');
+          if (validStats.length) setStats(validStats);
+        }
         if (Array.isArray(fireSports) && fireSports.length) setSports(fireSports);
         if (Array.isArray(fireSteps) && fireSteps.length) setSteps(fireSteps);
         if (Array.isArray(fireContacts) && fireContacts.length) setContactItems(fireContacts);
@@ -280,6 +297,46 @@ function LandingPage() {
     };
 
     loadFirestoreData();
+  }, []);
+
+  /* Sports Statistics row — Total Matches, Sports, and Teams are computed
+     live from the same Sports & Teams config and match schedules Admin
+     already maintains (summed across all 3 levels), instead of being
+     typed in by hand. Uses a functional update so it only touches those
+     3 entries and never clobbers "Players":
+     - "Players" is read from siteCounters/liveCounters (a single public
+       counter AdminSchedulePage keeps updated) rather than computed
+       here, because the only source for a real count, `registrations`,
+       deliberately isn't public-readable (it holds each registrant's
+       address, phone number, emergency contact, etc.); see
+       setLivePlayerCount's comment in firestoreService.js. */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [configs, schedules, liveCounters] = await Promise.all([
+          Promise.all(ALL_LEVEL_KEYS.map((lvl) => getSportsTeamsConfig(lvl).catch(() => ({ sports: [], teams: [] })))),
+          Promise.all(ALL_LEVEL_KEYS.map((lvl) => getMatchSchedules(lvl).catch(() => []))),
+          getLiveStatsCounters().catch(() => ({})),
+        ]);
+        if (cancelled) return;
+
+        const sportNames = new Set();
+        let teamCount = 0;
+        configs.forEach((cfg) => {
+          (cfg.sports || []).forEach((s) => { if (s?.name) sportNames.add(norm(s.name)); });
+          teamCount += (cfg.teams || []).length;
+        });
+        const matchCount = schedules.reduce((sum, list) => sum + (list || []).length, 0);
+
+        const computed = { 'Total Matches': matchCount, Sports: sportNames.size, Teams: teamCount };
+        if (typeof liveCounters.players === 'number') computed.Players = liveCounters.players;
+        setStats((prev) => prev.map((s) => (s.label in computed ? { ...s, value: computed[s.label] } : s)));
+      } catch (error) {
+        console.error('Failed to compute live sports statistics:', error);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   /* "Ongoing matches" card, wired straight to what the Administrator has
@@ -514,17 +571,17 @@ function LandingPage() {
 
         <div className="stats-row">
           {stats.map((stat, i) => (
-            <React.Fragment key={stat.label}>
+            <React.Fragment key={stat.label || i}>
               <div className="stat-item">
                 <div className="stat-icon-circle">
-                  <stat.icon />
+                  {stat.icon ? <stat.icon /> : null}
                 </div>
                 <div className="stat-text">
                   <span className="stat-value">{stat.value}</span>
-                  <span className="stat-label">{stat.label.toUpperCase()}</span>
+                  <span className="stat-label">{(stat.label || '').toUpperCase()}</span>
                 </div>
               </div>
-              {i < STATS.length - 1 && <span className="stat-divider" />}
+              {i < stats.length - 1 && <span className="stat-divider" />}
             </React.Fragment>
           ))}
         </div>

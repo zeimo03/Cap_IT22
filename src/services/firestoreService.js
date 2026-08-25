@@ -429,3 +429,38 @@ export async function saveTeamRankings(level, points) {
     { merge: true }
   );
 }
+
+/* ─────────────────────────────────────────────
+   Live player-count counter for the public landing page.
+   Stored at: siteCounters/liveCounters → { players: number, updatedAt }
+
+   Deliberately its OWN collection, not a document inside `stats` — the
+   landing page fetches the entire `stats` collection wholesale to build
+   its icon/value/label cards, so a counter doc living there (with no
+   label/icon/value) got swept into that same fetch and crashed the page
+   trying to render it as a stat card. Keeping this in a separate
+   collection means it can never collide with that fetch again.
+
+   This exists only because the real player count lives in
+   `registrations`, which is staff-only for privacy reasons (addresses,
+   phone numbers, emergency contacts). Firestore can't expose "just a
+   count" from a collection without also exposing its documents to the
+   same query, so instead: AdminSchedulePage (already
+   staff-authenticated, already reading `registrations` to build the
+   roster table) recomputes the total and writes ONLY that number here
+   via setLivePlayerCount whenever it loads. The landing page then reads
+   this single public counter via getLiveStatsCounters — never the
+   registrations collection itself.
+───────────────────────────────────────────── */
+export async function getLiveStatsCounters() {
+  if (!db) return {};
+  const ref = doc(db, 'siteCounters', 'liveCounters');
+  const snapshot = await getDoc(ref);
+  return snapshot.exists() ? snapshot.data() : {};
+}
+
+export async function setLivePlayerCount(count) {
+  if (!db) throw new Error('Firestore not initialized.');
+  const ref = doc(db, 'siteCounters', 'liveCounters');
+  await setDoc(ref, { players: count, updatedAt: serverTimestamp() }, { merge: true });
+}

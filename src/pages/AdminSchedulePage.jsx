@@ -5,7 +5,7 @@ import './AdminSchedulePage.css';
 import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule } from '../services/firestoreService';
+import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, setLivePlayerCount } from '../services/firestoreService';
 import SportsTeamsManager from './SportsTeamsManager';
 
 const LEVELS = [
@@ -622,7 +622,7 @@ function MatchScheduleFormatSection({ level }) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  /* ── Category options come from a sport's own divisions.
+  /* ── Category options come from the selected sport's own divisions.
      If the admin never set up divisions for this sport, fall back to a
      single "General" category so the flow isn't blocked.
      Prefixes the group label (e.g. "MEN") onto the division name when
@@ -630,22 +630,20 @@ function MatchScheduleFormatSection({ level }) {
      groups (e.g. "MEN 5v5" vs "WOMEN 5v5") don't render as identical,
      indistinguishable entries — this combined label is also what gets
      saved as `category` on the schedule, so it stays distinguishable
-     downstream too (Moderator, rankings, etc). Shared by the generator's
-     category picker and the Edit Schedule modal, so an old schedule
-     saved before this labeling existed can be corrected in place. ── */
-  const categoryOptionsForSport = (sport) => {
-    const raw = (sport?.categoryGroups || []).flatMap(g =>
-      (g.divisions || []).map(d => {
-        const name = (d.name || g.label || '').trim();
-        const group = (g.label || '').trim();
-        const label = (group && group.toLowerCase() !== name.toLowerCase()) ? `${group} ${name}`.trim() : name;
-        return { value: d.id, label, format: d.format };
-      })
-    );
-    return raw.length > 0 ? raw : sport ? [{ value: 'general', label: 'General', format: null }] : [];
-  };
-  const rawCategoryOptions = categoryOptionsForSport(selSport);
-  const categoryOptions = rawCategoryOptions;
+     downstream too (Moderator, rankings, etc). ── */
+  const rawCategoryOptions = (selSport?.categoryGroups || []).flatMap(g =>
+    (g.divisions || []).map(d => {
+      const name = (d.name || g.label || '').trim();
+      const group = (g.label || '').trim();
+      const label = (group && group.toLowerCase() !== name.toLowerCase()) ? `${group} ${name}`.trim() : name;
+      return { value: d.id, label, format: d.format };
+    })
+  );
+  const categoryOptions = rawCategoryOptions.length > 0
+    ? rawCategoryOptions
+    : selSport
+      ? [{ value: 'general', label: 'General', format: null }]
+      : [];
 
   /* ── Teams eligible for a given sport ──
      NOTE: despite the field name, SportsTeamsManager's TeamSportsPickerModal
@@ -843,8 +841,6 @@ function MatchScheduleFormatSection({ level }) {
   };
 
   const editPool = teamsForSport(editForm?.sport);
-  const editSport = sportsList.find(s => s.name === editForm?.sport) || null;
-  const editCategoryOptions = categoryOptionsForSport(editSport);
 
   const handleConfirmEdit = async () => {
     if (!editForm || !editForm.date || !editForm.time || !editForm.teamA || !editForm.teamB) return;
@@ -1472,20 +1468,6 @@ function MatchScheduleFormatSection({ level }) {
                 <input type="text" value={editForm.sport || ''} disabled />
               </div>
 
-              <div className="msf-form-group">
-                <label>Division</label>
-                <select
-                  value={editForm.category || ''}
-                  onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
-                >
-                  <option value="">Select a division</option>
-                  {editCategoryOptions.map(o => <option key={o.value} value={o.label}>{o.label}</option>)}
-                  {editForm.category && !editCategoryOptions.some(o => o.label === editForm.category) && (
-                    <option value={editForm.category}>{editForm.category} (old label — pick the correct one above)</option>
-                  )}
-                </select>
-              </div>
-
               <div className="msf-form-row">
                 <div className="msf-form-group">
                   <label>Time</label>
@@ -1674,6 +1656,19 @@ const fetchSummary = useCallback(async () => {
 
     setAllRegistrations(merged);
     setSummaryRows(buildSummary(studentRegistrations));
+
+    // Publish just the total player count to the public landing page —
+    // never the registrations themselves (see setLivePlayerCount's
+    // comment in firestoreService.js for why). Fire-and-forget: a failed
+    // write here shouldn't block or error out the registration table
+    // this page actually exists to show.
+    const summaryForCount = buildSummary(studentRegistrations);
+    const totalPlayerCount = summaryForCount.reduce(
+      (sum, row) => sum + row.elementary + row.highSchool + row.college, 0,
+    );
+    setLivePlayerCount(totalPlayerCount).catch((err) => {
+      console.error('Failed to publish live player count:', err);
+    });
 
   } catch (err) {
     console.error(err);
