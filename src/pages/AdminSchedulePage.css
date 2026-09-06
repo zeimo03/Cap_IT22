@@ -2548,3 +2548,92 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* ══════════════════════════════════════════
+   PER-EVENT REGISTRATION COUNTS
+   (Intramurals / Sportsfest / Prisaa)
+   Doubles as a filter — the active chip scopes the
+   summary table and the level totals above it.
+   ══════════════════════════════════════════ */
+.asp-event-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 4px;
+}
+
+.asp-event-row__label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #5a6a7a;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.asp-event-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.asp-event-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 90px;
+  padding: 7px 14px;
+  background: #fff;
+  border: 1.5px solid #d1d9e2;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.asp-event-chip:hover {
+  border-color: #001529;
+}
+
+.asp-event-chip--active {
+  border-color: #f5a623;
+  background: #fff8e9;
+}
+
+.asp-event-chip__num {
+  font-family: 'Lalezar', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #1d4ed8;
+}
+
+.asp-event-chip--active .asp-event-chip__num {
+  color: #f5a623;
+}
+
+.asp-event-chip__label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #001529;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.asp-card__subtitle-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: #fff8e9;
+  border: 1px solid #f5d08a;
+  color: #92600b;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}

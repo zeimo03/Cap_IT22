@@ -5,7 +5,7 @@ import './AdminSchedulePage.css';
 import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, setLivePlayerCount } from '../services/firestoreService';
+import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, setLivePlayerCount, setEventRegistrationCounts, getEventKey, getEventLabel, EVENT_TYPES } from '../services/firestoreService';
 import SportsTeamsManager from './SportsTeamsManager';
 
 const LEVELS = [
@@ -78,6 +78,35 @@ function buildSummary(registrations) {
     const sc = a.sport.localeCompare(b.sport);
     return sc !== 0 ? sc : a.gender.localeCompare(b.gender);
   });
+}
+
+/* Does this registration count as a player in the summary above?
+
+   buildSummary only tallies a registration that has a sport AND a
+   recognisable grade level — anything else contributes 0 to the
+   Elementary / High School / College totals. The per-event chips have
+   to use the exact same test, or they'd report a bigger population
+   than the table right beneath them (half-filled or abandoned test
+   registrations would show up in the chips but nowhere else). */
+function countsAsPlayer(r) {
+  return Boolean(r && r.sport && getSchoolLevel(r.gradeLevel));
+}
+
+/* Which event bucket a registration belongs to. Registrations saved
+   before the event picker existed have no event on them, so they land
+   in `unassigned` rather than being silently dropped. */
+function getEventBucket(r) {
+  return getEventKey(r.eventKey || r.event) || 'unassigned';
+}
+
+/* Tally registrations per event (Intramurals / Sportsfest / Prisaa). */
+function buildEventCounts(registrations) {
+  const counts = { unassigned: 0 };
+  EVENT_TYPES.forEach(({ key }) => { counts[key] = 0; });
+  registrations.filter(countsAsPlayer).forEach((r) => {
+    counts[getEventBucket(r)]++;
+  });
+  return counts;
 }
 
 const TEAM_COLORS = {
@@ -1577,6 +1606,11 @@ export default function AdminSchedulePage() {
   // Registration data
   const [summaryRows,      setSummaryRows]      = useState([]);
   const [allRegistrations, setAllRegistrations] = useState([]);
+  // Raw student registrations kept around so the summary can be
+  // re-tallied per event without another round-trip to Firestore.
+  const [studentRegs,      setStudentRegs]      = useState([]);
+  const [eventCounts,      setEventCounts]      = useState({});
+  const [summaryEvent,     setSummaryEvent]     = useState(''); // '' = all events
   const [summaryLoading,   setSummaryLoading]   = useState(false);
   const [summaryError,     setSummaryError]     = useState('');
 
@@ -1586,6 +1620,7 @@ export default function AdminSchedulePage() {
   const [filterSection,  setFilterSection]  = useState('');
   const [filterSport,    setFilterSport]    = useState('');
   const [filterGender,   setFilterGender]   = useState('');
+  const [filterEvent,    setFilterEvent]    = useState('');
 
   // Student detail modal
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -1649,13 +1684,24 @@ const fetchSummary = useCallback(async () => {
         sport: (registration && registration.sport) || 'N/A',
         position: (registration && registration.position) || 'N/A',
         teamName: (registration && registration.teamName) || 'N/A',
+        event: (registration && (getEventLabel(registration.eventKey || registration.event) || registration.event)) || 'N/A',
       };
     }).sort((a, b) =>
       (a.fullName || '').localeCompare(b.fullName || '', undefined, { sensitivity: 'base' })
     );
 
     setAllRegistrations(merged);
+    setStudentRegs(studentRegistrations);
     setSummaryRows(buildSummary(studentRegistrations));
+
+    // Recompute the per-event totals from the real documents and publish
+    // them, which also repairs any drift in the counter the registration
+    // form increments as students submit.
+    const freshEventCounts = buildEventCounts(studentRegistrations);
+    setEventCounts(freshEventCounts);
+    setEventRegistrationCounts(freshEventCounts).catch((err) => {
+      console.error('Failed to publish event registration counts:', err);
+    });
 
     // Publish just the total player count to the public landing page —
     // never the registrations themselves (see setLivePlayerCount's
@@ -1680,9 +1726,24 @@ const fetchSummary = useCallback(async () => {
 
   useEffect(() => { if (activeTab === 0) fetchSummary(); }, [activeTab, fetchSummary]);
 
-  const totalElementary = summaryRows.reduce((s, r) => s + r.elementary, 0);
-  const totalHighSchool = summaryRows.reduce((s, r) => s + r.highSchool, 0);
-  const totalCollege    = summaryRows.reduce((s, r) => s + r.college, 0);
+  // Summary table + level totals follow the event filter; with no filter
+  // they show every event combined, exactly as before.
+  const visibleSummaryRows = summaryEvent
+    ? buildSummary(studentRegs.filter(r => getEventBucket(r) === summaryEvent))
+    : summaryRows;
+
+  // "All Events" is the sum of the buckets, never the raw document
+  // count — those disagree whenever a registration is missing a sport
+  // or grade level, and the chip has to agree with the Total above it.
+  // Includes registrations with no event on them (saved before the
+  // event picker existed) — they're still players, so leaving them out
+  // would put this chip below the Total beside it.
+  const totalEventPlayers = Object.values(eventCounts)
+    .reduce((sum, n) => sum + (Number(n) || 0), 0);
+
+  const totalElementary = visibleSummaryRows.reduce((s, r) => s + r.elementary, 0);
+  const totalHighSchool = visibleSummaryRows.reduce((s, r) => s + r.highSchool, 0);
+  const totalCollege    = visibleSummaryRows.reduce((s, r) => s + r.college, 0);
   const totalPlayers    = totalElementary + totalHighSchool + totalCollege;
 
   // Unique filter options from data
@@ -1696,12 +1757,13 @@ const fetchSummary = useCallback(async () => {
       (!filterGrade   || r.gradeLevel === filterGrade) &&
       (!filterSection || r.section    === filterSection) &&
       (!filterSport   || r.sport      === filterSport) &&
-      (!filterGender  || (r.gender || '').toLowerCase() === filterGender.toLowerCase())
+      (!filterGender  || (r.gender || '').toLowerCase() === filterGender.toLowerCase()) &&
+      (!filterEvent   || getEventBucket(r) === filterEvent)
     );
   });
 
-  const hasFilters = searchQuery || filterGrade || filterSection || filterSport || filterGender;
-  const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); };
+  const hasFilters = searchQuery || filterGrade || filterSection || filterSport || filterGender || filterEvent;
+  const clearFilters = () => { setSearchQuery(''); setFilterGrade(''); setFilterSection(''); setFilterSport(''); setFilterGender(''); setFilterEvent(''); };
 
   const fmt = (row, level) => row[level] === 0 ? '--' : row[level];
 
@@ -1787,15 +1849,57 @@ const fetchSummary = useCallback(async () => {
                 </div>
               </div>
 
-              <p className="asp-card__subtitle">Total Registered Players</p>
+              {/* Per-event registration counts. Clicking one scopes the
+                  table below to that event; clicking it again clears it. */}
+              <div className="asp-event-row">
+                <span className="asp-event-row__label">Per Event</span>
+                <div className="asp-event-chips">
+                  <button
+                    type="button"
+                    className={`asp-event-chip${summaryEvent === '' ? ' asp-event-chip--active' : ''}`}
+                    onClick={() => setSummaryEvent('')}
+                  >
+                    <span className="asp-event-chip__num">
+                      {summaryLoading ? '…' : totalEventPlayers}
+                    </span>
+                    <span className="asp-event-chip__label">All Events</span>
+                  </button>
+                  {EVENT_TYPES.map(ev => (
+                    <button
+                      key={ev.key}
+                      type="button"
+                      className={`asp-event-chip${summaryEvent === ev.key ? ' asp-event-chip--active' : ''}`}
+                      onClick={() => setSummaryEvent(prev => (prev === ev.key ? '' : ev.key))}
+                    >
+                      <span className="asp-event-chip__num">
+                        {summaryLoading ? '…' : (Number(eventCounts[ev.key]) || 0)}
+                      </span>
+                      <span className="asp-event-chip__label">{ev.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="asp-card__subtitle">
+                Total Registered Players
+                {summaryEvent && (
+                  <span className="asp-card__subtitle-tag">
+                    {EVENT_TYPES.find(e => e.key === summaryEvent)?.label || 'No Event'}
+                  </span>
+                )}
+              </p>
 
               {summaryError && <div className="asp-alert asp-alert--error">{summaryError}</div>}
 
               <div className="asp-table-wrap">
                 {summaryLoading ? (
                   <p className="asp-empty">Loading from Firestore…</p>
-                ) : summaryRows.length === 0 ? (
-                  <p className="asp-empty">No registrations found.</p>
+                ) : visibleSummaryRows.length === 0 ? (
+                  <p className="asp-empty">
+                    {summaryEvent
+                      ? `No registrations for ${EVENT_TYPES.find(e => e.key === summaryEvent)?.label || 'No Event'} yet.`
+                      : 'No registrations found.'}
+                  </p>
                 ) : (
                   <table className="asp-table">
                     <thead>
@@ -1807,7 +1911,7 @@ const fetchSummary = useCallback(async () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {summaryRows.map(row => (
+                      {visibleSummaryRows.map(row => (
                         <tr key={`${row.sport}-${row.gender}`}>
                           <td className="asp-td--sport">{row.sport.toUpperCase()} {row.gender.toUpperCase()}</td>
                           <td>{fmt(row, 'elementary')}</td>
@@ -1861,6 +1965,11 @@ const fetchSummary = useCallback(async () => {
                   <option value="Female">Female</option>
                   <option value="Others">Others</option>
                 </select>
+                <select className="asp-filter-pill" value={filterEvent} onChange={e => setFilterEvent(e.target.value)}>
+                  <option value="">Event ▾</option>
+                  {EVENT_TYPES.map(ev => <option key={ev.key} value={ev.key}>{ev.label}</option>)}
+                  <option value="unassigned">No Event</option>
+                </select>
                 {hasFilters && (
                   <button className="asp-clear-btn" onClick={clearFilters}>
                     <FaTimes /> Clear Filter
@@ -1884,6 +1993,7 @@ const fetchSummary = useCallback(async () => {
                         <th>Grade/Year</th>
                         <th>Section</th>
                         <th>Sport</th>
+                        <th>Event</th>
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -1907,6 +2017,7 @@ const fetchSummary = useCallback(async () => {
                           <td>{reg.gradeLevel || '—'}</td>
                           <td>{reg.section || '—'}</td>
                           <td className="asp-td--sport">{reg.sport || '—'}</td>
+                          <td>{reg.event || '—'}</td>
                           <td>
                             <button className="asp-btn-view" onClick={() => setSelectedStudent(reg)}>View</button>
                           </td>
@@ -2005,9 +2116,15 @@ const fetchSummary = useCallback(async () => {
                   <p>{selectedStudent.position || '—'}</p>
                 </div>
               </div>
-              <div className="asp-form-group asp-form-group--center">
-                <label>Team Name</label>
-                <p>{selectedStudent.teamName || '—'}</p>
+              <div className="asp-form-row">
+                <div className="asp-form-group asp-form-group--center">
+                  <label>Team Name</label>
+                  <p>{selectedStudent.teamName || '—'}</p>
+                </div>
+                <div className="asp-form-group asp-form-group--center">
+                  <label>Event</label>
+                  <p>{selectedStudent.event || '—'}</p>
+                </div>
               </div>
               {selectedStudent.message && (
                 <div className="asp-form-group">

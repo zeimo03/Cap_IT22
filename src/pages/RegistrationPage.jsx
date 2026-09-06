@@ -1,6 +1,11 @@
-import React, { useState, useRef, useContext, useEffect } from 'react';
+import React, { useState, useRef, useContext, useEffect, useCallback } from 'react';
 import { AuthContext } from '../components/AuthContext';
-import { createRegistration, getSportsTeamsConfig } from '../services/firestoreService';
+import {
+  createRegistration,
+  getSportsTeamsConfig,
+  getEventRegistrationCounts,
+  EVENT_TYPES,
+} from '../services/firestoreService';
 import './RegistrationPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import {
@@ -38,6 +43,7 @@ const POSITIONS = [
 ];
 
 const INITIAL = {
+  event: '',
   fullName: '', dob: '', age: '',
   gender: '',
   contactNumber: '', email: '',
@@ -69,6 +75,34 @@ export default function RegistrationPage() {
   const [sportOptions, setSportOptions] = useState([]);
   const [teamOptions, setTeamOptions]   = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
+
+  // How many players have registered per event so far. Read from the
+  // public siteCounters doc — students can't read the registrations
+  // collection itself, so the count is published there instead.
+  const [eventCounts, setEventCounts]     = useState({});
+  const [countsLoading, setCountsLoading] = useState(true);
+
+  // `minimums` guards the moment right after a submit: the counter is
+  // bumped in the background, so a refresh that lands first would show
+  // the pre-registration number and make the count appear to jump back.
+  const loadEventCounts = useCallback((minimums) => {
+    setCountsLoading(true);
+    return getEventRegistrationCounts()
+      .then((counts) => {
+        const merged = { ...counts };
+        Object.entries(minimums || {}).forEach(([key, value]) => {
+          merged[key] = Math.max(Number(merged[key]) || 0, Number(value) || 0);
+        });
+        setEventCounts(merged);
+      })
+      .catch((error) => {
+        console.error('Failed to load event registration counts:', error);
+        setEventCounts({});
+      })
+      .finally(() => setCountsLoading(false));
+  }, []);
+
+  useEffect(() => { loadEventCounts(); }, [loadEventCounts]);
 
   const photoRef         = useRef(null);
   const waiverRef        = useRef(null);
@@ -149,6 +183,7 @@ export default function RegistrationPage() {
 
   const validate = () => {
     const errs = {};
+    if (!form.event)                  errs.event            = 'Please select an event to register for';
     if (!form.fullName.trim())        errs.fullName        = 'Full name is required';
     if (!form.dob)                    errs.dob              = 'Date of birth is required';
     if (!form.age)                    errs.age              = 'Age is required';
@@ -197,6 +232,17 @@ export default function RegistrationPage() {
 
         setSubmitted(true);
 
+        // Show the new number straight away, then re-sync with the
+        // server so the displayed count matches what was actually saved.
+        const chosenKey = (EVENT_TYPES.find(ev => ev.label === form.event) || {}).key;
+        if (chosenKey) {
+          const next = (Number(eventCounts[chosenKey]) || 0) + 1;
+          setEventCounts(prev => ({ ...prev, [chosenKey]: next }));
+          loadEventCounts({ [chosenKey]: next });
+        } else {
+          loadEventCounts();
+        }
+
     } catch (error) {
         console.error(error);
         alert(error.message);
@@ -219,9 +265,26 @@ export default function RegistrationPage() {
             <h2 style={{ fontFamily: 'Lalezar, sans-serif', fontSize: 22, margin: '0 0 8px', color: '#001529' }}>
               Registration Submitted!
             </h2>
-            <p style={{ fontSize: 13, color: '#5a6a7a', margin: '0 0 24px' }}>
-              Your player registration has been received. You'll be notified once it's reviewed.
+            <p style={{ fontSize: 13, color: '#5a6a7a', margin: '0 0 18px' }}>
+              Your registration for <strong style={{ color: '#001529' }}>{form.event || 'the event'}</strong> has
+              been received. You'll be notified once it's reviewed.
             </p>
+            <div className="reg-event-counts reg-event-counts--center">
+              <span className="reg-event-counts__title">Players Registered per Event</span>
+              <div className="reg-event-counts__chips">
+                {EVENT_TYPES.map(ev => (
+                  <div
+                    key={ev.key}
+                    className={`reg-event-chip${form.event === ev.label ? ' reg-event-chip--active' : ''}`}
+                  >
+                    <span className="reg-event-chip__num">
+                      {countsLoading ? '…' : (Number(eventCounts[ev.key]) || 0)}
+                    </span>
+                    <span className="reg-event-chip__label">{ev.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
             <button className="reg-btn-save" onClick={handleReset} style={{ margin: '0 auto' }}>
               Register Another Player
             </button>
@@ -262,6 +325,42 @@ export default function RegistrationPage() {
           )}
 
           <form className="reg-form" onSubmit={handleSave} noValidate>
+
+            {/* Row 0: Which event is this registration for?
+                Intramurals, Sportsfest and Prisaa all use this exact
+                same form — the dropdown just tags the registration. */}
+            <div className="reg-event-block">
+              <div className="reg-event-block__grid">
+                <Field label="Register For Event" required error={errors.event}>
+                  <select className="reg-select" value={form.event} onChange={set('event')} required>
+                    <option value="">Select Event</option>
+                    {EVENT_TYPES.map(ev => (
+                      <option key={ev.key} value={ev.label}>{ev.label}</option>
+                    ))}
+                  </select>
+                  <span className="reg-event-hint">
+                    All events use this same registration form — pick the one you're joining.
+                  </span>
+                </Field>
+
+                <div className="reg-event-counts">
+                  <span className="reg-event-counts__title">Players Registered per Event</span>
+                  <div className="reg-event-counts__chips">
+                    {EVENT_TYPES.map(ev => (
+                      <div
+                        key={ev.key}
+                        className={`reg-event-chip${form.event === ev.label ? ' reg-event-chip--active' : ''}`}
+                      >
+                        <span className="reg-event-chip__num">
+                          {countsLoading ? '…' : (Number(eventCounts[ev.key]) || 0)}
+                        </span>
+                        <span className="reg-event-chip__label">{ev.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Row 1: Full Name / DOB / Age */}
             <div className="reg-row reg-row--3">

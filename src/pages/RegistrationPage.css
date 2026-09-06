@@ -556,3 +556,105 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ══════════════════════════════════════════
+   EVENT SELECTOR + PER-EVENT COUNTS
+   Intramurals / Sportsfest / Prisaa share one form, so the
+   event picker sits at the very top of it, with a live count
+   of how many players have registered for each one.
+   ══════════════════════════════════════════ */
+.reg-event-block {
+  background: #f5f8fc;
+  border: 1px solid #e2e9f2;
+  border-left: 4px solid #FCBF19;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.reg-event-block__grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.reg-event-hint {
+  font-size: 10.5px;
+  color: #5a6a7a;
+  line-height: 1.35;
+}
+
+.reg-event-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reg-event-counts--center {
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.reg-event-counts__title {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #5a6a7a;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reg-event-counts__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reg-event-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 84px;
+  padding: 7px 12px;
+  background: #fff;
+  border: 1px solid #d6e0ec;
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.reg-event-chip--active {
+  border-color: #FCBF19;
+  background: #fffaed;
+}
+
+.reg-event-chip__num {
+  font-family: 'Lalezar', sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  color: #1d4ed8;
+}
+
+.reg-event-chip--active .reg-event-chip__num {
+  color: #001529;
+}
+
+.reg-event-chip__label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #001529;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .reg-event-block__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reg-event-chip {
+    flex: 1;
+    min-width: 0;
+  }
+}

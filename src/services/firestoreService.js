@@ -8,6 +8,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore';
 import {
   getStorage,
@@ -16,6 +17,41 @@ import {
   getDownloadURL,
 } from 'firebase/storage';
 import { db } from '../firebase';
+
+/* ─────────────────────────────────────────────
+   Registration events
+
+   Intramurals, Sportsfest and PRISAA all use the exact same player
+   registration form — the only difference is which event the student
+   is signing up for. That choice is stored on the registration itself
+   (`event` for display, `eventKey` for grouping/counting), so any
+   screen can break the numbers down per event.
+
+   Single source of truth: RegistrationPage builds its dropdown from
+   this list, and AdminSchedulePage builds its filter from it too. Add
+   a future event here once and both screens pick it up.
+───────────────────────────────────────────── */
+export const EVENT_TYPES = [
+  { key: 'intramurals', label: 'Intramurals' },
+  { key: 'sportsfest',  label: 'Sportsfest'  },
+  { key: 'prisaa',      label: 'Prisaa'      },
+];
+
+/* Accepts either the stored key ('prisaa') or the display label
+   ('Prisaa'), so old records and new ones both resolve. */
+export function getEventKey(value) {
+  if (!value) return '';
+  const needle = String(value).trim().toLowerCase();
+  const match  = EVENT_TYPES.find(
+    (e) => e.key === needle || e.label.toLowerCase() === needle,
+  );
+  return match ? match.key : '';
+}
+
+export function getEventLabel(value) {
+  const match = EVENT_TYPES.find((e) => e.key === getEventKey(value));
+  return match ? match.label : '';
+}
 
 /* ─────────────────────────────────────────────
    Generic collection fetcher
@@ -153,6 +189,11 @@ export async function createRegistration(uid, email, formData, photoFile, waiver
     gradeLevel: formData.gradeLevel || '',
     section:    formData.section    || '',
 
+    // Event the student is registering for
+    // (Intramurals / Sportsfest / Prisaa — all share this same form)
+    event:    getEventLabel(formData.event),
+    eventKey: getEventKey(formData.event),
+
     // Sport info
     teamName: formData.teamName || '',
     sport:    formData.sport    || '',
@@ -171,6 +212,23 @@ export async function createRegistration(uid, email, formData, photoFile, waiver
   };
 
   const docRef = await addDoc(collection(db, 'registrations'), registrationData);
+
+  // Bump the public per-event counter so the registration form can show
+  // live "how many have registered for this event" numbers without
+  // students ever reading the registrations collection itself (it holds
+  // addresses and emergency contacts — staff only).
+  //
+  // Fire-and-forget on purpose: the registration is already saved, so a
+  // denied or failed counter write must never surface as a failed
+  // registration. AdminSchedulePage recomputes the exact numbers from
+  // the real documents every time it loads and overwrites this counter,
+  // so any drift self-corrects.
+  if (registrationData.eventKey) {
+    bumpEventRegistrationCount(registrationData.eventKey).catch((err) => {
+      console.warn('Could not update the public event counter:', err);
+    });
+  }
+
   return docRef;
 }
 
@@ -463,4 +521,45 @@ export async function setLivePlayerCount(count) {
   if (!db) throw new Error('Firestore not initialized.');
   const ref = doc(db, 'siteCounters', 'liveCounters');
   await setDoc(ref, { players: count, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+/* ─────────────────────────────────────────────
+   Per-event registration counters
+   Stored alongside the player count, at:
+   siteCounters/liveCounters → { eventCounts: { intramurals, sportsfest, prisaa } }
+
+   Same reasoning as the player counter above: `registrations` is
+   staff-only, so students can't count it themselves. Instead the count
+   is nudged up by one when a registration is submitted
+   (bumpEventRegistrationCount) and re-derived from scratch whenever an
+   admin opens the Registration tab (setEventRegistrationCounts), which
+   keeps the public number honest even if a bump was ever missed.
+───────────────────────────────────────────── */
+export async function getEventRegistrationCounts() {
+  const data = await getLiveStatsCounters();
+  const raw = data.eventCounts || {};
+  const counts = {};
+  EVENT_TYPES.forEach(({ key }) => { counts[key] = Number(raw[key]) || 0; });
+  return counts;
+}
+
+export async function bumpEventRegistrationCount(eventKey, by = 1) {
+  if (!db) throw new Error('Firestore not initialized.');
+  const key = getEventKey(eventKey);
+  if (!key) return;
+  const ref = doc(db, 'siteCounters', 'liveCounters');
+  await setDoc(
+    ref,
+    { eventCounts: { [key]: increment(by) }, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
+/* Overwrite the counters with freshly computed totals (admin reconcile). */
+export async function setEventRegistrationCounts(counts) {
+  if (!db) throw new Error('Firestore not initialized.');
+  const clean = {};
+  EVENT_TYPES.forEach(({ key }) => { clean[key] = Number(counts?.[key]) || 0; });
+  const ref = doc(db, 'siteCounters', 'liveCounters');
+  await setDoc(ref, { eventCounts: clean, updatedAt: serverTimestamp() }, { merge: true });
 }

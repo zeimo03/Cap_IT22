@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal, FaShieldAlt, FaUserShield } from "react-icons/fa";
+import { FaBars, FaTimes, FaUserCircle, FaHome, FaFlag, FaEdit, FaCalendarAlt, FaMedal, FaShieldAlt, FaUserShield, FaChartPie } from "react-icons/fa";
 import { SidebarContext } from "../Sidebar/SidebarContext";
 import { AuthContext } from "../AuthContext";
 import "./Sidebar.css";
@@ -102,6 +102,21 @@ function Sidebar() {
                 <FaUserShield />
               </button>
             )}
+
+            {/* Data Analytics icon — super admins only. The slide-out
+                panel already links here, but the rail is what's visible
+                without opening anything, so super admins can reach their
+                own dashboard in one click. */}
+            {userProfile?.role === 'superadmin' && (
+              <button
+                className={`sidebar-btn ${location.pathname === "/superadmin" ? "active" : ""}`}
+                aria-label="Data Analytics"
+                data-label="Analytics"
+                onClick={() => navigate('/superadmin')}
+              >
+                <FaChartPie />
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -164,9 +179,9 @@ function Sidebar() {
           )}
           {/* Super Admin — visible to super admins only */}
           {userProfile?.role === 'superadmin' && (
-            <Link to="/superadmin" className="panel-nav-item">
-              <FaUserCircle className="panel-nav-icon" />
-              <span>Super Admin</span>
+            <Link to="/superadmin" className={`panel-nav-item ${location.pathname === "/superadmin" ? "active" : ""}`}>
+              <FaChartPie className="panel-nav-icon" />
+              <span>Data Analytics</span>
             </Link>
           )}
         </nav>
