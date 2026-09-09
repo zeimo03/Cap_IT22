@@ -3,7 +3,7 @@ import './MatchSchedulesPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import { FaSearch, FaTrophy } from 'react-icons/fa';
 import { FiChevronDown } from 'react-icons/fi';
-import { getMatchSchedules } from '../services/firestoreService';
+import { getMatchSchedules, getMatchRecords } from '../services/firestoreService';
 
 /* ═══════════════════════════════════════════════════════════
    This page is fully data-driven: every match shown here comes
@@ -36,10 +36,50 @@ function colorFor(name) {
   return PALETTE[Math.abs(hash) % PALETTE.length];
 }
 
+/* ── Remove the child division/format suffix from legacy schedule records.
+   Older admin saves stored values such as "MEN 5v5" in category. The
+   public schedule should show only the sport and division, not the format. ── */
+function displayCategory(category) {
+  return (category || '')
+    .trim()
+    .replace(/\s+\d+\s*[v×x]\s*\d+\s*$/i, '')
+    .replace(/\s+$/, '')
+    .trim();
+}
+
+/* ── Results saved by Moderator, matched back onto the schedule ──
+   Newer records carry the scheduleId, which is exact. Older ones are
+   matched on sport + division + both team names. ── */
+function norm(value) {
+  return (value || '').trim().toLowerCase();
+}
+
+function recordMatchesSchedule(record, schedule) {
+  if (!record || !schedule) return false;
+  if (record.scheduleId) return String(record.scheduleId) === String(schedule.id);
+  if (norm(record.sportName) !== norm(schedule.sport)) return false;
+  const rc = norm(displayCategory(record.category));
+  const sc = norm(displayCategory(schedule.category));
+  if (rc && sc && rc !== sc && !rc.endsWith(` ${sc}`) && !sc.endsWith(` ${rc}`)) return false;
+  const roster = record.participants?.length ? record.participants : [record.teamA, record.teamB];
+  const names = roster.map(p => norm(p?.name)).filter(Boolean);
+  return names.includes(norm(schedule.teamA)) && names.includes(norm(schedule.teamB));
+}
+
+/* Winner's name for a finished fixture, or null while it's unplayed. */
+function winnerNameOf(record) {
+  if (!record || record.draw || record.winner === 'DRAW') return null;
+  const roster = record.participants?.length ? record.participants : [];
+  if (roster.length > 2) return roster.find(p => p.place === 1)?.name || null;
+  if (record.winner === 'A') return record.teamA?.name || null;
+  if (record.winner === 'B') return record.teamB?.name || null;
+  return null;
+}
+
 /* ── Build the tab key/label for a match's sport + category ── */
 function categoryOf(match) {
   const sport = (match.sport || '').trim();
-  const cat = (match.category || '').trim();
+  const cat = displayCategory(match.category);
   const label = cat && cat.toLowerCase() !== 'general' ? `${sport} ${cat}` : sport;
   return { key: label.toUpperCase(), label };
 }
@@ -65,7 +105,7 @@ function formatTime(timeStr) {
 /* ═══════════════════════════════════════════════════════════
    TEAM PILL — avatar + name, used inside round/bracket cards
    ═══════════════════════════════════════════════════════════ */
-function TeamPill({ name, logo }) {
+function TeamPill({ name, logo, result }) {
   if (!name) {
     return (
       <div className="ms-team-pill ms-team-pill--tbd">
@@ -81,6 +121,18 @@ function TeamPill({ name, logo }) {
         : <span className="ms-team-pill__avatar" style={{ background: colorFor(name) }}>{name.charAt(0)}</span>
       }
       <span className="ms-team-pill__name">{name}</span>
+      {result && (
+        <span
+          style={{
+            marginLeft: 'auto', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.06em',
+            padding: '2px 7px', borderRadius: 20,
+            background: result === 'WIN' ? '#e6f7ec' : result === 'DRAW' ? '#eef1f8' : '#fdeeea',
+            color: result === 'WIN' ? '#14713a' : result === 'DRAW' ? '#46536b' : '#a83218',
+          }}
+        >
+          {result}
+        </span>
+      )}
     </div>
   );
 }
@@ -90,7 +142,7 @@ function TeamPill({ name, logo }) {
    columns by stage/round exactly as the admin generated them
    (round-robin legs, bracket stages, or grand-final matches)
    ═══════════════════════════════════════════════════════════ */
-function RoundsView({ matches }) {
+function RoundsView({ matches, resultFor, champion }) {
   const columns = useMemo(() => {
     const map = new Map();
     matches.forEach(m => {
@@ -108,21 +160,32 @@ function RoundsView({ matches }) {
       {columns.map(([label, colMatches]) => (
         <div key={label} className="ms-rounds-col">
           <div className="ms-rounds-col__title">{label}</div>
-          {colMatches.map(m => (
-            <div key={m.id} className="ms-rounds-match">
-              {m.matchLabel && <span className="ms-rounds-match__label">{m.matchLabel}</span>}
-              <TeamPill name={m.teamA} logo={m.teamALogo} />
-              <span className="ms-rounds-match__vs">vs</span>
-              <TeamPill name={m.teamB} logo={m.teamBLogo} />
-            </div>
-          ))}
+          {colMatches.map((m) => {
+            const record = resultFor ? resultFor(m) : null;
+            const winner = winnerNameOf(record);
+            const badge = (team) => {
+              if (!record) return null;
+              if (!winner) return 'DRAW';
+              return norm(team) === norm(winner) ? 'WIN' : 'LOSE';
+            };
+            return (
+              <div key={m.id} className="ms-rounds-match">
+                {m.matchLabel && <span className="ms-rounds-match__label">{m.matchLabel}</span>}
+                <TeamPill name={m.teamA} logo={m.teamALogo} result={badge(m.teamA)} />
+                <span className="ms-rounds-match__vs">vs</span>
+                <TeamPill name={m.teamB} logo={m.teamBLogo} result={badge(m.teamB)} />
+              </div>
+            );
+          })}
         </div>
       ))}
       <div className="ms-rounds-col ms-rounds-col--champion">
         <FaTrophy className="ms-bracket-trophy" />
         <span className="ms-bracket-champion-label">CHAMPION</span>
         <div className="ms-bracket-champion-box">
-          <span className="ms-bracket-champion-placeholder">?</span>
+          {champion
+            ? <span className="ms-bracket-champion-name" style={{ fontWeight: 800 }}>{champion}</span>
+            : <span className="ms-bracket-champion-placeholder">?</span>}
         </div>
       </div>
     </div>
@@ -130,7 +193,7 @@ function RoundsView({ matches }) {
 }
 
 /* ── Schedule table for a single day ── */
-function ScheduleDayTable({ day, matches }) {
+function ScheduleDayTable({ day, matches, resultFor }) {
   return (
     <div className="ms-day-card">
       <div className="ms-day-header">{day}</div>
@@ -147,9 +210,28 @@ function ScheduleDayTable({ day, matches }) {
             <div className="ms-cell ms-cell-sport" role="cell">{categoryOf(m).label}</div>
             <div className="ms-cell ms-cell-venue" role="cell">{m.location || '—'}</div>
             <div className="ms-cell ms-cell-team ms-cell-team--body" role="cell">
-              <span>{m.teamA}</span>
-              <span className="ms-team-vs">vs</span>
-              <span>{m.teamB}</span>
+              {(() => {
+                const record = resultFor ? resultFor(m) : null;
+                const winner = winnerNameOf(record);
+                const bold = (team) => (winner && norm(team) === norm(winner) ? { fontWeight: 800 } : undefined);
+                return (
+                  <>
+                    <span style={bold(m.teamA)}>{m.teamA}</span>
+                    <span className="ms-team-vs">vs</span>
+                    <span style={bold(m.teamB)}>{m.teamB}</span>
+                    {record && (
+                      <span
+                        style={{
+                          marginLeft: 8, fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.06em',
+                          padding: '2px 7px', borderRadius: 20, background: '#eef1f8', color: '#46536b',
+                        }}
+                      >
+                        {winner ? `${winner} WON` : 'DRAW'}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         ))}
@@ -165,6 +247,7 @@ export default function MatchSchedulesPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [matchesByLevel, setMatchesByLevel] = useState({ elementary: [], highSchool: [], college: [] });
+  const [records, setRecords] = useState([]); // Moderator results, all levels
   const contactRef = React.useRef(null);
 
   /* ── Load real data from Firestore for every level ── */
@@ -181,6 +264,15 @@ export default function MatchSchedulesPage() {
         ]);
         if (cancelled) return;
 
+        /* Results are optional: if the moderator's records can't be read,
+           the schedule still renders, just without WIN/LOSE badges. */
+        const recordLists = await Promise.all(
+          ['elementary', 'highSchool', 'college'].map(levelKey =>
+            getMatchRecords(levelKey).catch(() => [])),
+        );
+        if (cancelled) return;
+        setRecords(recordLists.flat().filter(Boolean));
+
         const tag = (levelKey, matches) =>
           (matches || [])
             .filter(m => m && m.teamA && m.teamB)
@@ -193,7 +285,10 @@ export default function MatchSchedulesPage() {
         });
       } catch (e) {
         console.error('Failed to load match schedules:', e);
-        if (!cancelled) setMatchesByLevel({ elementary: [], highSchool: [], college: [] });
+        if (!cancelled) {
+          setMatchesByLevel({ elementary: [], highSchool: [], college: [] });
+          setRecords([]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -280,6 +375,39 @@ export default function MatchSchedulesPage() {
     return days;
   }, [scheduledMatches, search]);
 
+  /* One saved result per fixture, so the same record can never be shown
+     against two different matches. */
+  const resultFor = useMemo(() => {
+    const byScheduleId = new Map();
+    const used = new Set();
+    return (match) => {
+      if (byScheduleId.has(match.id)) return byScheduleId.get(match.id);
+      const hit = records.find((record, index) =>
+        !used.has(index) && recordMatchesSchedule(record, match)) || null;
+      if (hit) used.add(records.indexOf(hit));
+      byScheduleId.set(match.id, hit);
+      return hit;
+    };
+  }, [records]);
+
+  /* The champion is whoever won the last stage of this category's bracket
+     — filled in only once that final actually has a saved result. */
+  const champion = useMemo(() => {
+    if (generatedMatches.length === 0) return null;
+    const finals = generatedMatches.filter((m) => {
+      const stage = (m.stage || '').toLowerCase();
+      return stage.includes('final') || stage.includes('champion');
+    });
+    const maxRound = Math.max(...generatedMatches.map(m => (m.round != null ? m.round : -1)));
+    const lastRound = maxRound >= 0 ? generatedMatches.filter(m => m.round === maxRound) : [];
+    const candidates = finals.length ? finals : lastRound;
+    for (const match of candidates) {
+      const winner = winnerNameOf(resultFor(match));
+      if (winner) return winner.toUpperCase();
+    }
+    return null;
+  }, [generatedMatches, resultFor]);
+
   const hasAnyData = categories.length > 0;
 
   return (
@@ -362,7 +490,7 @@ export default function MatchSchedulesPage() {
             <div className="ms-bracket-card">
               <h3 className="ms-bracket-title">{category?.label || ''}</h3>
               {generatedMatches.length > 0 ? (
-                <RoundsView matches={generatedMatches} />
+                <RoundsView matches={generatedMatches} resultFor={resultFor} champion={champion} />
               ) : (
                 <p className="ms-bracket-empty">No bracket or rounds generated yet for {category?.label}.</p>
               )}
@@ -375,7 +503,7 @@ export default function MatchSchedulesPage() {
             <div className="ms-schedule-list">
               {filteredSchedule.length > 0 ? (
                 filteredSchedule.map(day => (
-                  <ScheduleDayTable key={day.day} day={day.day} matches={day.matches} />
+                  <ScheduleDayTable key={day.day} day={day.day} matches={day.matches} resultFor={resultFor} />
                 ))
               ) : search.trim() ? (
                 <p className="ms-schedule-empty">No matches found for "{search}".</p>

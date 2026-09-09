@@ -5,7 +5,7 @@ import './AdminSchedulePage.css';
 import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getSportsTeamsConfig, getMatchSchedules, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, setLivePlayerCount, setEventRegistrationCounts, getEventKey, getEventLabel, EVENT_TYPES } from '../services/firestoreService';
+import { getSportsTeamsConfig, getMatchSchedules, getMatchRecords, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, setLivePlayerCount, setEventRegistrationCounts, getEventKey, getEventLabel, EVENT_TYPES } from '../services/firestoreService';
 import SportsTeamsManager from './SportsTeamsManager';
 
 const LEVELS = [
@@ -149,6 +149,39 @@ const LEVEL_LABELS = { elementary: 'Elementary', highSchool: 'High School', coll
    those, fall back to shape: only the generator ever sets `round` to a
    number or attaches `stage`/`matchLabel`; the manual form always saves
    `round: null` and never sets those fields. */
+/* ── Moderator results, matched back onto the admin's fixtures ──
+   The admin needs to see which matches already have a saved result: those
+   are the ones that must not be silently re-dated or deleted, because the
+   Ranking page has already applied their points. ── */
+function normText(value) {
+  return (value || '').trim().toLowerCase();
+}
+
+function stripFormatSuffix(category) {
+  return (category || '').trim().replace(/\s+\d+\s*[v×x]\s*\d+\s*$/i, '').trim();
+}
+
+function recordMatchesSchedule(record, schedule) {
+  if (!record || !schedule) return false;
+  if (record.scheduleId) return String(record.scheduleId) === String(schedule.id);
+  if (normText(record.sportName) !== normText(schedule.sport)) return false;
+  const rc = normText(stripFormatSuffix(record.category));
+  const sc = normText(stripFormatSuffix(schedule.category));
+  if (rc && sc && rc !== sc && !rc.endsWith(` ${sc}`) && !sc.endsWith(` ${rc}`)) return false;
+  const roster = record.participants?.length ? record.participants : [record.teamA, record.teamB];
+  const names = roster.map(p => normText(p?.name)).filter(Boolean);
+  return names.includes(normText(schedule.teamA)) && names.includes(normText(schedule.teamB));
+}
+
+function recordWinnerName(record) {
+  if (!record || record.draw || record.winner === 'DRAW') return null;
+  const roster = record.participants?.length ? record.participants : [];
+  if (roster.length > 2) return roster.find(p => p.place === 1)?.name || null;
+  if (record.winner === 'A') return record.teamA?.name || null;
+  if (record.winner === 'B') return record.teamB?.name || null;
+  return null;
+}
+
 function isGeneratedMatch(m) {
   if (!m) return false;
   if (m.source) return m.source === 'generated';
@@ -615,6 +648,7 @@ function MatchScheduleFormatSection({ level }) {
   const [activeRound, setActiveRound] = useState(0);
 
   const [savedSchedules, setSavedSchedules] = useState([]); // persisted matches, this level
+  const [matchRecords, setMatchRecords] = useState([]);     // results saved by Moderator, this level
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [toast, setToast] = useState(null); // { text } | null
   const [successModal, setSuccessModal] = useState(null); // { sport, category, format, teams, rounds, matches } | null
@@ -636,6 +670,14 @@ function MatchScheduleFormatSection({ level }) {
       setTeamsList(cfg.teams || []);
       const schedules = await getMatchSchedules(level);
       setSavedSchedules(schedules);
+      /* Optional: the schedule manager still works if results can't be
+         read, it just won't show which fixtures are already recorded. */
+      try {
+        setMatchRecords(await getMatchRecords(level) || []);
+      } catch (recordError) {
+        console.warn('Match records unavailable:', recordError);
+        setMatchRecords([]);
+      }
     } catch (e) {
       console.error('Failed to load sports/teams/schedules:', e);
     } finally {
@@ -654,18 +696,13 @@ function MatchScheduleFormatSection({ level }) {
   /* ── Category options come from the selected sport's own divisions.
      If the admin never set up divisions for this sport, fall back to a
      single "General" category so the flow isn't blocked.
-     Prefixes the group label (e.g. "MEN") onto the division name when
-     they differ, so two divisions with the same name in different
-     groups (e.g. "MEN 5v5" vs "WOMEN 5v5") don't render as identical,
-     indistinguishable entries — this combined label is also what gets
-     saved as `category` on the schedule, so it stays distinguishable
-     downstream too (Moderator, rankings, etc). ── */
+     The group label is the schedule division (for example, Men/Women).
+     Do not save the child division name here because it is also used for
+     the match format (for example, 5v5) and must not appear in SPORTS. ── */
   const rawCategoryOptions = (selSport?.categoryGroups || []).flatMap(g =>
     (g.divisions || []).map(d => {
-      const name = (d.name || g.label || '').trim();
-      const group = (g.label || '').trim();
-      const label = (group && group.toLowerCase() !== name.toLowerCase()) ? `${group} ${name}`.trim() : name;
-      return { value: d.id, label, format: d.format };
+      const division = (g.label || d.name || '').trim();
+      return { value: d.id, label: division, format: d.format };
     })
   );
   const categoryOptions = rawCategoryOptions.length > 0
@@ -912,6 +949,8 @@ function MatchScheduleFormatSection({ level }) {
      the generator) is surfaced separately up top instead of being
      silently dropped, so it's always reachable via Edit to add the
      date/time/venue. */
+  const recordForMatch = (match) => matchRecords.find(r => recordMatchesSchedule(r, match)) || null;
+
   const undatedMatches = savedSchedules.filter(m => !m.date);
   const groupedByDate = savedSchedules
     .filter(m => m.date)
@@ -1351,17 +1390,26 @@ function MatchScheduleFormatSection({ level }) {
             {Object.entries(groupedByDate).map(([date, matches]) => (
               <div key={date} className="msf-daygroup">
                 <div className="msf-daygroup__head">{new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-                {matches.map(m => (
-                  <div key={m.id} className="msf-matchrow">
-                    <div className="msf-matchrow__time">{m.time}</div>
-                    <div className="msf-matchrow__mid">
-                      <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
-                      {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
+                {matches.map(m => {
+                  const record = recordForMatch(m);
+                  const winner = recordWinnerName(record);
+                  return (
+                    <div key={m.id} className="msf-matchrow">
+                      <div className="msf-matchrow__time">{m.time}</div>
+                      <div className="msf-matchrow__mid">
+                        <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
+                        {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
+                        {record && (
+                          <div className="msf-matchrow__loc" style={{ color: '#14713a', fontWeight: 700 }}>
+                            <FaTrophy /> {winner ? `${winner} won — result recorded` : 'Draw — result recorded'}
+                          </div>
+                        )}
+                      </div>
+                      <span className="msf-pill-sport">{m.sport}</span>
+                      <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
                     </div>
-                    <span className="msf-pill-sport">{m.sport}</span>
-                    <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ))}
           </>
@@ -1543,6 +1591,13 @@ function MatchScheduleFormatSection({ level }) {
                   Teams are locked because this match came from the schedule generator. Delete and re-generate to change matchups.
                 </p>
               )}
+              {recordForMatch(editForm) && (
+                <p className="msf-form-note" style={{ color: '#a83218', fontWeight: 700 }}>
+                  A moderator has already recorded a result for this match, and its rating points are live on
+                  the Ranking page. Editing the teams or deleting it will orphan that result — reopen the record
+                  in the Moderator page instead.
+                </p>
+              )}
 
 
               <div className="msf-form-group">
@@ -1573,6 +1628,12 @@ function MatchScheduleFormatSection({ level }) {
                   This will permanently remove <b>{editForm.teamA} vs {editForm.teamB}</b>
                   {editForm.date ? ` on ${editForm.date}` : ''}. This can't be undone.
                 </p>
+                {recordForMatch(editForm) && (
+                  <p style={{ color: '#a83218', fontWeight: 700 }}>
+                    This match already has a recorded result. Deleting the fixture leaves that result — and the
+                    rating points it awarded — with nothing to point at.
+                  </p>
+                )}
                 <div className="msf-confirm-delete__actions">
                   <button type="button" className="msf-btn-ghost" onClick={() => setDeleteConfirmOpen(false)}>
                     Cancel

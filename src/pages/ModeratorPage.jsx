@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FaChevronDown, FaTrophy, FaPlus, FaTimes, FaCheck, FaEdit,
-  FaExclamationTriangle, FaUsers, FaLock, FaInfo, FaSync,
+  FaExclamationTriangle, FaUsers, FaLock, FaInfo, FaSync, FaMedal,
+  FaCalculator, FaClock, FaStar, FaExchangeAlt,
 } from 'react-icons/fa';
 import './ModeratorPage.css';
 import {
@@ -29,24 +30,195 @@ const GAME_FORMATS = [
   { id: 'team-play', label: 'Team Play' },
 ];
 
-/* Which stat a sport is judged on: points scored, or elapsed time.
-   Anything not explicitly listed falls back to time-based, matching the
-   app's original (pre-points) behavior. */
+/* ── Sports format picker (the "Choose sports format" modal moderators see
+   first) — each choice decides two independent things for the rest of the
+   flow: whether the match is judged on points or elapsed time (mode), and
+   whether it's a straight 1-vs-1 or one team facing several opponents at
+   once (multi). Nothing else on the page renders until one is picked. */
+const FORMAT_CHOICES = [
+  {
+    id: '1v1-points', title: '1V1', tag: 'Points',
+    description: 'A one-on-one match where the winner is decided by the points or score each team earned.',
+    mode: 'points', multi: false, teams: 2,
+  },
+  {
+    id: '1v1-time', title: '1V1', tag: 'Time',
+    description: 'A one-on-one match where the winner is decided by the fastest recorded time.',
+    mode: 'time', multi: false, teams: 2,
+  },
+  {
+    id: 'many-points', title: '1 VS MANY', tag: 'Points',
+    description: 'One team faces several opponents in the same event, all scored by points. Every team is rated against every other team.',
+    mode: 'points', multi: true, teams: 4,
+  },
+  {
+    id: 'many-time', title: '1 VS MANY', tag: 'Time',
+    description: 'One team faces several opponents in the same event, all scored by time. Every team is rated against every other team.',
+    mode: 'time', multi: true, teams: 4,
+  },
+];
+
+function formatById(id) {
+  return FORMAT_CHOICES.find((f) => f.id === id) || null;
+}
+function formatHeadline(choice) {
+  if (!choice) return '';
+  return `${choice.title === '1V1' ? 'Single play' : '1 vs many play'} (${choice.tag})`;
+}
+
+/* ── Rating formula constants ──
+   Moderator and Ranking share the same Elo-style rating model:
+     E_A = 1 / (1 + 10^((R_B - R_A) / 400))          (expected score)
+     R_A' = R_A + K(S_A - E_A) + Ppu(F1 - F2 + F3)
+   where S_A is 1 for a win / 0 for a loss (0.5 on a tie), F1 is this team's
+   recorded points (or the time-mode performance value), F2 is that team's
+   total violations, and F3 is a flat comeback bonus. In a 1-vs-many event
+   the same formula runs once per opponent pairing and the changes are
+   summed — exactly what the confirmation screen prints out. */
+const K_FACTOR = 32;       // K: how strongly a single pairing can move a rating
+const PPU = 0.5;           // Ppu: weight applied to the performance term (F1 - F2 + F3)
+const COMEBACK_BONUS = 20; // F3 when the winning team came back from behind
+
+// Every brand-new team starts at the same baseline within each sport/division.
+// Keep this as the single source of truth for all fallback rating lookups.
+const INITIAL_POINTS_PER_SPORT = 1200;
+const DEFAULT_POINTS = INITIAL_POINTS_PER_SPORT;
+const MIN_MULTI_TEAMS = 3;
+const MAX_MULTI_TEAMS = 8;
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* Which stat a sport is normally judged on. Only used for a soft hint now —
+   the moderator's chosen sports format is what actually drives the form. */
 const POINTS_BASED_SPORTS = ['basketball', 'volleyball', 'table tennis', 'sepak takraw', 'badminton'];
-const TIME_BASED_SPORTS = ['mobile legends', 'chess', 'athletics'];
+const TIME_BASED_SPORTS = ['mobile legends', 'chess', 'athletics', 'swimming', 'track and field'];
 
 function scoringModeForSport(sportName) {
   const n = norm(sportName);
   if (POINTS_BASED_SPORTS.includes(n)) return 'points';
   if (TIME_BASED_SPORTS.includes(n)) return 'time';
-  return 'time';
+  return null;
 }
 
-const DEFAULT_POINTS = 1000;
-const uid = () => Math.random().toString(36).slice(2, 10);
+/* Case/whitespace-insensitive compare — schedules & team.sportIds store
+   sport/team *names* (free text from Admin), never ids. */
+function norm(str) {
+  return (str || '').trim().toLowerCase();
+}
+
+/* Schedule categories historically included the child format name, such as
+   "MEN 5v5". The moderator uses only the sport division, so strip that
+   format suffix while keeping legacy schedules matchable. */
+function displayCategory(category) {
+  return (category || '')
+    .trim()
+    .replace(/\s+\d+\s*[v×x]\s*\d+\s*$/i, '')
+    .replace(/\s+$/, '')
+    .trim();
+}
+
+/* Expected score for the team rated `ra` against an opponent rated `rb`. */
+function expectedScore(ra, rb) {
+  return 1 / (1 + Math.pow(10, (rb - ra) / 400));
+}
+
+/* Performance value (F1). The worksheet uses the team's recorded score/time
+   itself, not the difference between the two teams' scores. */
+function signedPerformance(mode, ownScore, oppScore) {
+  /* F1 is a DIFFERENCE, per the formula key — not a raw score. Returning
+     the team's own points here inflated every rating in a high-scoring
+     sport (an 88-point basketball win added +44 instead of +8) and gave
+     the loser a rating gain. Points: higher is better, so own − opponent.
+     Time: lower is better, so the sign flips. */
+  return mode === 'points' ? ownScore - oppScore : oppScore - ownScore;
+}
+
+/* True when `a` is the better result than `b` for this mode. */
+function isBetter(mode, a, b) {
+  return mode === 'points' ? a > b : a < b;
+}
+
+/* One head-to-head rating change: K(S − E) + Ppu(F1 − F2 + F3). */
+function pairComputation({ mode, ownRating, oppRating, ownScore, oppScore, violations, comeback, sOverride }) {
+  const E = expectedScore(ownRating, oppRating);
+  let S;
+  if (sOverride != null) S = sOverride;
+  else if (ownScore === oppScore) S = 0.5;
+  else S = isBetter(mode, ownScore, oppScore) ? 1 : 0;
+  const f1 = signedPerformance(mode, ownScore, oppScore);
+  const f2 = violations || 0;
+  const f3 = comeback && S === 1 ? COMEBACK_BONUS : 0;
+  const change = K_FACTOR * (S - E) + PPU * (f1 - f2 + f3);
+  return { E, S, f1, f2, f3, change, ownRating, oppRating };
+}
+
+/* Full computation for a whole match: every team rated against every other
+   team, changes summed, placements resolved from the raw scores. */
+function buildComputation({ rows, mode, winnerOverrideId }) {
+  const ordered = [...rows].sort((a, b) => (mode === 'points' ? b.score - a.score : a.score - b.score));
+  const placeById = {};
+  ordered.forEach((r, i) => { placeById[r.id] = i + 1; });
+
+  const teams = rows.map((t) => {
+    const opponents = rows.filter((o) => o.id !== t.id);
+    const pairings = opponents.map((o) => {
+      const sOverride = rows.length === 2 && winnerOverrideId
+        ? (winnerOverrideId === t.id ? 1 : 0)
+        : null;
+      const p = pairComputation({
+        mode,
+        ownRating: t.prevPoints,
+        oppRating: o.prevPoints,
+        ownScore: t.score,
+        oppScore: o.score,
+        violations: t.totalViolations,
+        comeback: t.comeback,
+        sOverride,
+      });
+      return { ...p, oppId: o.id, oppName: o.name, oppScore: o.score };
+    });
+    const change = pairings.reduce((s, p) => s + p.change, 0);
+    const expected = pairings.length ? pairings.reduce((s, p) => s + p.E, 0) / pairings.length : 0;
+    const totalF1 = pairings.reduce((s, p) => s + p.f1, 0);
+    const wins = pairings.filter((p) => p.S === 1).length;
+    return {
+      ...t,
+      pairings,
+      expected,
+      change,
+      totalF1,
+      wins,
+      finalPoints: round4(t.prevPoints + change),
+      place: placeById[t.id],
+    };
+  });
+
+  const winnerId = winnerOverrideId && rows.length === 2
+    ? winnerOverrideId
+    : (teams.find((t) => t.place === 1)?.id ?? null);
+
+  return { teams, winnerId };
+}
+
+function round4(n) {
+  return Math.round(n * 10000) / 10000;
+}
+
+/* Points are stored with decimals (a rating of 1026.0168 is a real value,
+   not a rounding artefact) — this prints them without trailing zeros. */
+function fmtPts(n) {
+  if (n == null || Number.isNaN(n)) return '—';
+  const r = round4(Number(n));
+  return Number.isInteger(r) ? String(r) : String(Number(r.toFixed(4)));
+}
+function fmtSigned(n, digits = 4) {
+  if (n == null || Number.isNaN(n)) return '—';
+  const v = Number(n);
+  return `${v >= 0 ? '+' : ''}${Number(v.toFixed(digits))}`;
+}
 
 /* Map a division's saved format id (from Sports & Teams) to one of
-   the 3 game-format buckets used on this screen. */
+   the 3 game-format buckets used by the summary filter. */
 function bucketForFormat(formatId) {
   if (formatId === 'single-time') return 'solo-time';
   if (formatId === 'single-solo' || formatId === 'single-group') return 'solo-points';
@@ -54,39 +226,13 @@ function bucketForFormat(formatId) {
   return 'solo-points';
 }
 
-/* Same flattening logic Sports & Teams uses: one row per division,
-   falling back to the category-group label when a division has no
-   name of its own. Keeps Moderator perfectly in sync with Admin. */
+/* Same flattening logic Sports & Teams uses: one row per division. */
 function flatDivisions(sport) {
   return (sport?.categoryGroups || []).flatMap((g) => {
     const divs = g.divisions || [];
     if (divs.length === 0) return [{ id: `${g.id}_lbl`, name: g.label, format: '', groupLabel: g.label }];
     return divs.map((d) => ({ ...d, name: d.name || g.label, groupLabel: g.label }));
   });
-}
-
-/* Flattens every sport into "Sport + Division" picker options, e.g.
-   "Chess Men", matching the Select Sport mock exactly. */
-function buildSportOptions(sports) {
-  const opts = [];
-  (sports || []).forEach((sport) => {
-    const divs = flatDivisions(sport);
-    if (divs.length === 0) {
-      opts.push({
-        key: sport.id, sportId: sport.id, sportName: sport.name,
-        label: sport.name, category: '', logo: sport.logo, format: '',
-      });
-    } else {
-      divs.forEach((d) => {
-        opts.push({
-          key: `${sport.id}__${d.id}`, sportId: sport.id, sportName: sport.name,
-          label: `${sport.name} ${d.name}`.trim(), category: d.name,
-          logo: sport.logo, format: d.format || '',
-        });
-      });
-    }
-  });
-  return opts;
 }
 
 /* One row per sport (no division baked in) — feeds the "Select sport" dropdown. */
@@ -96,77 +242,112 @@ function buildSportOnlyOptions(sports) {
   }));
 }
 
-/* Divisions belonging to a single sport — feeds the "Select division" dropdown.
-   Sports with no configured divisions yield an empty list, which the UI
-   treats as "this sport has nothing to pick" rather than an error.
-   Prefixes the category-group label (e.g. "MEN") onto the division name
-   when they differ, so two divisions that share a name across groups
-   (e.g. "MEN 5v5" vs "WOMEN 5v5") stay distinguishable in the dropdown —
-   and, since this combined string is also what gets used as `category`,
-   distinguishable in the saved schedule/record data too. */
+/* Divisions belonging to a single sport. The group label is the displayed
+   division; the child division name is the format and is not shown. */
 function buildDivisionOptionsForSport(sport) {
   if (!sport) return [];
-  return flatDivisions(sport).map((d) => {
+  /* One option per real division. MEN 5v5 and MEN 3v3 both score into the
+     same `sport::men` scope, so offering "MEN" twice would just be two
+     buttons that do the same thing — and Ranking lists them deduped too. */
+  const byLabel = new Map();
+  flatDivisions(sport).forEach((d) => {
     const name = (d.name || '').trim();
     const group = (d.groupLabel || '').trim();
-    const label = (group && norm(group) !== norm(name)) ? `${group} ${name}`.trim() : name;
-    return { key: d.id, label, category: label, format: d.format || '' };
+    const label = displayCategory(group || name);
+    if (!label || byLabel.has(norm(label))) return;
+    byLabel.set(norm(label), { key: d.id, label, category: label, format: d.format || '' });
   });
+  return [...byLabel.values()];
 }
 
-/* Case/whitespace-insensitive compare — schedules & team.sportIds store
-   sport/team *names* (free text from Admin), never ids, so every match
-   against those needs to go through this rather than ===. */
-function norm(str) {
-  return (str || '').trim().toLowerCase();
+/* Case-insensitive lookup inside one scope's { teamName: points } map, so
+   a stored "Red Rhinos" still matches a config spelling of "RED RHINOS". */
+function pointsInScope(teamMap, teamName) {
+  if (!teamMap || !teamName) return null;
+  const hit = Object.entries(teamMap).find(([name]) => norm(name) === norm(teamName));
+  const value = hit ? Number(hit[1]) : NaN;
+  return Number.isFinite(value) ? value : null;
 }
 
-/* Team rankings are scoped per sport + division (e.g. Basketball MEN 5v5
-   and Basketball WOMEN 5v5 track completely independent points for the
-   same team name), rather than one global score per team at the level.
-   The stored shape is teamRankings/{level}.points = { [scopeKey]: { [teamName]: points } }. */
+/* A team's overall standing across every scope it has been rated in —
+   the same number the Ranking page shows under All Sports / All
+   Divisions. Divisions of one sport are averaged into a single sport
+   rating first, then the sports are averaged, so a sport with two
+   divisions doesn't count twice. Returns null for a team that has never
+   been rated anywhere. */
+function overallRating(allRankings, teamName) {
+  const bySport = new Map();
+  Object.entries(allRankings || {}).forEach(([scopeKey, teamMap]) => {
+    const points = pointsInScope(teamMap, teamName);
+    if (points == null) return;
+    const [scopeSport] = String(scopeKey).split('::');
+    if (!bySport.has(scopeSport)) bySport.set(scopeSport, []);
+    bySport.get(scopeSport).push(points);
+  });
+  const sportAverages = [...bySport.values()]
+    .map((list) => list.reduce((sum, p) => sum + p, 0) / list.length);
+  if (!sportAverages.length) return null;
+  return sportAverages.reduce((sum, avg) => sum + avg, 0) / sportAverages.length;
+}
+
+/* Team rankings are scoped per sport + division. */
 function rankingScopeKey(sportName, category) {
-  return `${norm(sportName)}::${norm(category || '')}`;
+  return `${norm(sportName)}::${norm(displayCategory(category))}`;
 }
 
-/* Category/division match, tolerant of schedules saved before divisions
-   started getting a group-label prefix (e.g. "5v5" vs "MEN 5v5") — a
-   bare old value is treated as matching any division whose combined
-   label ends with it, so pre-existing schedules aren't orphaned by that
-   naming change. Ambiguous only if a sport genuinely has two same-named
-   divisions across groups, which is exactly the case this is meant to
-   paper over until the schedule is regenerated with the new label. */
+/* Category match, tolerant of schedules saved before the group-label prefix. */
 function categoriesMatch(scheduleCategory, activeCategory) {
-  const a = norm(scheduleCategory);
-  const b = norm(activeCategory);
+  const a = norm(displayCategory(scheduleCategory));
+  const b = norm(displayCategory(activeCategory));
   if (a === b) return true;
   if (!a || !b) return false;
   return a.endsWith(` ${b}`) || b.endsWith(` ${a}`);
 }
 
-/* Assumed match duration, same 2-hour window the Home dashboard uses to
-   decide "ongoing" vs "finished" — there's no real end-time saved per
-   match, so this stand-in decides when a scheduled game counts as over. */
 const ASSUMED_MATCH_MINUTES = 120;
 
-/* Has this scheduled match actually finished (start time + assumed
-   duration already passed)? Moderator should only offer a match for
-   recording once it's genuinely over — not merely "today or earlier",
-   which could still be in progress or not yet started. */
+/* Where a fixture sits against the clock. The moderator's list shows every
+   scheduled matchup, not only the ones the clock says are over: generated
+   bracket/round matches often have no date yet (team vs team only), and a
+   game can end early. Status is a label and a sort order here, never a
+   gate on what can be recorded. */
+const MATCH_STATUS_LABEL = {
+  finished: 'Finished',
+  ongoing: 'Ongoing',
+  undated: 'No date yet',
+  upcoming: 'Upcoming',
+};
+const MATCH_STATUS_ORDER = { finished: 0, ongoing: 1, undated: 2, upcoming: 3 };
+const MATCH_STATUS_COLOR = {
+  finished: { bg: '#e6f7ec', fg: '#14713a' },
+  ongoing: { bg: '#fff3d6', fg: '#8a5f04' },
+  undated: { bg: '#eef1f8', fg: '#46536b' },
+  upcoming: { bg: '#eaf2ff', fg: '#14549b' },
+};
+
+function matchStatus(schedule) {
+  if (!schedule.date || !schedule.time) return 'undated';
+  const start = new Date(`${schedule.date}T${schedule.time}`);
+  if (Number.isNaN(start.getTime())) return 'undated';
+  const end = start.getTime() + ASSUMED_MATCH_MINUTES * 60000;
+  const now = Date.now();
+  if (now >= end) return 'finished';
+  if (now >= start.getTime()) return 'ongoing';
+  return 'upcoming';
+}
+
 function matchHasFinished(schedule) {
-  if (!schedule.date || !schedule.time) return false;
+  // Admin-generated schedules intentionally start without date/time. They are
+  // still valid schedule rows and must be selectable by the moderator; dated
+  // manual schedules continue to use the normal elapsed-time check.
+  if (!schedule?.date || !schedule?.time) return schedule?.source === 'generated';
   const start = new Date(`${schedule.date}T${schedule.time}`);
   if (Number.isNaN(start.getTime())) return false;
   const end = new Date(start.getTime() + ASSUMED_MATCH_MINUTES * 60000);
   return Date.now() >= end.getTime();
 }
 
-/* Fallback for when Sports & Teams (sportsTeamsConfig/{level}) is empty
-   even though matches have already been scheduled for this level — e.g.
-   it was reset separately, or never (re)saved after a data wipe. Rebuilds
-   a sport/division list straight from the schedule rows Admin already
-   created, so Moderator isn't stuck with an empty picker. Only used when
-   the real config has nothing. */
+/* Fallbacks for when Sports & Teams is empty but schedules already exist. */
 function deriveSportsFromSchedules(schedules) {
   const bySport = new Map();
   (schedules || []).forEach((s) => {
@@ -177,11 +358,12 @@ function deriveSportsFromSchedules(schedules) {
     }
     const sport = bySport.get(key);
     if (s.category) {
-      const catKey = norm(s.category);
+      const category = displayCategory(s.category);
+      const catKey = norm(category);
       if (!sport.categoryGroups.some((g) => norm(g.label) === catKey)) {
         sport.categoryGroups.push({
-          id: `${sport.id}__${catKey}`, label: s.category,
-          divisions: [{ id: `${sport.id}__${catKey}__d`, name: s.category, format: '' }],
+          id: `${sport.id}__${catKey}`, label: category,
+          divisions: [{ id: `${sport.id}__${catKey}__d`, name: category, format: '' }],
         });
       }
     }
@@ -189,8 +371,6 @@ function deriveSportsFromSchedules(schedules) {
   return [...bySport.values()];
 }
 
-/* Same idea for the team roster: pulled from teamA/teamB names + logos
-   already saved on each schedule row, when Sports & Teams has no teams. */
 function deriveTeamsFromSchedules(schedules) {
   const byName = new Map();
   (schedules || []).forEach((s) => {
@@ -221,10 +401,6 @@ function parseDuration(str) {
   return isNaN(total) ? null : total;
 }
 
-/* Digits-only auto-formatter for the duration field: strips anything
-   that isn't 0-9, caps at 6 digits (HHMMSS), and inserts the ":"
-   separators as you type — so typing "013045" becomes "01:30:45"
-   without ever having to type ":" yourself. */
 function formatDurationInput(raw) {
   const digits = (raw || '').replace(/\D/g, '').slice(0, 6);
   if (digits.length <= 2) return digits;
@@ -232,49 +408,71 @@ function formatDurationInput(raw) {
   return `${digits.slice(0, 2)}:${digits.slice(2, 4)}:${digits.slice(4)}`;
 }
 
-/* Digits-only sanitizer for the Points field (points-based sports) —
-   same "can't type letters" guarantee as the duration field. */
 function sanitizePointsInput(raw) {
   return (raw || '').replace(/\D/g, '').slice(0, 5);
 }
 
-function formatMinutes(mins) {
-  if (mins == null) return '--';
-  return `${Number.isInteger(mins) ? mins : mins.toFixed(2)} mins`;
+function minutesToDurationString(mins) {
+  if (mins == null || Number.isNaN(mins)) return '';
+  const totalSeconds = Math.round(mins * 60);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-/* Recomputes both teams' final points live from whatever's currently in
-   the inline edit row (violations, points/minutes) — same formula the
-   main "Update match record" form uses (computeChange, ÷4), applied on
-   top of each team's original prevPoints from when the record was first
-   saved. Winner and comeback aren't editable in this row, so those stay
-   fixed from the record. */
-function computeEditFinalPoints(record, editDraft, isPoints) {
-  const violA = parseInt(editDraft.totalViolationsA, 10) || 0;
-  const violB = parseInt(editDraft.totalViolationsB, 10) || 0;
+function formatMinutes(mins) {
+  if (mins == null) return '--';
+  const totalSeconds = Math.round(mins * 60);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}mins and ${String(s).padStart(2, '0')} seconds`;
+}
 
-  let diff = record.diff || 0;
-  if (isPoints) {
-    const pA = editDraft.pointsA === '' ? record.teamA.points : Number(editDraft.pointsA);
-    const pB = editDraft.pointsB === '' ? record.teamB.points : Number(editDraft.pointsB);
-    diff = (pA != null && pB != null && !Number.isNaN(pA) && !Number.isNaN(pB)) ? Math.abs(pA - pB) : 0;
-  }
-  // Time-mode records share a single "minutes" field across both teams in
-  // this row (no per-team time input here), so there's no two-sided time
-  // diff to recompute from — the record's original diff is kept as-is.
-
-  const isWinnerA = record.winner === 'A';
-  const changeA = (diff - violA + (isWinnerA ? 30 : -30) + (record.teamA.comeback ? 10 : 0)) / 4;
-  const changeB = (diff - violB + (!isWinnerA ? 30 : -30) + (record.teamB.comeback ? 10 : 0)) / 4;
-
-  return {
-    finalPointsA: Math.round((record.teamA.prevPoints ?? 0) + changeA),
-    finalPointsB: Math.round((record.teamB.prevPoints ?? 0) + changeB),
-  };
+function placeLabel(place) {
+  if (place === 1) return '1st Placer';
+  if (place === 2) return '2nd Placer';
+  if (place === 3) return '3rd Placer';
+  return `${place}th Placer`;
 }
 
 function initials(name) {
   return (name || '?').split(' ').map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+}
+
+/* Recomputes both teams' final points live from the inline edit row of the
+   summary table (1v1 records only). */
+function computeEditFinalPoints(record, editDraft, isPoints) {
+  const violA = parseInt(editDraft.totalViolationsA, 10) || 0;
+  const violB = parseInt(editDraft.totalViolationsB, 10) || 0;
+
+  let f1A, f1B;
+  if (isPoints) {
+    const pA = editDraft.pointsA === '' ? record.teamA.points : Number(editDraft.pointsA);
+    const pB = editDraft.pointsB === '' ? record.teamB.points : Number(editDraft.pointsB);
+    const valid = pA != null && pB != null && !Number.isNaN(pA) && !Number.isNaN(pB);
+    f1A = valid ? pA : 0;
+    f1B = valid ? pB : 0;
+  } else {
+    const isWinnerA = record.winner === 'A';
+    const diff = record.diff || 0;
+    f1A = isWinnerA ? diff : -diff;
+    f1B = isWinnerA ? -diff : diff;
+  }
+
+  const isWinnerA = record.winner === 'A';
+  const ratingA = record.teamA.prevPoints ?? DEFAULT_POINTS;
+  const ratingB = record.teamB.prevPoints ?? DEFAULT_POINTS;
+  const eA = expectedScore(ratingA, ratingB);
+  const eB = expectedScore(ratingB, ratingA);
+  const changeA = K_FACTOR * ((isWinnerA ? 1 : 0) - eA) + PPU * (f1A - violA + (record.teamA.comeback ? COMEBACK_BONUS : 0));
+  const changeB = K_FACTOR * ((!isWinnerA ? 1 : 0) - eB) + PPU * (f1B - violB + (record.teamB.comeback ? COMEBACK_BONUS : 0));
+
+  return {
+    finalPointsA: round4(ratingA + changeA),
+    finalPointsB: round4(ratingB + changeB),
+  };
 }
 
 /* ═══════════════════════════════════════════
@@ -312,7 +510,6 @@ function LevelsButton({ levelKey, onChange }) {
 
 /* ═══════════════════════════════════════════
    GENERIC OPTION DROPDOWN
-   variant: 'navy' (Sports option / Game format) | 'teams' (Teams)
 ═══════════════════════════════════════════ */
 function OptionDropdown({
   panelLabel, value, placeholder, options, onChange,
@@ -363,8 +560,9 @@ function OptionDropdown({
           <button
             key={o.key}
             type="button"
-            className={`mp-dd-option ${o.key === value ? 'mp-dd-option--active' : ''}`}
-            onClick={() => { onChange(o.key); setOpen(false); }}
+            className={`mp-dd-option ${o.key === value ? 'mp-dd-option--active' : ''} ${o.disabled ? 'mp-dd-option--disabled' : ''}`}
+            disabled={o.disabled}
+            onClick={() => { if (o.disabled) return; onChange(o.key); setOpen(false); }}
           >
             {renderOption ? renderOption(o) : o.label}
           </button>
@@ -386,6 +584,57 @@ function InfoTip({ caption, children, placement = 'top' }) {
         <span className="mp-tooltip__body">{children}</span>
       </span>
     </span>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   STEP 1 — CHOOSE SPORTS FORMAT
+═══════════════════════════════════════════ */
+function FormatPickerModal({ current, onChoose, onClose, match, suggestedId }) {
+  return (
+    <div className="mp-modal-overlay" onClick={onClose}>
+      <div className="mp-modal mp-format-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="mp-format-close" onClick={onClose} aria-label="Close"><FaTimes /></button>
+
+        <h2 className="mp-format-title">How was this played?</h2>
+        {match ? (
+          <p className="mp-format-sub">
+            <b>{match.teamA} vs {match.teamB}</b> — {match.sport}{match.category ? ` · ${match.category}` : ''}.
+            Pick the format and the record form opens with both teams already filled in.
+          </p>
+        ) : (
+          <p className="mp-format-sub">
+            No fixture selected, so you'll pick the teams yourself. For a scheduled match, close this and
+            choose it from the list instead.
+          </p>
+        )}
+
+        <div className="mp-format-grid">
+          {FORMAT_CHOICES.map((f) => (
+            <div
+              key={f.id}
+              className={`mp-format-card ${current === f.id ? 'mp-format-card--active' : ''} ${!current && suggestedId === f.id ? 'mp-format-card--active' : ''}`}
+            >
+              <div className="mp-format-card__head">
+                <span className="mp-format-card__title">{f.title}</span>
+                <span className={`mp-format-card__tag mp-format-card__tag--${f.mode}`}>
+                  {f.mode === 'points' ? <FaStar /> : <FaClock />} {f.tag}
+                </span>
+              </div>
+              <p className="mp-format-card__desc">{f.description}</p>
+              {suggestedId === f.id && match && (
+                <p className="mp-format-card__desc" style={{ color: '#8a5f04', fontWeight: 700, flex: 'none' }}>
+                  Suggested for {match.sport}.
+                </p>
+              )}
+              <button type="button" className="mp-format-card__btn" onClick={() => onChoose(f.id)}>
+                {current === f.id ? 'Selected' : 'Choose'}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -478,84 +727,259 @@ function ViolationsModal({ sideLabel, teamLabel, teamLogo, initialRows, onClose,
 }
 
 /* ═══════════════════════════════════════════
-   CONFIRMATION MODAL
+   FORMULA BLOCKS (confirmation screen)
+═══════════════════════════════════════════ */
+function ExpectedFormula({ tag, ownRating, oppRating, E }) {
+  const d = oppRating - ownRating;
+  const exponent = d / 400;
+  const pow = Math.pow(10, exponent);
+  return (
+    <div className="mp-fx">
+      <div className="mp-fx__cap">
+        <span className="mp-fx__dot" /> Expected score formula
+        <InfoTip caption="Expected score">
+          The Elo expectation — how likely this team was to win, judged only from the two ratings before the game.
+        </InfoTip>
+      </div>
+      <div className="mp-fx__main">
+        E<sub>{tag}</sub> = <span className="mp-frac"><span className="mp-frac__t">1</span><span className="mp-frac__b">1 + 10<sup>(R<sub>opp</sub> − R<sub>{tag}</sub>) / 400</sup></span></span>
+      </div>
+      <div className="mp-fx__steps">
+        <div>E<sub>{tag}</sub> = 1 / (1 + 10<sup>({fmtPts(oppRating)} − {fmtPts(ownRating)}) / 400</sup>)</div>
+        <div>E<sub>{tag}</sub> = 1 / (1 + 10<sup>{fmtPts(d)} / 400</sup>)</div>
+        <div>E<sub>{tag}</sub> = 1 / (1 + 10<sup>{exponent.toFixed(4)}</sup>)</div>
+        <div>E<sub>{tag}</sub> = 1 / (1 + {pow.toFixed(4)})</div>
+        <div>E<sub>{tag}</sub> = 1 / {(1 + pow).toFixed(4)}</div>
+      </div>
+      <div className="mp-fx__result">E<sub>{tag}</sub> = {E.toFixed(4)} or {(E * 100).toFixed(2)}%</div>
+    </div>
+  );
+}
+
+function FinalFormula({ tag, base, pairing, showBase = true }) {
+  const { S, E, f1, f2, f3, change } = pairing;
+  const kTerm = K_FACTOR * (S - E);
+  const perf = f1 - f2 + f3;
+  const pTerm = PPU * perf;
+  return (
+    <div className="mp-fx">
+      <div className="mp-fx__cap">
+        <span className="mp-fx__dot" /> Final score formula
+        <InfoTip caption="Final score">
+          Previous rating + K(S − E) + Ppu(team score/time performance − violations + comeback bonus).
+        </InfoTip>
+      </div>
+      <div className="mp-fx__main">
+        R<sub>{tag}</sub><sup>′</sup> = R<sub>{tag}</sub> + K(S − E<sub>{tag}</sub>) + Ppu(F<sub>1</sub> − F<sub>2</sub> + F<sub>3</sub>)
+      </div>
+      <div className="mp-fx__steps">
+        <div>R<sub>{tag}</sub><sup>′</sup> = {fmtPts(base)} + {K_FACTOR}({S} − {E.toFixed(4)}) + {PPU}({Number(f1.toFixed(4))} − {f2} + {f3})</div>
+        <div>R<sub>{tag}</sub><sup>′</sup> = {fmtPts(base)} + {K_FACTOR}({(S - E).toFixed(4)}) + {PPU}({Number(perf.toFixed(4))})</div>
+        <div>R<sub>{tag}</sub><sup>′</sup> = {fmtPts(base)} + {kTerm.toFixed(4)} + {pTerm.toFixed(4)}</div>
+        <div>R<sub>{tag}</sub><sup>′</sup> = {fmtPts(base)} {change >= 0 ? '+' : '−'} {Math.abs(change).toFixed(4)}</div>
+      </div>
+      {showBase && <div className="mp-fx__result">R<sub>{tag}</sub><sup>′</sup> = {fmtPts(base + change)}</div>}
+      {!showBase && (
+        <div className="mp-fx__result">
+          Change = <span className={change >= 0 ? 'mp-gain' : 'mp-loss'}>{fmtSigned(change)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Formula key matching the moderator's rating worksheet. */
+function FormulaKey({ mode }) {
+  const differenceLabel = mode === 'time'
+    ? 'Time performance value (opponent time − team time)'
+    : 'Team points / score';
+  return (
+    <div className="mp-formula-key">
+      <div className="mp-formula-key__title">Formula Key:</div>
+      <div className="mp-formula-key__section">
+        <div><b>E<sub>A</sub></b> = Expected score of Team B</div>
+        <div><b>E<sub>B</sub></b> = Expected score of Team A</div>
+        <div><b>R<sub>B</sub></b> = Rating of Opponent</div>
+        <div><b>R<sub>A</sub></b> = Rating of Team</div>
+      </div>
+      <div className="mp-formula-key__title mp-formula-key__title--final">Formula Key of Final Score</div>
+      <div className="mp-formula-key__section">
+        <div><b>R<sub>A</sub><sup>′</sup></b> = Final Rating</div>
+        <div><b>K</b> = Maximum possible rating gain or loss per match (standard {K_FACTOR})</div>
+        <div><b>S</b> = Standing: 1 = Win, 0.5 = Draw, 0 = Lose</div>
+        <div><b>Ppu</b> = Point per unit ({PPU})</div>
+        <div><b>F<sub>1</sub></b> = {differenceLabel}</div>
+        <div><b>F<sub>2</sub></b> = Violation (1 violation is equivalent to 1 point)</div>
+        <div><b>F<sub>3</sub></b> = Comeback (if yes +{COMEBACK_BONUS}, if no 0 points)</div>
+      </div>
+    </div>
+  );
+}
+
+/* Per-team computation column — one expected-score block, then one final
+   score block per opponent, then the summed total for multi events. */
+function TeamComputation({ team, tag, multi }) {
+  return (
+    <div className={`mp-compute-card mp-compute-card--${tag === 'A' ? 'a' : 'b'}`}>
+      <div className="mp-compute-card__name">{team.name}</div>
+
+      {!multi && (
+        <>
+          <ExpectedFormula tag={tag} ownRating={team.prevPoints} oppRating={team.pairings[0].oppRating} E={team.pairings[0].E} />
+          <FinalFormula tag={tag} base={team.prevPoints} pairing={team.pairings[0]} />
+        </>
+      )}
+
+      {multi && (
+        <>
+          {team.pairings.map((p) => (
+            <div className="mp-compute-pair" key={p.oppId}>
+              <div className="mp-compute-pair__title">{team.name} vs {p.oppName}</div>
+              <ExpectedFormula tag={tag} ownRating={p.ownRating} oppRating={p.oppRating} E={p.E} />
+              <FinalFormula tag={tag} base={team.prevPoints} pairing={p} showBase={false} />
+            </div>
+          ))}
+          <div className="mp-compute-total">
+            <div>Total change = {team.pairings.map((p) => fmtSigned(p.change, 2)).join(' ')} = <b className={team.change >= 0 ? 'mp-gain' : 'mp-loss'}>{fmtSigned(team.change)}</b></div>
+            <div>Final rating = {fmtPts(team.prevPoints)} {team.change >= 0 ? '+' : '−'} {Math.abs(team.change).toFixed(4)} = <b>{fmtPts(team.finalPoints)}</b></div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   FULL COMPUTATION MODAL (1 vs many)
+═══════════════════════════════════════════ */
+function PairingsModal({ teams, onClose }) {
+  return (
+    <div className="mp-modal-overlay" onClick={onClose}>
+      <div className="mp-modal mp-modal--wide" onClick={(e) => e.stopPropagation()}>
+        <button className="mp-format-close" onClick={onClose} aria-label="Close"><FaTimes /></button>
+        <h2 className="mp-confirm__title" style={{ textAlign: 'left' }}>Summary computation</h2>
+        <p className="mp-card__sub" style={{ marginTop: -8 }}>Detailed computation for each team</p>
+        <div className="mp-compute-grid mp-compute-grid--scroll">
+          {teams.map((t, i) => (
+            <TeamComputation key={t.id} team={t} tag={i % 2 === 0 ? 'A' : 'B'} multi />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   CONFIRMATION RECEIPT
 ═══════════════════════════════════════════ */
 function ConfirmModal({ pending, levelLabel, onCancel, onConfirm, saving }) {
-  const { sportName, category, teamA, teamB, winner, mode } = pending;
-  const winnerTeam = winner === 'A' ? teamA : teamB;
-  const diffLabel = mode === 'points' ? 'Points difference' : 'Time difference';
-  const statLabel = mode === 'points' ? 'Points' : 'Time';
-  const statValue = (team) => (mode === 'points' ? `${team.points} points` : formatMinutes(team.minutes));
+  const { sportName, category, mode, multi, teams, winnerId, formatLabel } = pending;
+  const [pairingsOpen, setPairingsOpen] = useState(false);
+  const winnerTeam = teams.find((t) => t.id === winnerId) || teams[0];
+  const diffLabel = mode === 'points' ? 'Total points difference' : 'Total time difference';
+  const statLabel = mode === 'points' ? 'Points/Score' : 'Time';
 
   return (
     <div className="mp-modal-overlay" onClick={saving ? undefined : onCancel}>
-      <div className="mp-modal" onClick={(e) => e.stopPropagation()}>
+      <div className={`mp-modal mp-modal--receipt ${multi ? 'mp-modal--wide' : ''}`} onClick={(e) => e.stopPropagation()}>
         <h2 className="mp-confirm__title">Confirmation match result</h2>
-        <div className="mp-confirm__meta">
+
+        <div className="mp-receipt__meta">
           <span>Level: <b>{levelLabel}</b></span>
           <span>Sport: <b>{sportName}</b></span>
           <span>Division: <b>{category || '—'}</b></span>
+          <span>Format: <b>{formatLabel}</b></span>
         </div>
 
-        <div className="mp-confirm__winner"><FaTrophy /> Winner: {winnerTeam.name}</div>
+        <div className="mp-receipt__winner"><FaTrophy /> Winner: {winnerTeam.name}</div>
 
-        <div className="mp-confirm__teams">
-          <div className="mp-confirm__team">
-            <div className="mp-confirm__team-name">{teamA.name}</div>
-            <div className="mp-confirm__logo">{teamA.logo ? <img src={teamA.logo} alt="" /> : initials(teamA.name)}</div>
-            <div className="mp-confirm__stat-row">
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">{statLabel}</div><div className="mp-confirm__stat-num">{statValue(teamA)}</div></div>
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Prev pts</div><div className="mp-confirm__stat-num">{teamA.prevPoints}</div></div>
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Final pts</div><div className="mp-confirm__stat-num">{teamA.finalPoints}</div></div>
-            </div>
-            <div className="mp-confirm__facts">
-              <div>{diffLabel}: <b>{pending.diff.toFixed(2)}</b></div>
-              <div>Violations: <b>{teamA.totalViolations}</b></div>
-              <div>Standing: <b>{winner === 'A' ? 'Winner' : 'Loser'}</b></div>
-              <div>Comeback: <b>{teamA.comeback ? 'Yes' : 'No'}</b></div>
-              <div>Equal points: <b className={teamA.equalPoints >= 0 ? 'mp-gain' : 'mp-loss'}>{teamA.equalPoints >= 0 ? '+' : ''}{teamA.equalPoints.toFixed(2)}</b></div>
-            </div>
-          </div>
+        <div className={`mp-receipt__teams ${multi ? 'mp-receipt__teams--multi' : ''}`}>
+          {teams.map((t, i) => (
+            <div className="mp-receipt__team-slot" key={t.id}>
+              {i > 0 && <div className="mp-receipt__vs">VS</div>}
+              <div className={`mp-rteam ${t.id === winnerId ? 'mp-rteam--win' : ''}`}>
+                <div className="mp-rteam__name">{t.name}</div>
+                <div className="mp-rteam__row">
+                  <div className="mp-rteam__logo">{t.logo ? <img src={t.logo} alt="" /> : initials(t.name)}</div>
+                  <div className="mp-rteam__pts">
+                    <div className="mp-rteam__pt">
+                      <span className="mp-rteam__pt-label">{t.change >= 0 ? 'Gained points' : 'Lose points'}</span>
+                      <span className={`mp-rteam__pt-num ${t.change >= 0 ? 'mp-gain' : 'mp-loss'}`}>{fmtSigned(t.change)}</span>
+                    </div>
+                    <div className="mp-rteam__pt">
+                      <span className="mp-rteam__pt-label">Previous points</span>
+                      <span className="mp-rteam__pt-num">{fmtPts(t.prevPoints)}</span>
+                    </div>
+                    <div className="mp-rteam__pt">
+                      <span className="mp-rteam__pt-label">Final points</span>
+                      <span className="mp-rteam__pt-num mp-rteam__pt-num--final">{fmtPts(t.finalPoints)}</span>
+                    </div>
+                  </div>
+                </div>
 
-          <div className="mp-confirm__vs">VS</div>
+                <ul className="mp-rteam__facts">
+                  <li><FaMedal /> Standing: <b>{multi ? placeLabel(t.place) : (t.id === winnerId ? 'Winner = 1' : 'Lose = 0')}</b></li>
+                  <li>{mode === 'points' ? <FaStar /> : <FaClock />} {statLabel}: <b>{mode === 'points' ? t.score : formatMinutes(t.score)}</b></li>
+                  <li><FaExclamationTriangle /> Violations: <b>{t.totalViolations}</b></li>
+                  <li><FaExchangeAlt /> Comeback: <b>{t.comeback ? `Yes (+${COMEBACK_BONUS})` : 'No (0)'}</b></li>
+                  <li><FaCalculator /> {diffLabel}: <b>{fmtSigned(t.totalF1, 2)}</b></li>
+                </ul>
 
-          <div className="mp-confirm__team">
-            <div className="mp-confirm__team-name">{teamB.name}</div>
-            <div className="mp-confirm__logo">{teamB.logo ? <img src={teamB.logo} alt="" /> : initials(teamB.name)}</div>
-            <div className="mp-confirm__stat-row">
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">{statLabel}</div><div className="mp-confirm__stat-num">{statValue(teamB)}</div></div>
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Prev pts</div><div className="mp-confirm__stat-num">{teamB.prevPoints}</div></div>
-              <div className="mp-confirm__stat"><div className="mp-confirm__stat-label">Final pts</div><div className="mp-confirm__stat-num">{teamB.finalPoints}</div></div>
+                {multi && (
+                  <div className="mp-diff-list">
+                    <div className="mp-diff-list__cap">{mode === 'points' ? 'Points' : 'Time'} difference</div>
+                    {t.pairings.map((p) => (
+                      <div className="mp-diff-list__row" key={p.oppId}>
+                        <span>vs {p.oppName}</span>
+                        <b className={p.f1 >= 0 ? 'mp-gain' : 'mp-loss'}>{fmtSigned(p.f1, 2)}</b>
+                      </div>
+                    ))}
+                    <div className="mp-diff-list__row mp-diff-list__row--total">
+                      <span>Total</span>
+                      <b>{fmtSigned(t.totalF1, 2)}</b>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="mp-confirm__facts">
-              <div>{diffLabel}: <b>{pending.diff.toFixed(2)}</b></div>
-              <div>Violations: <b>{teamB.totalViolations}</b></div>
-              <div>Standing: <b>{winner === 'B' ? 'Winner' : 'Loser'}</b></div>
-              <div>Comeback: <b>{teamB.comeback ? 'Yes' : 'No'}</b></div>
-              <div>Equal points: <b className={teamB.equalPoints >= 0 ? 'mp-gain' : 'mp-loss'}>{teamB.equalPoints >= 0 ? '+' : ''}{teamB.equalPoints.toFixed(2)}</b></div>
-            </div>
-          </div>
+          ))}
         </div>
 
-        <div className="mp-confirm__compute">
-          <div className="mp-confirm__compute-title">Summary computation</div>
-          <div className="mp-confirm__compute-row">
-            <span className="mp-confirm__compute-team">{teamA.name}</span>
-            <span>
-              Computation: {pending.diff.toFixed(2)} {mode === 'points' ? 'points difference' : 'time difference'} ({statValue(teamA)}) {winner === 'A' ? '+' : '-'} {teamA.totalViolations} (violation)
-              {' '}{winner === 'A' ? '+ 30 (winner)' : '- 30 (loser)'} {teamA.comeback ? '+ 10 (comeback)' : '+ 0 (no comeback)'} / 4 =
-              {' '}<span className={teamA.change >= 0 ? 'mp-gain' : 'mp-loss'}>{teamA.change >= 0 ? '+' : ''}{teamA.change.toFixed(2)} ({teamA.change >= 0 ? 'gained' : 'lost'} points)</span>
-            </span>
+        <div className="mp-receipt__compute-head">
+          <div>
+            <h3 className="mp-receipt__compute-title">Summary computation</h3>
+            <p className="mp-receipt__compute-sub">Detailed computation for each team</p>
           </div>
-          <div className="mp-confirm__compute-row">
-            <span className="mp-confirm__compute-team">{teamB.name}</span>
-            <span>
-              Computation: {pending.diff.toFixed(2)} {mode === 'points' ? 'points difference' : 'time difference'} ({statValue(teamB)}) {winner === 'B' ? '+' : '-'} {teamB.totalViolations} (violation)
-              {' '}{winner === 'B' ? '+ 30 (winner)' : '- 30 (loser)'} {teamB.comeback ? '+ 10 (comeback)' : '+ 0 (no comeback)'} / 4 =
-              {' '}<span className={teamB.change >= 0 ? 'mp-gain' : 'mp-loss'}>{teamB.change >= 0 ? '+' : ''}{teamB.change.toFixed(2)} ({teamB.change >= 0 ? 'gained' : 'lost'} points)</span>
-            </span>
-          </div>
+          {multi && (
+            <button type="button" className="mp-btn mp-btn--navy" onClick={() => setPairingsOpen(true)}>
+              <FaCalculator /> View full computation
+            </button>
+          )}
         </div>
+
+        <FormulaKey mode={mode} />
+
+        {!multi && (
+          <div className="mp-compute-grid">
+            {teams.map((t, i) => (
+              <TeamComputation key={t.id} team={t} tag={i === 0 ? 'A' : 'B'} multi={false} />
+            ))}
+          </div>
+        )}
+
+        {multi && (
+          <div className="mp-compute-mini">
+            {teams.map((t) => (
+              <div className="mp-compute-mini__row" key={t.id}>
+                <span className="mp-compute-mini__name">{t.name}</span>
+                <span>
+                  {fmtPts(t.prevPoints)} {t.change >= 0 ? '+' : '−'} {Math.abs(t.change).toFixed(4)} ={' '}
+                  <b>{fmtPts(t.finalPoints)}</b>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mp-confirm__warn"><FaExclamationTriangle /> This action cannot be undone. Please review all details before confirming.</div>
 
@@ -565,27 +989,36 @@ function ConfirmModal({ pending, levelLabel, onCancel, onConfirm, saving }) {
             <FaLock /> {saving ? 'Saving…' : 'Confirm update'}
           </button>
         </div>
+
+        {pairingsOpen && <PairingsModal teams={teams} onClose={() => setPairingsOpen(false)} />}
       </div>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════
-   SUCCESS MODAL
+   SUCCESS / INVALID / RESET MODALS
 ═══════════════════════════════════════════ */
 function SuccessModal({ record, onClose, onViewRanking }) {
-  const winner = record.winner === 'A' ? record.teamA : record.teamB;
-  const loser = record.winner === 'A' ? record.teamB : record.teamA;
+  const list = record.participants && record.participants.length
+    ? record.participants
+    : [record.teamA, record.teamB];
+  const winner = record.participants && record.participants.length
+    ? [...record.participants].sort((a, b) => (a.place || 99) - (b.place || 99))[0]
+    : (record.winner === 'A' ? record.teamA : record.teamB);
+
   return (
     <div className="mp-modal-overlay" onClick={onClose}>
       <div className="mp-modal mp-result-modal mp-result-modal--success" onClick={(e) => e.stopPropagation()}>
         <button className="mp-result-close" onClick={onClose} aria-label="Close"><FaTimes /></button>
         <div className="mp-result-icon mp-result-icon--success"><FaCheck /></div>
         <h2 className="mp-result-title">Match record updated successfully!</h2>
-        <p className="mp-result-sub">{winner.name} defeated {loser.name}</p>
-        <div className="mp-result-score">Final score: {winner.finalPoints} - {loser.finalPoints}</div>
+        <p className="mp-result-sub">{winner.name} takes the win</p>
+        <div className="mp-result-score">
+          {list.map((t) => `${t.name}: ${fmtPts(t.finalPoints)}`).join('  •  ')}
+        </div>
         <div className="mp-result-actions">
-          <button className="mp-btn mp-btn--white" onClick={onClose}>Cancel</button>
+          <button className="mp-btn mp-btn--white" onClick={onClose}>Close</button>
           <button className="mp-btn mp-btn--navy-solid" onClick={onViewRanking}>View ranking</button>
         </div>
       </div>
@@ -593,9 +1026,6 @@ function SuccessModal({ record, onClose, onViewRanking }) {
   );
 }
 
-/* ═══════════════════════════════════════════
-   INVALID MODAL
-═══════════════════════════════════════════ */
 function InvalidModal({ reasons, onClose }) {
   return (
     <div className="mp-modal-overlay" onClick={onClose}>
@@ -623,7 +1053,7 @@ function ResetConfirmModal({ onCancel, onConfirm }) {
       <div className="mp-modal mp-result-modal mp-reset-modal" onClick={(e) => e.stopPropagation()}>
         <div className="mp-result-icon mp-result-icon--warn"><FaExclamationTriangle /></div>
         <h2 className="mp-result-title">Reset this match record form?</h2>
-        <p className="mp-result-sub">Everything you've entered for both teams will be cleared.</p>
+        <p className="mp-result-sub">Everything you've entered for every team will be cleared.</p>
         <div className="mp-result-actions">
           <button className="mp-btn mp-btn--cancel" onClick={onCancel} style={{ flex: 1 }}>Cancel</button>
           <button className="mp-btn mp-btn--reset-solid" onClick={onConfirm} style={{ flex: 1 }}><FaSync /> Reset</button>
@@ -634,25 +1064,19 @@ function ResetConfirmModal({ onCancel, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════
-   TEAM PANEL (Team 1 / Team 2 form column)
+   MATCH PANEL — "Before the game" / "After the game"
 ═══════════════════════════════════════════ */
-function TeamPanel({
-  side, teamLabel, teamOptions, teamId, onTeamChange, teamLocked, readOnly,
-  mode, time, onTimeChange, points, onPointsChange,
-  totalViolations, onOpenViolations,
-  comeback, onComebackChange, prevPoints, finalPoints,
-  winner,
+function MatchPanel({
+  entry, index, mode, multi, teamOptions, teamLabel,
+  onChange, onOpenViolations, onRemove, canRemove,
+  prevPoints, compute, opponentLabel, opponentRating, opponentScoreText,
+  isWinner, hasWinner, onSetWinner, onSetLoser,
+  readOnly, teamLocked,
 }) {
-  const isWinner = winner === side;
-  // Status label always reflects reality: once a winner is marked, the
-  // *other* side's segment flips to "Lose" (this used to stay stuck on
-  // "Win" text just unhighlighted, which read as both teams winning).
-  const status = winner ? (isWinner ? 'win' : 'lose') : null;
-  const statusText = status === 'win' ? 'Win' : status === 'lose' ? 'Lose' : '—';
-  const statusClass = status === 'win' ? 'mp-pill__seg--win' : status === 'lose' ? 'mp-pill__seg--lose' : '';
-  const statusSeg = <div className={`mp-pill__seg ${statusClass}`}><FaTrophy /> {statusText}</div>;
-  const teamSeg = <div className="mp-pill__seg">{teamLabel}</div>;
-  const selectedTeam = teamOptions.find((o) => o.key === teamId);
+  const selectedTeam = teamOptions.find((o) => o.key === entry.teamId);
+  const totalViolations = entry.violations.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
+  const status = hasWinner ? (isWinner ? 'win' : 'lose') : null;
+
   const [vBump, setVBump] = useState(false);
   const prevViol = useRef(totalViolations);
   useEffect(() => {
@@ -664,6 +1088,15 @@ function TeamPanel({
     }
   }, [totalViolations]);
 
+  const scoreValue = mode === 'points' ? entry.points : entry.time;
+  const onScoreChange = (raw) => {
+    if (mode === 'points') onChange({ points: sanitizePointsInput(raw) });
+    else onChange({ time: formatDurationInput(raw) });
+  };
+
+  const expectedPct = compute ? `${(compute.expected * 100).toFixed(2)}%` : '';
+  const finalRate = compute ? fmtPts(compute.finalPoints) : '';
+
   return (
     <div className={`mp-team-panel${status ? ` mp-team-panel--${status}` : ''}`}>
       {selectedTeam && (
@@ -671,54 +1104,138 @@ function TeamPanel({
           {selectedTeam.logo ? <img src={selectedTeam.logo} alt="" /> : initials(selectedTeam.label)}
         </span>
       )}
-      <div className="mp-field">
-        <div className="mp-field__label">
-          {teamLabel}<span className="mp-required">*</span>
-          {teamLocked && <span className="mp-field__locked-tag"><FaLock /> From schedule</span>}
+
+      {canRemove && !readOnly && (
+        <button type="button" className="mp-team-panel__remove" onClick={onRemove} aria-label="Remove team">
+          <FaTimes />
+        </button>
+      )}
+
+      {/* ── BEFORE THE GAME ── */}
+      <div className="mp-sec-title">Before the game</div>
+
+      <div className="mp-grid2">
+        <div className="mp-field">
+          <div className="mp-field__label">
+            {teamLabel}<span className="mp-required">*</span>
+            <InfoTip caption="Team">The team you want to calculate for this panel.</InfoTip>
+            {teamLocked && <span className="mp-field__locked-tag"><FaLock /> From schedule</span>}
+          </div>
+          <OptionDropdown
+            variant="teams"
+            panelLabel="Teams"
+            value={entry.teamId}
+            placeholder="Select team"
+            options={teamOptions}
+            onChange={(k) => onChange({ teamId: k })}
+            disabled={teamLocked || readOnly}
+          />
+          <input className="mp-text-input mp-text-input--auto" readOnly value={selectedTeam ? `Auto rating: ${fmtPts(prevPoints)}` : 'Auto rating'} />
         </div>
-        <OptionDropdown
-          variant="teams"
-          panelLabel="Teams"
-          value={teamId}
-          placeholder="Select team"
-          options={teamOptions}
-          onChange={onTeamChange}
-          disabled={teamLocked}
-        />
+
+        <div className="mp-field">
+          <div className="mp-field__label">
+            {multi ? 'Opponents' : `Team ${index === 0 ? 2 : 1}`}
+            <InfoTip caption="Opponent rating">
+              {multi
+                ? 'Every other team in this event. Their average rating is shown here; each one is computed separately.'
+                : 'The opposing team, taken from the other panel.'}
+            </InfoTip>
+          </div>
+          <input className="mp-text-input mp-text-input--auto" readOnly value={opponentLabel || (multi ? 'No opponents yet' : 'Opponent team')} />
+          <input className="mp-text-input mp-text-input--auto" readOnly value={opponentRating != null ? `Auto rating: ${fmtPts(opponentRating)}` : 'Auto rating'} />
+        </div>
       </div>
 
-      <div className="mp-field">
-        {mode === 'points' ? (
-          <>
-            <div className="mp-field__label">
-              Points<span className="mp-required">*</span>
-              <InfoTip caption="Points info">Please input the points score of this team to analyze performance.</InfoTip>
-            </div>
-            <input
-              className="mp-text-input" type="text" inputMode="numeric" placeholder="Input points" maxLength={5}
-              value={points} onChange={(e) => onPointsChange(sanitizePointsInput(e.target.value))}
-              disabled={readOnly}
-            />
-          </>
-        ) : (
-          <>
-            <div className="mp-field__label">
-              Time duration<span className="mp-required">*</span>
-              <InfoTip caption="Time duration info">Please input the time duration to analyze performance.</InfoTip>
-            </div>
-            <input
-              className="mp-text-input" type="text" inputMode="numeric" placeholder="HH:MM:SS" maxLength={8}
-              value={time} onChange={(e) => onTimeChange(formatDurationInput(e.target.value))}
-              disabled={readOnly}
-            />
-          </>
-        )}
+      <div className="mp-field mp-field--center">
+        <div className="mp-field__label mp-field__label--center">
+          Expected score
+          <InfoTip caption="Expected score">Percentage chance of winning, computed from both ratings before the game.</InfoTip>
+        </div>
+        <div className="mp-field__hint">(percentage chance of winning)</div>
+        <input className="mp-text-input mp-text-input--auto" readOnly value={expectedPct || 'Auto percentage of winning'} />
+      </div>
+
+      {/* ── AFTER THE GAME ── */}
+      <div className="mp-sec-title">After the game</div>
+
+      <div className="mp-grid2">
+        <div className="mp-field">
+          <div className="mp-field__label">
+            Team rating (your team)
+            <InfoTip caption="Team rating">This team's saved rating before this match. New teams start at {DEFAULT_POINTS}.</InfoTip>
+          </div>
+          <input className="mp-text-input mp-text-input--auto" readOnly value={fmtPts(prevPoints)} />
+        </div>
+
+        <div className="mp-field">
+          <div className="mp-field__label">
+            Standing<span className="mp-required">*</span>
+            <InfoTip caption="Standing">
+              Filled automatically from the scores. You can still set it by hand if the official result differs.
+            </InfoTip>
+          </div>
+          <div className="mp-standing">
+            <label className="mp-standing__opt">
+              <span className="mp-standing__chip mp-standing__chip--win">Win</span>
+              <input
+                type="radio"
+                name={`standing-${entry.id}`}
+                checked={status === 'win'}
+                onChange={() => onSetWinner()}
+                disabled={readOnly}
+              />
+            </label>
+            <label className="mp-standing__opt">
+              <span className="mp-standing__chip mp-standing__chip--lose">Lose</span>
+              <input
+                type="radio"
+                name={`standing-${entry.id}`}
+                checked={status === 'lose'}
+                onChange={() => onSetLoser()}
+                disabled={readOnly}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="mp-grid2">
+        <div className="mp-field">
+          <div className="mp-field__label">
+            {mode === 'points' ? 'Team points (your team)' : 'Team time (your team)'}<span className="mp-required">*</span>
+            <InfoTip caption={mode === 'points' ? 'Points info' : 'Time duration info'}>
+              {mode === 'points'
+                ? 'Input the points this team scored so its performance can be analysed.'
+                : 'Input this team\'s finishing time (HH:MM:SS) so its performance can be analysed.'}
+            </InfoTip>
+          </div>
+          <input
+            className="mp-text-input"
+            type="text"
+            inputMode="numeric"
+            placeholder={mode === 'points' ? 'Input points' : 'HH:MM:SS'}
+            maxLength={mode === 'points' ? 5 : 8}
+            value={scoreValue}
+            onChange={(e) => onScoreChange(e.target.value)}
+            disabled={readOnly}
+          />
+        </div>
+
+        <div className="mp-field">
+          <div className="mp-field__label">
+            {multi
+              ? (mode === 'points' ? 'Opponents points (avg)' : 'Opponents time (avg)')
+              : (mode === 'points' ? 'Opponent points' : 'Opponent time')}
+          </div>
+          <input className="mp-text-input mp-text-input--auto" readOnly value={opponentScoreText || (mode === 'points' ? 'Opponent points' : 'Opponent time')} />
+        </div>
       </div>
 
       <div className="mp-field">
         <div className="mp-field__label">
           Violation
-          <InfoTip caption="Violation info">Click the button to input time duration to analyze performance.</InfoTip>
+          <InfoTip caption="Violation info">Log every violation this team committed — each one lowers the performance term.</InfoTip>
         </div>
         <div className="mp-violation-row">
           <div className="mp-violation-box">
@@ -729,39 +1246,65 @@ function TeamPanel({
         </div>
       </div>
 
-      {winner === side && (
-        <div className="mp-field">
-          <div className="mp-field__label">
-            Comeback rule
-            <InfoTip caption="Comeback rule info">Check this if the team was behind and came back to win the game.</InfoTip>
-          </div>
-          <label className="mp-checkbox">
+      <div className="mp-field">
+        <div className="mp-field__label">
+          Comeback rule<span className="mp-required">*</span>
+          <InfoTip caption="Comeback rule info">
+            Worth +{COMEBACK_BONUS} to the performance term, and only counted for a game this team actually won.
+          </InfoTip>
+        </div>
+        <div className="mp-radio-col">
+          <label className="mp-radio">
             <input
-              type="checkbox"
-              checked={!!comeback}
-              onChange={(e) => onComebackChange(e.target.checked)}
+              type="radio"
+              name={`comeback-${entry.id}`}
+              checked={entry.comeback === true}
+              onChange={() => onChange({ comeback: true })}
               disabled={readOnly}
             />
-            This team made a comeback and won the game
+            Yes (The team made a comeback and won the game)
+          </label>
+          <label className="mp-radio">
+            <input
+              type="radio"
+              name={`comeback-${entry.id}`}
+              checked={entry.comeback !== true}
+              onChange={() => onChange({ comeback: false })}
+              disabled={readOnly}
+            />
+            No (No comeback)
           </label>
         </div>
-      )}
+        {entry.comeback && status === 'lose' && (
+          <div className="mp-field__hint mp-field__hint--warn">
+            The comeback bonus is only applied to games this team won, so it won't be counted here.
+          </div>
+        )}
+      </div>
+
+      {/* ── FINAL RATE ── */}
+      <div className="mp-sec-title mp-sec-title--sub">Final rate</div>
 
       <div className="mp-field">
-        <div className="mp-points-row">
-          <div className="mp-points-box">
-            <div className="mp-points-box__label">Total points <span>(auto)</span></div>
-            <div className="mp-points-box__num">{prevPoints}</div>
-          </div>
-          <div className="mp-points-box">
-            <div className="mp-points-box__label">Final points rating <span>(auto)</span></div>
-            <div className="mp-points-box__num">{finalPoints ?? '—'}</div>
-          </div>
+        <input className="mp-text-input mp-text-input--auto" readOnly value={finalRate ? `Auto computed rating: ${finalRate}` : 'Auto (computed rating)'} />
+      </div>
+
+      <div className="mp-points-row">
+        <div className="mp-points-box">
+          <div className="mp-points-box__label">Current points <span>(saved)</span></div>
+          <div className="mp-points-box__num">{fmtPts(prevPoints)}</div>
+        </div>
+        <div className="mp-points-box">
+          <div className="mp-points-box__label">Final points rating <span>(auto)</span></div>
+          <div className="mp-points-box__num">{compute ? fmtPts(compute.finalPoints) : '—'}</div>
         </div>
       </div>
 
       <div className="mp-pill">
-        {side === 'A' ? (<>{teamSeg}{statusSeg}</>) : (<>{statusSeg}{teamSeg}</>)}
+        <div className="mp-pill__seg">{selectedTeam ? selectedTeam.label : teamLabel}</div>
+        <div className={`mp-pill__seg ${status === 'win' ? 'mp-pill__seg--win' : status === 'lose' ? 'mp-pill__seg--lose' : ''}`}>
+          <FaTrophy /> {status === 'win' ? 'Win' : status === 'lose' ? 'Lose' : '—'}
+        </div>
       </div>
     </div>
   );
@@ -770,6 +1313,8 @@ function TeamPanel({
 /* ═══════════════════════════════════════════
    MAIN PAGE
 ═══════════════════════════════════════════ */
+const mkEntry = () => ({ id: uid(), teamId: '', points: '', time: '', violations: [], comeback: false });
+
 export default function ModeratorPage() {
   const navigate = useNavigate();
   const summaryRef = useRef(null);
@@ -783,19 +1328,49 @@ export default function ModeratorPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  // Sports & Teams (sportsTeamsConfig/{level}) is the normal source, but if
-  // it's empty even though matches have already been scheduled for this
-  // level, fall back to building the sport/division/team lists straight
-  // from the schedule rows rather than leaving the moderator with nothing
-  // to pick from.
+  /* ── STEP 1: sports format ── */
+  const [formatId, setFormatId] = useState('');
+  /* The picker no longer opens on arrival: a moderator normally starts from
+     the finished-match list below, which selects the format itself. It's
+     still one click away, and 1-vs-many events open it manually. */
+  const [formatPickerOpen, setFormatPickerOpen] = useState(false);
+  /* The fixture whose format is being chosen. Set when a match is clicked
+     in the list, so choosing a format keeps that match's teams instead of
+     wiping the form. Null means "record something with no fixture". */
+  const [formatPickerFor, setFormatPickerFor] = useState(null);
+  const formatChoice = formatById(formatId);
+  const mode = formatChoice ? formatChoice.mode : 'points';
+  const isMulti = !!formatChoice?.multi;
+
   const effectiveSports = useMemo(
     () => (sports.length > 0 ? sports : deriveSportsFromSchedules(schedules)),
     [sports, schedules],
   );
-  const effectiveTeams = useMemo(
-    () => (teams.length > 0 ? teams : deriveTeamsFromSchedules(schedules)),
-    [teams, schedules],
-  );
+  const effectiveTeams = useMemo(() => {
+    /* Keep configured team records first so their ids, logos, and ranking
+       data remain authoritative, then add any teams referenced by saved
+       schedules. A schedule can legitimately contain a team that was not
+       saved in the current Sports & Teams config (or whose sport assignment
+       was later changed), and dropping it makes the Moderator dropdown
+       appear empty even though the schedule contains the matchup. */
+    const merged = new Map();
+    [...teams, ...deriveTeamsFromSchedules(schedules)].forEach((team) => {
+      const key = norm(team.name);
+      if (!key) return;
+      if (!merged.has(key)) {
+        merged.set(key, team);
+        return;
+      }
+      const existing = merged.get(key);
+      merged.set(key, {
+        ...team,
+        ...existing,
+        logo: existing.logo || team.logo || null,
+        sportIds: Array.from(new Set([...(team.sportIds || []), ...(existing.sportIds || [])])),
+      });
+    });
+    return [...merged.values()];
+  }, [teams, schedules]);
   const usingScheduleFallback = sports.length === 0 && effectiveSports.length > 0;
 
   const sportOptions = useMemo(() => buildSportOnlyOptions(effectiveSports), [effectiveSports]);
@@ -810,35 +1385,37 @@ export default function ModeratorPage() {
   const selectedDivision = divisionOptions.find((d) => d.key === divisionKey) || null;
   const divisionRequired = divisionOptions.length > 0;
 
-  // Combines the sport + division picks back into the shape the rest of the
-  // form (team matching, validation, confirmation summary) already expects.
+  /* Declared before activeSport because that memo reads it: a fixture
+     supplies the division for sports that have none configured. */
+  const [lockedMatch, setLockedMatch] = useState(null);
+
   const activeSport = useMemo(() => {
     if (!selectedSport) return null;
     if (!divisionRequired) {
-      return { sportId: selectedSport.id, sportName: selectedSport.name, category: '', logo: selectedSport.logo, format: '' };
+      /* No divisions configured for this sport in Sports & Teams. If the
+         work came from a fixture, keep that fixture's own division so
+         (say) Volleyball WOMEN and Volleyball MEN still rank separately
+         instead of collapsing into one nameless scope. */
+      const fromFixture = lockedMatch && norm(lockedMatch.sport) === norm(selectedSport.name)
+        ? (lockedMatch.category || '')
+        : '';
+      return { sportId: selectedSport.id, sportName: selectedSport.name, category: fromFixture, logo: selectedSport.logo || null, format: '' };
     }
     if (!selectedDivision) return null;
     return {
       sportId: selectedSport.id, sportName: selectedSport.name,
-      category: selectedDivision.category, logo: selectedSport.logo, format: selectedDivision.format,
+      category: selectedDivision.category, logo: selectedSport.logo || null, format: selectedDivision.format,
     };
-  }, [selectedSport, divisionRequired, selectedDivision]);
+  }, [selectedSport, divisionRequired, selectedDivision, lockedMatch]);
 
-  // form state
-  const [teamAId, setTeamAId] = useState('');
-  const [teamBId, setTeamBId] = useState('');
-  const [timeA, setTimeA] = useState('');
-  const [timeB, setTimeB] = useState('');
-  const [pointsA, setPointsA] = useState('');
-  const [pointsB, setPointsB] = useState('');
-  const [violA, setViolA] = useState([]);
-  const [violB, setViolB] = useState([]);
-  const [comebackA, setComebackA] = useState(false);
-  const [comebackB, setComebackB] = useState(false);
-  const [winner, setWinner] = useState(null);
-  const [lockedMatch, setLockedMatch] = useState(null); // finished schedule row picked from the panel below
-  const [lockedRecord, setLockedRecord] = useState(null); // saved record for lockedMatch, if it already has one (form goes read-only)
-  const [violModal, setViolModal] = useState(null); // 'A' | 'B' | null
+  /* ── form state: one entry per participating team ── */
+  const [entries, setEntries] = useState(() => [mkEntry(), mkEntry()]);
+  const [winnerId, setWinnerId] = useState(null);
+  const [winnerManual, setWinnerManual] = useState(false);
+
+  const [lockedRecord, setLockedRecord] = useState(null);
+  const [editingRecord, setEditingRecord] = useState(null); // record being re-computed from the summary table
+  const [violModal, setViolModal] = useState(null);         // entry id | null
   const [pending, setPending] = useState(null);
   const [invalidReasons, setInvalidReasons] = useState(null);
   const [successRecord, setSuccessRecord] = useState(null);
@@ -851,12 +1428,7 @@ export default function ModeratorPage() {
   const [editDraft, setEditDraft] = useState(null);
   const [flashId, setFlashId] = useState(null);
 
-  /* ── load config, schedules, records & rankings whenever the level changes ──
-     Promise.allSettled (not .all) so that one denied/failed collection
-     doesn't wipe out data that loaded fine from the others — e.g. Sports &
-     Teams being blocked by a rules issue shouldn't also blank out
-     schedules that loaded successfully. Any failures are surfaced instead
-     of failing silently. */
+  /* ── load config, schedules, records & rankings whenever the level changes ── */
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -920,23 +1492,60 @@ export default function ModeratorPage() {
     return () => { cancelled = true; };
   }, [level]);
 
-  const resetForm = useCallback(() => {
-    setTeamAId(''); setTeamBId('');
-    setTimeA(''); setTimeB('');
-    setPointsA(''); setPointsB('');
-    setViolA([]); setViolB([]);
-    setComebackA(false); setComebackB(false);
-    setWinner(null);
+  const resetForm = useCallback((teamCount) => {
+    const n = teamCount ?? entries.length;
+    setEntries(Array.from({ length: Math.max(2, n) }, () => mkEntry()));
+    setWinnerId(null);
+    setWinnerManual(false);
     setLockedMatch(null);
     setLockedRecord(null);
-  }, []);
+    setEditingRecord(null);
+  }, [entries.length]);
+
+  /* Choosing a sports format rebuilds the form from scratch with the right
+     number of team panels (2 for 1v1, 4 to start with for 1-vs-many). */
+  const teamIdByName = useCallback((name) => {
+    const hit = effectiveTeams.find((t) => norm(t.name) === norm(name));
+    return hit ? hit.id : '';
+  }, [effectiveTeams]);
+
+  /* Chosen after a match was clicked, so the fixture's two teams are
+     carried into the new panels. A 1-vs-many format keeps them as the
+     first two entries and leaves the rest blank to fill in. */
+  function handleChooseFormat(id) {
+    const f = formatById(id);
+    if (!f) return;
+    const fixture = formatPickerFor;
+    const seeded = fixture ? [teamIdByName(fixture.teamA), teamIdByName(fixture.teamB)] : [];
+
+    setFormatId(id);
+    setFormatPickerOpen(false);
+    setFormatPickerFor(null);
+    setEntries(Array.from({ length: f.teams }, (_, i) => ({ ...mkEntry(), teamId: seeded[i] || '' })));
+    setWinnerId(null);
+    setWinnerManual(false);
+    setLockedRecord(null);
+    setEditingRecord(null);
+    if (!fixture) setLockedMatch(null); // manual entry: nothing to lock to
+  }
 
   function handleResetClick() {
     setResetConfirmOpen(true);
   }
 
-  /* Schedule entries Admin created for the currently selected sport +
-     division, regardless of date. */
+  const updateEntry = useCallback((id, patch) => {
+    setEntries((es) => es.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  }, []);
+
+  const addEntry = () => {
+    setEntries((es) => (es.length >= MAX_MULTI_TEAMS ? es : [...es, mkEntry()]));
+  };
+  const removeEntry = (id) => {
+    setEntries((es) => (es.length <= MIN_MULTI_TEAMS ? es : es.filter((e) => e.id !== id)));
+    setWinnerId((w) => (w === id ? null : w));
+  };
+
+  /* ── schedule helpers ── */
   const scheduleMatchesForSelection = useMemo(() => {
     if (!activeSport) return [];
     return schedules.filter((s) =>
@@ -944,9 +1553,6 @@ export default function ModeratorPage() {
       && (divisionRequired ? categoriesMatch(s.category, activeSport.category) : true));
   }, [schedules, activeSport, divisionRequired]);
 
-  /* Of those, the ones whose match has actually finished — not just
-     "today or earlier", but past the assumed match duration. Schedule
-     rows Admin generated but hasn't dated/timed yet never count. */
   const readyTeamNames = useMemo(() => {
     const names = new Set();
     scheduleMatchesForSelection.forEach((s) => {
@@ -960,243 +1566,319 @@ export default function ModeratorPage() {
   const hasScheduleForSelection = scheduleMatchesForSelection.length > 0;
 
   const teamOptionsForSport = useMemo(() => {
-    if (!activeSport) return effectiveTeams.map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
-    const bySport = effectiveTeams.filter((t) => (t.sportIds || []).includes(activeSport.sportName));
+    if (!activeSport) return effectiveTeams.map((t) => ({ key: t.id, label: t.name, logo: t.logo || null }));
+    // Admin stores sport names in sportIds. Match by normalized name so
+    // casing/whitespace differences cannot hide teams from the moderator.
+    const bySport = effectiveTeams.filter((t) =>
+      (t.sportIds || []).some((sportName) => norm(sportName) === norm(activeSport.sportName))
+    );
     const pool = bySport.length ? bySport : effectiveTeams;
-    // No schedule made for this sport/division yet — fall back to every
-    // registered team rather than blocking the moderator entirely.
-    if (!hasScheduleForSelection) return pool.map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
-    // Schedule exists — only teams whose match has actually finished show up.
-    return pool
-      .filter((t) => readyTeamNames.has(norm(t.name)))
-      .map((t) => ({ key: t.id, label: t.name, logo: t.logo }));
-  }, [effectiveTeams, activeSport, hasScheduleForSelection, readyTeamNames]);
+    // Keep every team registered for the selected sport available here.
+    // The finished-match picker still controls which scheduled 1-vs-1 match
+    // can be loaded, but filtering this dropdown by match completion caused
+    // newly inputted schedules (especially future-dated ones) to show no
+    // teams at all.
+    return pool.map((t) => ({ key: t.id, label: t.name, logo: t.logo || null }));
+  }, [effectiveTeams, activeSport, hasScheduleForSelection, readyTeamNames, isMulti]);
 
-  const teamA = effectiveTeams.find((t) => t.id === teamAId);
-  const teamB = effectiveTeams.find((t) => t.id === teamBId);
 
-  /* Finished schedule rows for the current sport/division — the pool the
-     "Finished matches" panel offers moderators to pick from. */
-  const finishedMatches = useMemo(
-    () => scheduleMatchesForSelection.filter(matchHasFinished),
-    [scheduleMatchesForSelection],
-  );
-
-  /* A finished match already has a saved record once both team names show
-     up together (either order) in `records` for this sport/division —
-     surfaced on the card so moderators don't redo one by mistake, and
-     used to pull the saved details back into the form (read-only). */
   const findRecordForSchedule = useCallback((s) => records.find((r) => {
+    /* A record saved from this fixture carries its scheduleId, which is
+       exact. Falling straight through to the name/category comparison
+       missed records whose sport has no configured divisions (the record
+       stores an empty category, the schedule says "WOMEN"), so a match
+       that had just been recorded still offered to record it again. */
+    if (r.scheduleId) return String(r.scheduleId) === String(s.id);
     if (norm(r.sportName) !== norm(s.sport)) return false;
-    if (!categoriesMatch(r.category, s.category)) return false;
-    const names = [norm(r.teamA.name), norm(r.teamB.name)];
+    if (s.category && r.category && !categoriesMatch(r.category, s.category)) return false;
+    const names = [norm(r.teamA?.name), norm(r.teamB?.name)];
     return names.includes(norm(s.teamA)) && names.includes(norm(s.teamB));
   }), [records]);
   const isMatchRecorded = useCallback((s) => !!findRecordForSchedule(s), [findRecordForSchedule]);
 
-  /* Inverse of parseDuration() — turns a saved minutes value back into
-     the "HH:MM:SS" / "MM:SS" text the time input displays. */
-  function minutesToDurationString(mins) {
-    if (mins == null || Number.isNaN(mins)) return '';
-    const totalSeconds = Math.round(mins * 60);
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    const pad = (n) => String(n).padStart(2, '0');
-    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
-  }
+  /* Every scheduled matchup at this level, whatever sport or division it
+     belongs to — exactly what the public Match Schedules page lists,
+     including generated bracket matches that are still only "team vs
+     team" with no date attached. This is the moderator's entry point:
+     click the match and the sport, division, and both teams fill
+     themselves in. Ordering: not-yet-recorded first, then finished →
+     ongoing → undated → upcoming, newest first inside each group. */
+  const recordableMatches = useMemo(() => {
+    const startOf = (s) => {
+      const d = new Date(`${s.date}T${s.time || '00:00'}`);
+      return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+    return schedules
+      .filter((s) => s.teamA && s.teamB)
+      .map((s) => ({ ...s, status: matchStatus(s) }))
+      .sort((a, b) => {
+        const aDone = isMatchRecorded(a) ? 1 : 0;
+        const bDone = isMatchRecorded(b) ? 1 : 0;
+        if (aDone !== bDone) return aDone - bDone;
+        const byStatus = MATCH_STATUS_ORDER[a.status] - MATCH_STATUS_ORDER[b.status];
+        if (byStatus !== 0) return byStatus;
+        return startOf(b) - startOf(a);
+      });
+  }, [schedules, isMatchRecorded]);
 
-  /* Loads a saved record's details straight into the top form, read-only —
-     the moderator can see exactly what was submitted without retyping it.
-     Actually changing any of it happens in the summary table's Edit row. */
-  function applyRecordToForm(rec) {
-    const tA = effectiveTeams.find((t) => norm(t.name) === norm(rec.teamA.name));
-    const tB = effectiveTeams.find((t) => norm(t.name) === norm(rec.teamB.name));
-    setTeamAId(tA ? tA.id : rec.teamA.id);
-    setTeamBId(tB ? tB.id : rec.teamB.id);
-    setTimeA(minutesToDurationString(rec.teamA.minutes));
-    setTimeB(minutesToDurationString(rec.teamB.minutes));
-    setPointsA(rec.teamA.points != null ? String(rec.teamA.points) : '');
-    setPointsB(rec.teamB.points != null ? String(rec.teamB.points) : '');
-    setViolA(rec.teamA.violations || []);
-    setViolB(rec.teamB.violations || []);
-    setComebackA(rec.teamA.comeback ?? false);
-    setComebackB(rec.teamB.comeback ?? false);
-    setWinner(rec.winner || null);
-  }
+  /* ── ratings & live computation ── */
+  const scopeKey = activeSport ? rankingScopeKey(activeSport.sportName, activeSport.category) : null;
+  const scopedRankings = scopeKey ? (rankings[scopeKey] || {}) : {};
 
-  /* Clicking a finished-match card fills both team pickers from the
-     schedule row and locks them so the moderator records the two teams
-     the admin actually scheduled, not a mismatched pair. If that match
-     already has a saved record, the whole form is filled in and locked —
-     it's now view-only here; edits happen in the summary table below. */
-  function handlePickFinishedMatch(s) {
-    const rec = findRecordForSchedule(s);
-    if (rec) {
-      applyRecordToForm(rec);
-      setLockedMatch(s);
-      setLockedRecord(rec);
-      return;
+  const prevPointsFor = useCallback((teamName) => {
+    if (!teamName) return DEFAULT_POINTS;
+    // Re-opening a saved record: its own stored "previous points" are the
+    // right baseline, since live rankings already include this match.
+    const snapshot = editingRecord || lockedRecord;
+    if (snapshot) {
+      const all = snapshot.participants && snapshot.participants.length
+        ? snapshot.participants
+        : [snapshot.teamA, snapshot.teamB];
+      const hit = all.find((p) => norm(p.name) === norm(teamName));
+      if (hit && hit.prevPoints != null) return hit.prevPoints;
     }
-    const key = (name) => norm(name);
-    const tA = effectiveTeams.find((t) => key(t.name) === key(s.teamA));
-    const tB = effectiveTeams.find((t) => key(t.name) === key(s.teamB));
-    // No saved record for this match — clear out whatever was left in the
-    // form from a previously-viewed match (points, violations, comeback,
-    // winner) before loading this one in, instead of leaving stale values
-    // sitting there under the new team names.
-    setTimeA(''); setTimeB('');
-    setPointsA(''); setPointsB('');
-    setViolA([]); setViolB([]);
-    setComebackA(false); setComebackB(false);
-    setWinner(null);
-    setTeamAId(tA ? tA.id : '');
-    setTeamBId(tB ? tB.id : '');
+    /* This exact sport + division is the first choice: a rating only means
+       something against the teams it was earned from. */
+    const inScope = pointsInScope(scopedRankings, teamName);
+    if (inScope != null) return inScope;
+
+    /* First match in this division, but the team is already ranked
+       elsewhere — carry its standing over instead of resetting it to the
+       new-team baseline. A team on 1224 from another division starts here
+       on 1224, not 1200; only a team that has never been rated at all
+       starts from scratch. */
+    const carried = overallRating(rankings, teamName);
+    if (carried != null) return round4(carried);
+
+    return DEFAULT_POINTS;
+  }, [scopedRankings, rankings, editingRecord, lockedRecord]);
+
+  const entryScore = useCallback((entry) => {
+    if (mode === 'points') return entry.points === '' ? null : Number(entry.points);
+    return parseDuration(entry.time);
+  }, [mode]);
+
+  /* Rows ready for the maths: only entries with a team AND a valid score. */
+  const rows = useMemo(() => entries.map((e) => {
+    const team = effectiveTeams.find((t) => t.id === e.teamId) || null;
+    const score = entryScore(e);
+    return {
+      id: e.id,
+      entryId: e.id,
+      teamId: e.teamId,
+      name: team?.name || '',
+      logo: team?.logo || null,
+      score,
+      totalViolations: e.violations.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0),
+      violations: e.violations,
+      comeback: !!e.comeback,
+      prevPoints: team ? prevPointsFor(team.name) : DEFAULT_POINTS,
+      ready: !!team && score != null && !Number.isNaN(score),
+    };
+  }), [entries, effectiveTeams, entryScore, prevPointsFor]);
+
+  const readyRows = useMemo(() => rows.filter((r) => r.ready), [rows]);
+  const allReady = rows.length >= 2 && readyRows.length === rows.length;
+
+  const computation = useMemo(() => {
+    if (readyRows.length < 2) return null;
+    return buildComputation({ rows: readyRows, mode, winnerOverrideId: winnerManual ? winnerId : null });
+  }, [readyRows, mode, winnerManual, winnerId]);
+
+  const computeById = useMemo(() => {
+    const map = {};
+    (computation?.teams || []).forEach((t) => { map[t.id] = t; });
+    return map;
+  }, [computation]);
+
+  /* Standing is filled in from the scores unless the moderator overrode it
+     with the Win/Lose radios (winnerManual). */
+  useEffect(() => {
+    if (winnerManual || lockedRecord) return;
+    if (!computation) { setWinnerId(null); return; }
+    setWinnerId(computation.winnerId);
+  }, [computation, winnerManual, lockedRecord]);
+
+  function handleSetWinner(entryId) {
+    setWinnerManual(true);
+    setWinnerId(entryId);
+  }
+  function handleSetLoser(entryId) {
+    if (winnerId !== entryId) return; // already a loser — nothing to do
+    if (entries.length === 2) {
+      const other = entries.find((e) => e.id !== entryId);
+      setWinnerManual(true);
+      setWinnerId(other ? other.id : null);
+    } else {
+      setWinnerManual(false); // hand it back to the automatic placement
+      setWinnerId(null);
+    }
+  }
+
+  /* ── finished match picker (1v1 only) ── */
+  function applyRecordToForm(rec) {
+    const list = rec.participants && rec.participants.length ? rec.participants : [rec.teamA, rec.teamB];
+    const next = list.map((p) => {
+      const t = effectiveTeams.find((x) => norm(x.name) === norm(p.name));
+      return {
+        id: uid(),
+        teamId: t ? t.id : (p.id || ''),
+        points: p.points != null ? String(p.points) : '',
+        time: p.minutes != null ? minutesToDurationString(p.minutes) : '',
+        violations: p.violations || [],
+        comeback: !!p.comeback,
+      };
+    });
+    setEntries(next);
+    const winnerIdx = rec.participants && rec.participants.length
+      ? list.findIndex((p) => p.place === 1)
+      : (rec.winner === 'A' ? 0 : 1);
+    setWinnerManual(true);
+    setWinnerId(next[winnerIdx >= 0 ? winnerIdx : 0].id);
+  }
+
+  /* Point the sport/division pickers at whatever the chosen fixture says,
+     so ratings are read from (and written back to) the right scope. */
+  function selectScopeFromSchedule(s) {
+    const sport = effectiveSports.find((x) => norm(x.name) === norm(s.sport));
+    if (!sport) return;
+    setSportId(sport.id);
+    const divs = buildDivisionOptionsForSport(sport);
+    const div = divs.find((d) => categoriesMatch(d.category, s.category))
+      || divs.find((d) => categoriesMatch(s.category, d.category));
+    setDivisionKey(div ? div.key : '');
+  }
+
+  function handlePickFinishedMatch(s) {
+    selectScopeFromSchedule(s);
     setLockedMatch(s);
     setLockedRecord(null);
+
+    /* Already recorded → reopen that same record for editing rather than
+       starting a second one. Confirming overwrites it (same record id), so
+       one fixture can never produce two results. */
+    const rec = findRecordForSchedule(s);
+    if (rec) {
+      const savedFormat = formatById(rec.formatId)
+        || FORMAT_CHOICES.find((f) => !f.multi && f.mode === (rec.mode || 'points'));
+      if (savedFormat) setFormatId(savedFormat.id);
+      setEditingRecord(rec);
+      applyRecordToForm(rec);
+      setFormatPickerOpen(false);
+      setFormatPickerFor(null);
+      return;
+    }
+
+    /* Not recorded yet → ask how it was played. The teams are carried over
+       once a format is picked, and the computation runs from there. */
+    setEditingRecord(null);
+    setEntries([
+      { ...mkEntry(), teamId: teamIdByName(s.teamA) },
+      { ...mkEntry(), teamId: teamIdByName(s.teamB) },
+    ]);
+    setWinnerId(null);
+    setWinnerManual(false);
+    setFormatPickerFor(s);
+    setFormatPickerOpen(true);
   }
 
   function handleUnlockMatch() {
-    resetForm();
-  }
-  const totalViolA = violA.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
-  const totalViolB = violB.reduce((s, r) => s + (parseInt(r.count, 10) || 0), 0);
-
-  const mode = activeSport ? scoringModeForSport(activeSport.sportName) : 'time';
-  const minutesA = parseDuration(timeA);
-  const minutesB = parseDuration(timeB);
-  const pointsValA = pointsA === '' ? null : Number(pointsA);
-  const pointsValB = pointsB === '' ? null : Number(pointsB);
-  const scoreA = mode === 'points' ? pointsValA : minutesA;
-  const scoreB = mode === 'points' ? pointsValB : minutesB;
-  const scoreValid = scoreA != null && !Number.isNaN(scoreA) && scoreB != null && !Number.isNaN(scoreB);
-  const diff = scoreValid ? Math.abs(scoreA - scoreB) : null;
-
-  /* Winner is derived automatically from the entered scores, not picked by
-     hand: whichever team has more points wins a points-based match; for
-     time-based ones, the lower time wins. A tie leaves no winner until the
-     scores are corrected. Skipped while viewing an already-saved record
-     (lockedRecord) so its original stored winner isn't overwritten. */
-  useEffect(() => {
-    if (lockedRecord) return;
-    if (!scoreValid || scoreA === scoreB) { setWinner(null); return; }
-    if (mode === 'points') {
-      setWinner(scoreA > scoreB ? 'A' : 'B');
-    } else {
-      setWinner(scoreA < scoreB ? 'A' : 'B');
-    }
-  }, [scoreValid, scoreA, scoreB, mode, lockedRecord]);
-
-  /* Comeback only ever applies to the side that actually won — the
-     checkbox is hidden for the loser in the UI, but this guards the
-     underlying math too in case stale state lingers from a prior winner. */
-  const effectiveComebackA = winner === 'A' ? !!comebackA : false;
-  const effectiveComebackB = winner === 'B' ? !!comebackB : false;
-
-  // For an already-recorded (locked) match, current `rankings` already
-  // reflects this match's effect — it's the post-match value, not the
-  // "previous" one. Show the record's own saved snapshot instead of
-  // pulling from live rankings and re-running the formula on top of an
-  // already-updated number, which was double-applying the score change.
-  const scopeKey = activeSport ? rankingScopeKey(activeSport.sportName, activeSport.category) : null;
-  const scopedRankings = scopeKey ? (rankings[scopeKey] || {}) : {};
-  const prevPointsA = lockedRecord
-    ? lockedRecord.teamA.prevPoints
-    : (teamA ? (scopedRankings[teamA.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS);
-  const prevPointsB = lockedRecord
-    ? lockedRecord.teamB.prevPoints
-    : (teamB ? (scopedRankings[teamB.name] ?? DEFAULT_POINTS) : DEFAULT_POINTS);
-
-  function computeChange({ diff, violations, isWinner, comeback }) {
-    return (diff - violations + (isWinner ? 30 : -30) + (comeback ? 10 : 0)) / 4;
+    resetForm(2);
   }
 
-  /* Display-only breakdown shown as "Equal points" in the confirmation
-     modal — same inputs as computeChange, but NOT divided by 4. This is
-     purely informational; Final Points Rating always comes from
-     computeChange (above), never from this. */
-  function computeEqualPoints({ diff, violations, isWinner, comeback }) {
-    return diff - violations + (isWinner ? 30 : -30) + (comeback ? 10 : 0);
-  }
-
-  const canPreview = diff != null && winner;
-  const changeA = canPreview ? computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: effectiveComebackA }) : null;
-  const changeB = canPreview ? computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: effectiveComebackB }) : null;
-  const finalPointsA = lockedRecord ? lockedRecord.teamA.finalPoints : (changeA != null ? Math.round(prevPointsA + changeA) : null);
-  const finalPointsB = lockedRecord ? lockedRecord.teamB.finalPoints : (changeB != null ? Math.round(prevPointsB + changeB) : null);
-
-  const levelLabel = LEVELS.find((l) => l.key === level)?.label || level;
-
-  /* ── validation + update flow ── */
+  /* ── validation + update ── */
   function handleUpdateClick() {
     const reasons = [];
+    if (!formatChoice) reasons.push('Choose a sports format first.');
     if (!selectedSport) reasons.push('Select a sport.');
     if (selectedSport && divisionRequired && !selectedDivision) reasons.push('Select a division.');
-    if (!teamA) reasons.push('Select team 1.');
-    if (!teamB) reasons.push('Select team 2.');
-    if (teamA && teamB && teamA.id === teamB.id) reasons.push('Team 1 and team 2 must be different.');
-    if (mode === 'points') {
-      if (pointsValA == null || Number.isNaN(pointsValA)) reasons.push('Enter a valid points score for team 1.');
-      if (pointsValB == null || Number.isNaN(pointsValB)) reasons.push('Enter a valid points score for team 2.');
-    } else {
-      if (minutesA == null) reasons.push('Enter a valid time duration for team 1 (HH:MM:SS).');
-      if (minutesB == null) reasons.push('Enter a valid time duration for team 2 (HH:MM:SS).');
-    }
-    if (scoreValid && scoreA === scoreB) {
-      reasons.push('Scores are tied — the system can\'t determine a winner automatically.');
-    } else if (!winner) {
-      reasons.push('Enter both teams\' scores so the winner can be determined automatically.');
+
+    entries.forEach((e, i) => {
+      const row = rows.find((r) => r.id === e.id);
+      if (!row?.name) reasons.push(`Select team ${i + 1}.`);
+      else if (row.score == null || Number.isNaN(row.score)) {
+        reasons.push(mode === 'points'
+          ? `Enter a valid points score for ${row.name}.`
+          : `Enter a valid time duration for ${row.name} (HH:MM:SS).`);
+      }
+    });
+
+    const names = rows.filter((r) => r.name).map((r) => norm(r.name));
+    if (new Set(names).size !== names.length) reasons.push('Each team can only be entered once.');
+
+    if (reasons.length === 0 && computation) {
+      const best = computation.teams.filter((t) => t.place === 1);
+      const tiedTop = computation.teams.filter((t) => t.score === best[0].score);
+      if (tiedTop.length > 1 && !winnerManual) {
+        reasons.push('The top scores are tied — set the winner with the Win/Lose buttons, or correct the scores.');
+      }
     }
 
     if (reasons.length) { setInvalidReasons(reasons); return; }
 
-    const cA = computeChange({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: effectiveComebackA });
-    const cB = computeChange({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: effectiveComebackB });
-    const eqA = computeEqualPoints({ diff, violations: totalViolA, isWinner: winner === 'A', comeback: effectiveComebackA });
-    const eqB = computeEqualPoints({ diff, violations: totalViolB, isWinner: winner === 'B', comeback: effectiveComebackB });
+    const comp = buildComputation({ rows: readyRows, mode, winnerOverrideId: winnerManual ? winnerId : null });
 
     setPending({
       mode,
+      multi: isMulti,
+      formatId,
+      scheduleId: lockedMatch?.id || null,
+      formatLabel: formatHeadline(formatChoice),
       sportId: activeSport.sportId,
       sportName: activeSport.sportName,
       category: activeSport.category,
       format: activeSport.format,
-      diff,
-      winner,
-      teamA: {
-        id: teamA.id, name: teamA.name, logo: teamA.logo,
-        minutes: mode === 'time' ? minutesA : null,
-        points: mode === 'points' ? pointsValA : null,
-        totalViolations: totalViolA, violations: violA, comeback: effectiveComebackA,
-        prevPoints: prevPointsA, change: cA, equalPoints: eqA, finalPoints: Math.round(prevPointsA + cA),
-      },
-      teamB: {
-        id: teamB.id, name: teamB.name, logo: teamB.logo,
-        minutes: mode === 'time' ? minutesB : null,
-        points: mode === 'points' ? pointsValB : null,
-        totalViolations: totalViolB, violations: violB, comeback: effectiveComebackB,
-        prevPoints: prevPointsB, change: cB, equalPoints: eqB, finalPoints: Math.round(prevPointsB + cB),
-      },
+      teams: comp.teams,
+      winnerId: comp.winnerId,
     });
   }
 
   async function handleConfirm() {
     if (!pending) return;
     setSaving(true);
+
+    const { teams: cTeams, winnerId: wid } = pending;
+    const asStored = (t) => ({
+      id: t.teamId || t.id,
+      name: t.name,
+      logo: t.logo || null,
+      minutes: pending.mode === 'time' ? t.score : null,
+      points: pending.mode === 'points' ? t.score : null,
+      totalViolations: t.totalViolations,
+      violations: (t.violations || []).map((v) => ({ id: v.id || uid(), type: v.type || '', count: v.count === '' ? 0 : Number(v.count) || 0 })),
+      comeback: !!t.comeback,
+      prevPoints: round4(t.prevPoints),
+      expected: round4(t.expected),
+      f1: round4(t.totalF1),
+      change: round4(t.change),
+      finalPoints: round4(t.finalPoints),
+      place: t.place,
+    });
+
+    const ordered = [...cTeams].sort((a, b) => a.place - b.place);
+    const teamA = asStored(cTeams[0]);
+    const teamB = asStored(cTeams[1]);
+    const winnerSide = cTeams[0].id === wid ? 'A' : 'B';
+    const diff = Math.abs((cTeams[0].score ?? 0) - (cTeams[1].score ?? 0));
+
     const record = {
-      id: uid(),
+      id: editingRecord?.id || uid(),
       level,
+      scheduleId: pending.scheduleId || editingRecord?.scheduleId || null,
       mode: pending.mode,
+      multi: pending.multi,
+      formatId: pending.formatId,
       sportId: pending.sportId,
       sportName: pending.sportName,
       category: pending.category,
       format: pending.format,
       label: `${pending.sportName} ${pending.category}`.trim(),
-      diff: pending.diff,
-      winner: pending.winner,
-      teamA: pending.teamA,
-      teamB: pending.teamB,
-      createdAt: Date.now(),
+      diff: round4(diff),
+      winner: winnerSide,
+      teamA,
+      teamB,
+      participants: pending.multi ? ordered.map(asStored) : [],
+      createdAt: editingRecord?.createdAt || Date.now(),
       updatedAt: Date.now(),
     };
 
@@ -1205,20 +1887,15 @@ export default function ModeratorPage() {
       setRecords(merged);
 
       const confirmScopeKey = rankingScopeKey(pending.sportName, pending.category);
-      const newRankings = {
-        ...rankings,
-        [confirmScopeKey]: {
-          ...(rankings[confirmScopeKey] || {}),
-          [pending.teamA.name]: pending.teamA.finalPoints,
-          [pending.teamB.name]: pending.teamB.finalPoints,
-        },
-      };
+      const scope = { ...(rankings[confirmScopeKey] || {}) };
+      cTeams.forEach((t) => { scope[t.name] = round4(t.finalPoints); });
+      const newRankings = { ...rankings, [confirmScopeKey]: scope };
       await saveTeamRankings(level, newRankings);
       setRankings(newRankings);
 
       setPending(null);
       setSuccessRecord(record);
-      resetForm();
+      resetForm(entries.length);
     } catch (err) {
       console.error(err);
       setInvalidReasons(['Something went wrong while saving. Please try again.']);
@@ -1228,7 +1905,7 @@ export default function ModeratorPage() {
     }
   }
 
-  /* ── summary table filtering ── */
+  /* ── summary table ── */
   const filteredRecords = useMemo(() => {
     if (!formatFilter) return records;
     return records.filter((r) => bucketForFormat(r.format) === formatFilter);
@@ -1247,13 +1924,29 @@ export default function ModeratorPage() {
     });
   }
 
-  /* "Edit in summary table" link on the read-only locked-record view above —
-     clears the top form's lock, opens that record's inline edit row in the
-     summary table, and scrolls it into view. */
-  function handleEditLockedRecord(record) {
-    resetForm();
-    startEdit(record);
-    summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /* Multi-team records go back into the main form (there's no sensible
+     single-row inline editor for four teams) — the same record id is kept
+     so confirming overwrites it instead of creating a duplicate. */
+  function loadRecordIntoForm(record) {
+    const choice = FORMAT_CHOICES.find((f) => f.id === record.formatId)
+      || FORMAT_CHOICES.find((f) => f.mode === record.mode && !!f.multi === !!record.multi)
+      || FORMAT_CHOICES[0];
+    setFormatId(choice.id);
+    setFormatPickerOpen(false);
+
+    const sport = effectiveSports.find((s) => norm(s.name) === norm(record.sportName));
+    if (sport) {
+      setSportId(sport.id);
+      const divs = buildDivisionOptionsForSport(sport);
+      const div = divs.find((d) => categoriesMatch(d.category, record.category));
+      setDivisionKey(div ? div.key : '');
+    }
+
+    setEditingRecord(record);
+    setLockedMatch(null);
+    setLockedRecord(null);
+    applyRecordToForm(record);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function saveEdit(record) {
@@ -1266,7 +1959,7 @@ export default function ModeratorPage() {
       ...record,
       teamA: {
         ...record.teamA,
-        id: teamAObj.id, name: teamAObj.name, logo: teamAObj.logo,
+        id: teamAObj.id, name: teamAObj.name, logo: teamAObj.logo || null,
         totalViolations: parseInt(editDraft.totalViolationsA, 10) || 0,
         minutes: isPoints ? record.teamA.minutes : (editDraft.minutes === '' ? record.teamA.minutes : Number(editDraft.minutes)),
         points: isPoints ? (editDraft.pointsA === '' ? record.teamA.points : Number(editDraft.pointsA)) : record.teamA.points,
@@ -1274,7 +1967,7 @@ export default function ModeratorPage() {
       },
       teamB: {
         ...record.teamB,
-        id: teamBObj.id, name: teamBObj.name, logo: teamBObj.logo,
+        id: teamBObj.id, name: teamBObj.name, logo: teamBObj.logo || null,
         totalViolations: parseInt(editDraft.totalViolationsB, 10) || 0,
         minutes: isPoints ? record.teamB.minutes : (editDraft.minutes === '' ? record.teamB.minutes : Number(editDraft.minutes)),
         points: isPoints ? (editDraft.pointsB === '' ? record.teamB.points : Number(editDraft.pointsB)) : record.teamB.points,
@@ -1304,6 +1997,38 @@ export default function ModeratorPage() {
     setTimeout(() => setFlashId(null), 1100);
   }
 
+  /* ── derived display bits ── */
+  const levelLabel = LEVELS.find((l) => l.key === level)?.label || level;
+  const sportSuggestedMode = activeSport ? scoringModeForSport(activeSport.sportName) : null;
+  const modeMismatch = !!(formatChoice && sportSuggestedMode && sportSuggestedMode !== mode);
+
+  const violEntry = entries.find((e) => e.id === violModal) || null;
+  const violTeam = violEntry ? effectiveTeams.find((t) => t.id === violEntry.teamId) : null;
+
+  /* Opponent summary shown inside each panel. */
+  function opponentInfoFor(entry, index) {
+    const others = rows.filter((r) => r.id !== entry.id);
+    const named = others.filter((r) => r.name);
+    if (!isMulti) {
+      const o = others[0];
+      return {
+        label: o?.name || '',
+        rating: o?.name ? o.prevPoints : null,
+        scoreText: o && o.score != null && !Number.isNaN(o.score)
+          ? (mode === 'points' ? `${o.score} points` : minutesToDurationString(o.score))
+          : '',
+      };
+    }
+    const withScores = others.filter((r) => r.score != null && !Number.isNaN(r.score));
+    const avgRating = named.length ? named.reduce((s, r) => s + r.prevPoints, 0) / named.length : null;
+    const avgScore = withScores.length ? withScores.reduce((s, r) => s + r.score, 0) / withScores.length : null;
+    return {
+      label: named.length ? named.map((r) => r.name).join(', ') : '',
+      rating: avgRating,
+      scoreText: avgScore == null ? '' : (mode === 'points' ? `${Number(avgScore.toFixed(2))} points` : minutesToDurationString(avgScore)),
+    };
+  }
+
   return (
     <div className="mp-page">
       <header className="mp-header">
@@ -1314,12 +2039,110 @@ export default function ModeratorPage() {
       <div className="mp-body">
         <div className="mp-intro">
           <h2 className="mp-intro__title">Update match records</h2>
+          {formatChoice && (
+            <div className="mp-format-chip">
+              <span className="mp-format-chip__label">{formatHeadline(formatChoice)}</span>
+              <button
+                type="button"
+                className="mp-format-chip__btn"
+                onClick={() => { setFormatPickerFor(lockedMatch); setFormatPickerOpen(true); }}
+              >
+                <FaSync /> Change format
+              </button>
+            </div>
+          )}
         </div>
+
         {loadError && (
           <p className="mp-schedule-hint mp-schedule-hint--empty">
             <FaExclamationTriangle /> {loadError}
           </p>
         )}
+
+        {recordableMatches.length > 0 && (
+          <div className="mp-finished-panel">
+            <div className="mp-finished-panel__head">
+              <div>
+                <div className="mp-finished-panel__title">Match schedules</div>
+                <p
+                  className="mp-finished-panel__sub"
+                  style={{ margin: '2px 0 0', fontSize: '0.72rem', opacity: 0.7, fontWeight: 500 }}
+                >
+                  Every scheduled matchup, in any sport or division. Pick one and its sport, division, and both teams fill in automatically.
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <button
+                  type="button"
+                  className="mp-finished-panel__unlock"
+                  onClick={() => { setFormatPickerFor(null); setFormatPickerOpen(true); }}
+                >
+                  <FaPlus /> No fixture
+                </button>
+                {lockedMatch && (
+                  <button type="button" className="mp-finished-panel__unlock" onClick={handleUnlockMatch}>
+                    Change match
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="mp-finished-panel__list">
+              {recordableMatches.map((s) => {
+                const active = lockedMatch?.id === s.id;
+                const done = isMatchRecorded(s);
+                return (
+                  <button
+                    type="button"
+                    key={s.id}
+                    className={`mp-finished-card ${active ? 'mp-finished-card--active' : ''} ${done ? 'mp-finished-card--done' : ''}`}
+                    onClick={() => handlePickFinishedMatch(s)}
+                  >
+                    <div
+                      className="mp-finished-card__sport"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                        fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.06em',
+                        textTransform: 'uppercase', marginBottom: 6,
+                      }}
+                    >
+                      <span style={{ opacity: 0.65 }}>{s.sport}{s.category ? ` · ${s.category}` : ''}</span>
+                      <span
+                        style={{
+                          padding: '2px 7px', borderRadius: 20, letterSpacing: '0.05em',
+                          background: MATCH_STATUS_COLOR[s.status].bg,
+                          color: MATCH_STATUS_COLOR[s.status].fg,
+                        }}
+                      >
+                        {MATCH_STATUS_LABEL[s.status]}
+                      </span>
+                    </div>
+                    <div className="mp-finished-card__teams">
+                      <span className="mp-finished-card__logo">
+                        {s.teamALogo ? <img src={s.teamALogo} alt="" /> : initials(s.teamA)}
+                      </span>
+                      <span className="mp-finished-card__vs">vs</span>
+                      <span className="mp-finished-card__logo">
+                        {s.teamBLogo ? <img src={s.teamBLogo} alt="" /> : initials(s.teamB)}
+                      </span>
+                    </div>
+                    <div className="mp-finished-card__names">{s.teamA} <span>vs</span> {s.teamB}</div>
+                    <div className="mp-finished-card__meta">
+                      {s.date || s.time
+                        ? `${s.date || ''}${s.date && s.time ? ' · ' : ''}${s.time || ''}`
+                        : (s.stage || (s.round != null ? `Round ${s.round}` : 'Date to be set'))}
+                    </div>
+                    {done ? (
+                      <div className="mp-finished-card__status"><FaEdit /> Recorded — click to edit</div>
+                    ) : active ? (
+                      <div className="mp-finished-card__status mp-finished-card__status--active"><FaLock /> Selected</div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="mp-sport-row">
           <OptionDropdown
             variant="pill"
@@ -1346,107 +2169,145 @@ export default function ModeratorPage() {
           <div className="mp-levelband__bar"><div className="mp-levelband__seg" /></div>
         </div>
 
-        {activeSport && finishedMatches.length > 0 && (
-          <div className="mp-finished-panel">
-            <div className="mp-finished-panel__head">
-              <div className="mp-finished-panel__title">Finished matches</div>
-              {lockedMatch && (
-                <button type="button" className="mp-finished-panel__unlock" onClick={handleUnlockMatch}>
-                  Change match
-                </button>
-              )}
+        {/* Nothing renders below the level band until a match is chosen —
+            the schedule list above is the whole interface at this point.
+            The only exception is a level with no schedules at all, where a
+            blank page would just look broken. */}
+        {!formatChoice ? (
+          recordableMatches.length === 0 && (
+            <div className="mp-card mp-card--empty">
+              <h3 className="mp-card__title">No matches scheduled yet</h3>
+              <p className="mp-card__sub">
+                Once an admin saves a schedule for this level it appears here, ready to record.
+              </p>
+              <button
+                type="button"
+                className="mp-btn mp-btn--update"
+                onClick={() => { setFormatPickerFor(null); setFormatPickerOpen(true); }}
+              >
+                Record without a fixture
+              </button>
             </div>
-            <div className="mp-finished-panel__list">
-              {finishedMatches.map((s) => {
-                const active = lockedMatch?.id === s.id;
-                const done = isMatchRecorded(s);
-                return (
+          )
+        ) : (
+          <>
+            <div className="mp-card">
+              <h3 className="mp-card__title">Update match record</h3>
+              <p className="mp-card__sub">
+                {isMulti
+                  ? 'Fill in the required details for every team in this event.'
+                  : 'Fill in the required details for both teams.'}
+              </p>
+
+              {usingScheduleFallback && (
+                <p className="mp-schedule-hint">
+                  <FaExclamationTriangle /> Sports &amp; Teams hasn't been (re)configured for this level — showing the sports, divisions, and teams found in existing schedules instead. Ask the admin to check the Sports &amp; Teams page.
+                </p>
+              )}
+              {/* Makes an empty "Select team" dropdown self-explanatory instead of
+                  silently showing nothing. This fires when Sports & Teams has zero
+                  teams saved for the CURRENT level — almost always because the team
+                  was created while Admin had a different level tab active (teams are
+                  stored per level, so a College team is invisible while viewing High
+                  School, and vice versa). */}
+              {activeSport && teamOptionsForSport.length === 0 && (
+                <p className="mp-schedule-hint mp-schedule-hint--empty">
+                  <FaExclamationTriangle /> No teams found for <strong>{LEVELS.find(l => l.key === level)?.label}</strong> in Sports &amp; Teams.
+                  If the admin already added this team, double-check it was saved under the <strong>{LEVELS.find(l => l.key === level)?.label}</strong> level tab — teams are scoped per level and won't appear under a different one.
+                </p>
+              )}
+              {modeMismatch && (
+                <p className="mp-schedule-hint">
+                  <FaInfo /> {activeSport.sportName} is normally scored by {sportSuggestedMode === 'points' ? 'points' : 'time'}, but you chose a {mode === 'points' ? 'points' : 'time'}-based format. The form follows your format choice.
+                </p>
+              )}
+              {!isMulti && activeSport && hasScheduleForSelection && readyTeamNames.size === 0 && (
+                <p className="mp-schedule-hint mp-schedule-hint--empty">
+                  <FaExclamationTriangle /> No matches for this division have finished yet — the admin has scheduled some, but they're upcoming or still in progress.
+                </p>
+              )}
+              {activeSport && !hasScheduleForSelection && (
+                <p className="mp-schedule-hint">
+                  <FaInfo /> The admin hasn't scheduled any matches for this division yet — showing all registered teams for now.
+                </p>
+              )}
+              {lockedRecord && (
+                <p className="mp-schedule-hint mp-schedule-hint--locked">
+                  <FaLock /> This match is already recorded — shown here read-only. To change any details, edit it in the summary table below.
+                </p>
+              )}
+              {editingRecord && (
+                <p className="mp-schedule-hint mp-schedule-hint--locked">
+                  <FaEdit /> Re-computing a saved record. Confirming will overwrite it and its ranking points.
+                  <button type="button" className="mp-schedule-hint__edit-link" onClick={() => resetForm()}>
+                    Cancel edit
+                  </button>
+                </p>
+              )}
+
+              <div className={isMulti ? 'mp-multi-grid' : 'mp-matchup'}>
+                {entries.map((entry, i) => {
+                  const opp = opponentInfoFor(entry, i);
+                  const row = rows.find((r) => r.id === entry.id);
+                  const panel = (
+                    <MatchPanel
+                      key={entry.id}
+                      entry={entry}
+                      index={i}
+                      mode={mode}
+                      multi={isMulti}
+                      teamLabel={isMulti ? `Team ${i + 1}` : `Team ${i + 1}`}
+                      teamOptions={teamOptionsForSport}
+                      onChange={(patch) => updateEntry(entry.id, patch)}
+                      onOpenViolations={() => setViolModal(entry.id)}
+                      onRemove={() => removeEntry(entry.id)}
+                      canRemove={isMulti && entries.length > MIN_MULTI_TEAMS}
+                      prevPoints={row ? row.prevPoints : DEFAULT_POINTS}
+                      compute={computeById[entry.id] || null}
+                      opponentLabel={opp.label}
+                      opponentRating={opp.rating}
+                      opponentScoreText={opp.scoreText}
+                      isWinner={winnerId === entry.id}
+                      hasWinner={!!winnerId}
+                      onSetWinner={() => handleSetWinner(entry.id)}
+                      onSetLoser={() => handleSetLoser(entry.id)}
+                      readOnly={!!lockedRecord}
+                      teamLocked={!isMulti && !!lockedMatch}
+                    />
+                  );
+                  if (isMulti) return panel;
+                  return (
+                    <Fragment key={`slot-${entry.id}`}>
+                      {i > 0 && <div className="mp-vs">VS</div>}
+                      {panel}
+                    </Fragment>
+                  );
+                })}
+              </div>
+
+              {isMulti && (
+                <div className="mp-multi-actions">
                   <button
                     type="button"
-                    key={s.id}
-                    className={`mp-finished-card ${active ? 'mp-finished-card--active' : ''} ${done ? 'mp-finished-card--done' : ''}`}
-                    onClick={() => handlePickFinishedMatch(s)}
+                    className="mp-btn mp-btn--navy"
+                    onClick={addEntry}
+                    disabled={entries.length >= MAX_MULTI_TEAMS || !!lockedRecord}
                   >
-                    <div className="mp-finished-card__teams">
-                      <span className="mp-finished-card__logo">
-                        {s.teamALogo ? <img src={s.teamALogo} alt="" /> : initials(s.teamA)}
-                      </span>
-                      <span className="mp-finished-card__vs">vs</span>
-                      <span className="mp-finished-card__logo">
-                        {s.teamBLogo ? <img src={s.teamBLogo} alt="" /> : initials(s.teamB)}
-                      </span>
-                    </div>
-                    <div className="mp-finished-card__names">{s.teamA} <span>vs</span> {s.teamB}</div>
-                    {(s.date || s.time) && (
-                      <div className="mp-finished-card__meta">{s.date}{s.date && s.time ? ' · ' : ''}{s.time}</div>
-                    )}
-                    {done ? (
-                      <div className="mp-finished-card__status">Already recorded</div>
-                    ) : active ? (
-                      <div className="mp-finished-card__status mp-finished-card__status--active"><FaLock /> Selected</div>
-                    ) : null}
+                    <FaPlus /> Add team ({entries.length}/{MAX_MULTI_TEAMS})
                   </button>
-                );
-              })}
+                  <span className="mp-multi-actions__hint">
+                    Every team is rated against every other team, and the changes are added up.
+                  </span>
+                </div>
+              )}
+
+              <div className="mp-update-row">
+                <button type="button" className="mp-btn mp-btn--reset" onClick={handleResetClick}><FaSync /> Reset</button>
+                <button type="button" className="mp-btn mp-btn--update" onClick={handleUpdateClick} disabled={!!lockedRecord}>Update</button>
+              </div>
             </div>
-          </div>
+          </>
         )}
-
-        <div className="mp-card">
-          <h3 className="mp-card__title">Update match record</h3>
-          <p className="mp-card__sub">Fill in the required details for both teams.</p>
-
-          {usingScheduleFallback && (
-            <p className="mp-schedule-hint">
-              <FaExclamationTriangle /> Sports &amp; Teams hasn't been (re)configured for this level — showing the sports, divisions, and teams found in existing schedules instead. Ask the admin to check the Sports &amp; Teams page.
-            </p>
-          )}
-          {activeSport && hasScheduleForSelection && readyTeamNames.size === 0 && (
-            <p className="mp-schedule-hint mp-schedule-hint--empty">
-              <FaExclamationTriangle /> No matches for this division have finished yet — the admin has scheduled some, but they're upcoming or still in progress.
-            </p>
-          )}
-          {activeSport && !hasScheduleForSelection && (
-            <p className="mp-schedule-hint">
-              <FaInfo /> The admin hasn't scheduled any matches for this division yet — showing all registered teams for now.
-            </p>
-          )}
-          {lockedRecord && (
-            <p className="mp-schedule-hint mp-schedule-hint--locked">
-              <FaLock /> This match is already recorded — shown here read-only. To change any details, edit it in the summary table below.
-              <button type="button" className="mp-schedule-hint__edit-link" onClick={() => handleEditLockedRecord(lockedRecord)}>
-                Edit in summary table
-              </button>
-            </p>
-          )}
-
-          <div className="mp-matchup">
-            <TeamPanel
-              side="A" teamLabel="Team 1"
-              teamOptions={teamOptionsForSport} teamId={teamAId} onTeamChange={setTeamAId} teamLocked={!!lockedMatch} readOnly={!!lockedRecord}
-              mode={mode} time={timeA} onTimeChange={setTimeA} points={pointsA} onPointsChange={setPointsA}
-              totalViolations={totalViolA} onOpenViolations={() => setViolModal('A')}
-              comeback={comebackA} onComebackChange={setComebackA}
-              prevPoints={prevPointsA} finalPoints={finalPointsA}
-              winner={winner}
-            />
-            <div className="mp-vs">VS</div>
-            <TeamPanel
-              side="B" teamLabel="Team 2"
-              teamOptions={teamOptionsForSport} teamId={teamBId} onTeamChange={setTeamBId} teamLocked={!!lockedMatch} readOnly={!!lockedRecord}
-              mode={mode} time={timeB} onTimeChange={setTimeB} points={pointsB} onPointsChange={setPointsB}
-              totalViolations={totalViolB} onOpenViolations={() => setViolModal('B')}
-              comeback={comebackB} onComebackChange={setComebackB}
-              prevPoints={prevPointsB} finalPoints={finalPointsB}
-              winner={winner}
-            />
-          </div>
-
-          <div className="mp-update-row">
-            <button type="button" className="mp-btn mp-btn--reset" onClick={handleResetClick}><FaSync /> Reset</button>
-            <button type="button" className="mp-btn mp-btn--update" onClick={handleUpdateClick} disabled={!!lockedRecord}>Update</button>
-          </div>
-        </div>
 
         {/* ── Updated match summary ── */}
         <div className="mp-summary" ref={summaryRef}>
@@ -1476,7 +2337,7 @@ export default function ModeratorPage() {
                   <th>Team</th>
                   <th>Violation</th>
                   <th>Duration / Score</th>
-                  <th>Final points <InfoTip caption="Final points info" placement="bottom">Final points = Previous final points + ((Point difference − Violations + Match result (+30 win / −30 loss) + Comeback bonus (10 if comeback, 0 if not)) ÷ 4).</InfoTip></th>
+                  <th>Final points <InfoTip caption="Final points info" placement="bottom">Final points = Previous rating + K(S − E) + Ppu(team score/time performance − violations + comeback bonus). E is the Elo expected score from both teams' ratings, S is 1 for a win / 0 for a loss, K = {K_FACTOR}, Ppu = {PPU}, and the comeback bonus is +{COMEBACK_BONUS}. New teams start at {DEFAULT_POINTS}.</InfoTip></th>
                   <th style={{ width: 60 }}>Edit</th>
                 </tr>
               </thead>
@@ -1486,6 +2347,27 @@ export default function ModeratorPage() {
                 )}
                 {filteredRecords.map((r) => {
                   const rowIsPoints = r.mode === 'points' || r.teamA.points != null;
+                  const rowIsMulti = !!r.multi && (r.participants || []).length > 2;
+
+                  if (rowIsMulti) {
+                    return (
+                      <tr key={r.id} className={flashId === r.id ? 'mp-row-flash' : ''}>
+                        <td>{displayCategory(r.label || r.sportName || '').toUpperCase()} <span className="mp-tag-multi">1 vs many</span></td>
+                        <td>{r.participants.map((p) => p.name).join(' · ')}</td>
+                        <td>{r.participants.map((p) => p.totalViolations).join('-')}</td>
+                        <td>
+                          {rowIsPoints
+                            ? r.participants.map((p) => `${p.points}`).join(' - ') + ' pts'
+                            : r.participants.map((p) => minutesToDurationString(p.minutes)).join(' - ')}
+                        </td>
+                        <td className="mp-table__points">{r.participants.map((p) => fmtPts(p.finalPoints)).join(' - ')}</td>
+                        <td>
+                          <button className="mp-table__edit-btn" onClick={() => loadRecordIntoForm(r)} aria-label="Edit"><FaEdit /></button>
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   const editPreview = editingId === r.id ? computeEditFinalPoints(r, editDraft, rowIsPoints) : null;
                   return editingId === r.id ? (
                     <tr className="mp-edit-row" key={r.id}>
@@ -1513,9 +2395,9 @@ export default function ModeratorPage() {
                             <input className="mp-edit-time" type="text" placeholder="mins" value={editDraft.minutes} onChange={(e) => setEditDraft((d) => ({ ...d, minutes: e.target.value }))} />
                           )}
                           <div className="mp-edit-form__score mp-edit-form__score--auto" title="Recalculated automatically from violations/score above">
-                            <span>{editPreview.finalPointsA}</span>
+                            <span>{fmtPts(editPreview.finalPointsA)}</span>
                             <span className="mp-vs-mini">-</span>
-                            <span>{editPreview.finalPointsB}</span>
+                            <span>{fmtPts(editPreview.finalPointsB)}</span>
                           </div>
                           <button className="mp-edit-form__save" onClick={() => saveEdit(r)}>Save</button>
                           <button className="mp-edit-form__cancel" onClick={() => { setEditingId(null); setEditDraft(null); }}>Cancel</button>
@@ -1524,11 +2406,11 @@ export default function ModeratorPage() {
                     </tr>
                   ) : (
                     <tr key={r.id} className={flashId === r.id ? 'mp-row-flash' : ''}>
-                      <td>{(r.label || r.sportName || '').toUpperCase()}</td>
+                      <td>{displayCategory(r.label || r.sportName || '').toUpperCase()}</td>
                       <td>{r.teamA.name} vs {r.teamB.name}</td>
                       <td>{(r.teamA.totalViolations || r.teamB.totalViolations) ? `${r.teamA.totalViolations}-${r.teamB.totalViolations}` : '--'}</td>
-                      <td>{rowIsPoints ? (r.teamA.points != null ? `${r.teamA.points} - ${r.teamB.points} pts` : '--') : (r.teamA.minutes != null ? formatMinutes(r.teamA.minutes) : '--')}</td>
-                      <td className="mp-table__points">{r.teamA.finalPoints} - {r.teamB.finalPoints}</td>
+                      <td>{rowIsPoints ? (r.teamA.points != null ? `${r.teamA.points} - ${r.teamB.points} pts` : '--') : (r.teamA.minutes != null ? `${minutesToDurationString(r.teamA.minutes)} - ${minutesToDurationString(r.teamB.minutes)}` : '--')}</td>
+                      <td className="mp-table__points">{fmtPts(r.teamA.finalPoints)} - {fmtPts(r.teamB.finalPoints)}</td>
                       <td><button className="mp-table__edit-btn" onClick={() => startEdit(r)} aria-label="Edit"><FaEdit /></button></td>
                     </tr>
                   );
@@ -1539,14 +2421,26 @@ export default function ModeratorPage() {
         </div>
       </div>
 
-      {violModal && (
+      {formatPickerOpen && (
+        <FormatPickerModal
+          current={formatId}
+          match={formatPickerFor}
+          suggestedId={formatPickerFor
+            ? (scoringModeForSport(formatPickerFor.sport) === 'time' ? '1v1-time' : '1v1-points')
+            : null}
+          onChoose={handleChooseFormat}
+          onClose={() => { setFormatPickerOpen(false); setFormatPickerFor(null); }}
+        />
+      )}
+
+      {violEntry && (
         <ViolationsModal
-          sideLabel={violModal === 'A' ? 'Team 1' : 'Team 2'}
-          teamLabel={violModal === 'A' ? (teamA?.name || 'Team 1') : (teamB?.name || 'Team 2')}
-          teamLogo={violModal === 'A' ? teamA?.logo : teamB?.logo}
-          initialRows={violModal === 'A' ? violA : violB}
+          sideLabel={`Team ${entries.findIndex((e) => e.id === violEntry.id) + 1}`}
+          teamLabel={violTeam?.name || 'Select a team'}
+          teamLogo={violTeam?.logo}
+          initialRows={violEntry.violations}
           onClose={() => setViolModal(null)}
-          onSubmit={(rows) => { violModal === 'A' ? setViolA(rows) : setViolB(rows); setViolModal(null); }}
+          onSubmit={(rowsIn) => { updateEntry(violEntry.id, { violations: rowsIn }); setViolModal(null); }}
         />
       )}
 
