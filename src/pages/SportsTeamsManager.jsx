@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FaRunning, FaUsers, FaPlus, FaTimes, FaChevronDown,
-  FaEdit, FaCheck, FaEllipsisV, FaSync, FaTrash,
+  FaEdit, FaCheck, FaEllipsisV, FaSync,
 } from 'react-icons/fa';
 import './SportsTeamsManager.css';
 import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../services/firestoreService';
@@ -19,6 +19,7 @@ const FORMAT_OPTIONS = [
 const TEAM_COLORS = ['#b45309','#dc2626','#15803d','#6d28d9','#92400e','#9f1239','#374151','#ea580c'];
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const norm = (v) => (v || '').trim().toLowerCase();
 const ensureId = (obj) => obj?.id ? obj : { ...obj, id: uid() };
 
 /* ═══════════════════════════════════════════
@@ -427,6 +428,94 @@ function EditSportModal({ sport, saving, onClose, onSave }) {
 }
 
 /* ═══════════════════════════════════════════
+   EDIT TEAM MODAL
+   Saved teams could only be deleted before, so fixing a typo meant
+   deleting the team and adding it again — which silently orphaned every
+   schedule and saved result that referenced it by name.
+═══════════════════════════════════════════ */
+function EditTeamModal({ team, sportsList, saving, onClose, onSave }) {
+  const [name,     setName]     = useState(team.name || '');
+  const [logo,     setLogo]     = useState(team.logo || null);
+  const [sportIds, setSportIds] = useState(team.sportIds || []);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const renamed = !!name.trim() && norm(name) !== norm(team.name);
+
+  return (
+    <>
+      <div className="stm-overlay" onClick={onClose}>
+        <div className="stm-modal stm-modal--edit-sport" onClick={e => e.stopPropagation()}>
+
+          <div className="stm-catmod-head">
+            <button className="stm-icon-btn stm-catmod-close" onClick={onClose}><FaTimes /></button>
+            <h3>EDIT TEAM</h3>
+            <p>Update this team's name, logo, and the sports it plays.</p>
+          </div>
+
+          <div className="stm-edit-sport-body">
+            <div className="stm-edit-sport-row">
+              <LogoUpload logo={logo} onUpload={setLogo} onClear={() => setLogo(null)} showClearButton />
+              <input
+                className="stm-row-input stm-edit-sport-name"
+                placeholder="Team name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+
+            {renamed && (
+              <p className="stm-empty-note" style={{ color: '#a83218', fontWeight: 700 }}>
+                Heads up: match schedules and saved results store this team by name. Renaming it here
+                does not rename it there, so older fixtures and results will still say
+                "{team.name}".
+              </p>
+            )}
+
+            <div className="stm-edit-sport-cats">
+              <div className="stm-edit-sport-cats__head">
+                <span className="stm-preview-label">SPORTS</span>
+                <button type="button" className="stm-link-btn" onClick={() => setShowPicker(true)}>
+                  <FaEdit /> Edit sports
+                </button>
+              </div>
+              {sportIds.length === 0 ? (
+                <p className="stm-empty-note">No sports assigned yet.</p>
+              ) : (
+                <ul className="stm-preview-list stm-preview-list--cols">
+                  {sportIds.map(sport => <li key={sport}>{sport}</li>)}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="stm-catmod-actions">
+            <button type="button" className="stm-btn-ghost" onClick={onClose}>Cancel</button>
+            <button
+              type="button"
+              className="stm-btn-primary"
+              disabled={saving || !name.trim()}
+              onClick={() => onSave({ ...team, name: name.trim(), logo, sportIds })}
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {showPicker && (
+        <TeamSportsPickerModal
+          team={{ ...team, sportIds }}
+          sportsList={sportsList}
+          onClose={() => setShowPicker(false)}
+          onSave={(ids) => { setSportIds(ids); setShowPicker(false); }}
+        />
+      )}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════
    SPORTS CONFIRMATION MODAL  (image 5 design)
    Sports | Division/Categories | Sports Format | Logo
 ═══════════════════════════════════════════ */
@@ -647,8 +736,9 @@ export default function SportsTeamsManager({ level }) {
   const [deletingTeam,      setDeletingTeam]      = useState(false);
   const [editSportTarget,   setEditSportTarget]   = useState(null); // sport object being edited in popup
   const [savingEditSport,   setSavingEditSport]   = useState(false);
+  const [editTeamTarget,    setEditTeamTarget]    = useState(null); // saved team being edited in popup
+  const [savingEditTeam,    setSavingEditTeam]    = useState(false);
 
-  const [previewTeam,  setPreviewTeam]  = useState('');
   const [saving,  setSaving]  = useState(false);
   const [loading, setLoading] = useState(false);
   const [toast,   setToast]   = useState('');
@@ -673,7 +763,6 @@ export default function SportsTeamsManager({ level }) {
       }));
       setSportsList(sports);
       setTeamsList(teams);
-      setPreviewTeam('');   // always start blank so "Team Name" placeholder shows
       setSportsRows([]);
       setTeamsRows([]);
     } catch (e) {
@@ -705,11 +794,28 @@ export default function SportsTeamsManager({ level }) {
 
   /* ── Edit a saved sport via popup ── */
   const saveEditedSport = async (updatedSport) => {
+    const previous = sportsList.find(s => s.id === updatedSport.id);
     const merged = sportsList.map(s => s.id === updatedSport.id ? updatedSport : s);
     setSportsList(merged);
     setSavingEditSport(true);
+
+    /* A team stores the sport NAME in sportIds, so renaming a sport used to
+       leave every team pointing at a sport that no longer exists — they
+       silently vanished from that sport's team pool in the schedule
+       generator. Follow the rename through to the teams. */
+    const renamed = previous && norm(previous.name) !== norm(updatedSport.name);
+    const retargetedTeams = renamed
+      ? teamsList.map(t => ({
+          ...t,
+          sportIds: (t.sportIds || []).map(sportName =>
+            norm(sportName) === norm(previous.name) ? updatedSport.name : sportName),
+        }))
+      : null;
+    if (retargetedTeams) setTeamsList(retargetedTeams);
+
     try {
       await saveSportsConfig(level, merged);
+      if (retargetedTeams) await saveTeamsConfig(level, retargetedTeams);
       flash(`✓ "${updatedSport.name}" updated.`);
       setEditSportTarget(null);
     } catch (e) {
@@ -718,6 +824,24 @@ export default function SportsTeamsManager({ level }) {
       setEditSportTarget(null);
     } finally {
       setSavingEditSport(false);
+    }
+  };
+
+  /* ── Edit a saved team via popup ── */
+  const saveEditedTeam = async (updatedTeam) => {
+    const merged = teamsList.map(t => t.id === updatedTeam.id ? updatedTeam : t);
+    setTeamsList(merged);
+    setSavingEditTeam(true);
+    try {
+      await saveTeamsConfig(level, merged);
+      flash(`✓ "${updatedTeam.name}" updated.`);
+      setEditTeamTarget(null);
+    } catch (e) {
+      console.error(e);
+      flash('Saved locally — Firestore sync failed.');
+      setEditTeamTarget(null);
+    } finally {
+      setSavingEditTeam(false);
     }
   };
 
@@ -739,9 +863,16 @@ export default function SportsTeamsManager({ level }) {
   };
   const saveSports = async () => {
     const cleaned = sportsRows.filter(r => r.name.trim());
-    const merged  = [
-      ...sportsList.filter(s => !cleaned.some(c => c.name === s.name)),
-      ...cleaned,
+    /* Re-submitting a name that is already saved updates that entry and
+       KEEPS ITS ID. The old exact-string compare let "basketball" through
+       as a second row next to "Basketball", and even an exact match got a
+       brand-new id, which broke anything already pointing at the old one. */
+    const merged = [
+      ...sportsList.map(s => {
+        const replacement = cleaned.find(c => norm(c.name) === norm(s.name));
+        return replacement ? { ...replacement, id: s.id } : s;
+      }),
+      ...cleaned.filter(c => !sportsList.some(s => norm(s.name) === norm(c.name))),
     ];
     // Update local state immediately so preview reflects changes right away
     setSportsList(merged);
@@ -777,13 +908,15 @@ export default function SportsTeamsManager({ level }) {
 
   const saveTeams = async () => {
     const cleaned = teamsRows.filter(r => r.name.trim());
-    const merged  = [
-      ...teamsList.filter(t => !cleaned.some(c => c.name === t.name)),
-      ...cleaned,
+    const merged = [
+      ...teamsList.map(t => {
+        const replacement = cleaned.find(c => norm(c.name) === norm(t.name));
+        return replacement ? { ...replacement, id: t.id } : t;
+      }),
+      ...cleaned.filter(c => !teamsList.some(t => norm(t.name) === norm(c.name))),
     ];
     // Update local state immediately so preview reflects changes right away
     setTeamsList(merged);
-    setPreviewTeam('');   // reset to placeholder so user picks manually
     setTeamsRows([]);
     setShowTeamsConfirm(false);
     // Then persist to Firestore in background
@@ -807,7 +940,6 @@ export default function SportsTeamsManager({ level }) {
   const deleteTeam = async (team) => {
     const remaining = teamsList.filter(t => t.id !== team.id);
     setTeamsList(remaining);
-    if (previewTeam === team.name) setPreviewTeam('');
     setDeleteTeamTarget(null);
     setDeletingTeam(true);
     try {
@@ -824,7 +956,6 @@ export default function SportsTeamsManager({ level }) {
   /* ── Derived ── */
   const catSportRow  = sportsRows.find(r => r.id === catTarget)     || null;
   const pickerTeam   = teamsRows.find(r => r.id === pickerTarget)   || null;
-  const activeTeam   = teamsList.find(t => t.name === previewTeam)  || null;
 
   const flatDivisions = (sport) =>
     (sport?.categoryGroups || []).flatMap(g => {
@@ -940,8 +1071,13 @@ export default function SportsTeamsManager({ level }) {
 
       {/* ════════ SPORTS PREVIEW ════════ */}
       <div className="stm-card stm-card--preview">
-        <h4 className="stm-preview-title">SPORTS PREVIEW</h4>
-        <p className="stm-preview-sub">Categories/divisions and format for every sport.</p>
+        <h4 className="stm-preview-title">
+          SPORTS PREVIEW
+          {sportsList.length > 0 && <span className="stm-preview-count">{sportsList.length} saved</span>}
+        </h4>
+        <p className="stm-preview-sub">
+          Every sport already saved for this level, with its categories, divisions, and format. Edit or delete any row.
+        </p>
 
         {sportsList.length === 0 ? (
           <p className="stm-empty-note">No sports saved yet.</p>
@@ -1115,56 +1251,80 @@ export default function SportsTeamsManager({ level }) {
 
       {/* ════════ TEAMS PREVIEW ════════ */}
       <div className="stm-card stm-card--preview">
-        <h4 className="stm-preview-title">TEAMS PREVIEW</h4>
-        <p className="stm-preview-sub">Select a team to view what sports they participate in.</p>
+        <h4 className="stm-preview-title">
+          TEAMS PREVIEW
+          {teamsList.length > 0 && <span className="stm-preview-count">{teamsList.length} saved</span>}
+        </h4>
+        <p className="stm-preview-sub">
+          Every team already saved for this level, with the sports it plays. Edit or delete any row.
+        </p>
 
-        <div className="stm-preview-row stm-preview-row--teams">
-          <div className="stm-preview-block">
-            <span className="stm-preview-label">Teams</span>
-            <div className="stm-preview-team-row">
-              <div className="stm-preview-dd-wrap">
-                <select
-                  className="stm-preview-dd"
-                  value={previewTeam}
-                  onChange={e => setPreviewTeam(e.target.value)}
-                >
-                  {/* Placeholder shown when no team selected or no teams saved */}
-                  {(!previewTeam || teamsList.length === 0) && (
-                    <option value="" disabled>Team Name</option>
-                  )}
-                  {teamsList.map(t => (
-                    <option key={t.id} value={t.name}>{t.name}</option>
+        {/* The dropdown here only ever showed one team at a time, and offered
+            no way to edit — you had to delete and re-add. Everything saved is
+            listed instead, each row editable in place. */}
+        {teamsList.length === 0 ? (
+          <p className="stm-empty-note">No teams saved yet. Add and submit teams above.</p>
+        ) : (
+          <div className="stm-table-wrap">
+            <table className="stm-table stm-preview-table">
+              <thead>
+                <tr>
+                  <th>Logo</th>
+                  <th>Team</th>
+                  <th>Sports</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...teamsList]
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                  .map(team => (
+                    <tr key={team.id}>
+                      <td>
+                        {team.logo
+                          ? <img src={team.logo} alt="" className="stm-preview-team-logo" />
+                          : (
+                            <span className="stm-preview-team-initials" style={{ background: team.color || TEAM_COLORS[0] }}>
+                              {(team.name || '?').slice(0, 2).toUpperCase()}
+                            </span>
+                          )}
+                      </td>
+                      <td className="stm-preview-table__sport">{(team.name || '').toUpperCase()}</td>
+                      <td>
+                        {(team.sportIds || []).length === 0 ? (
+                          <span className="stm-empty-note">No sports assigned.</span>
+                        ) : (
+                          <ul className="stm-preview-list stm-preview-list--cols">
+                            {team.sportIds.map(sport => <li key={sport}>{sport}</li>)}
+                          </ul>
+                        )}
+                      </td>
+                      <td>
+                        <div className="stm-preview-table__actions">
+                          <button
+                            type="button"
+                            className="stm-preview-edit-btn"
+                            title="Edit team"
+                            onClick={() => setEditTeamTarget(team)}
+                          >
+                            <FaEdit />
+                          </button>
+                          <button
+                            type="button"
+                            className="stm-preview-delete-btn"
+                            title="Delete team"
+                            onClick={() => setDeleteTeamTarget(team)}
+                          >
+                            <FaTimes />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
-                </select>
-                <FaChevronDown className="stm-preview-dd__arrow" />
-              </div>
-              <button
-                type="button"
-                className="stm-preview-team-delete"
-                title="Delete this team"
-                disabled={!activeTeam}
-                onClick={() => activeTeam && setDeleteTeamTarget(activeTeam)}
-              >
-                <FaTrash />
-              </button>
-            </div>
+              </tbody>
+            </table>
           </div>
-
-          <div className="stm-preview-block stm-preview-block--wide">
-            <span className="stm-preview-label">Sports</span>
-            {teamsList.length === 0 ? (
-              <p className="stm-empty-note">No teams saved yet. Add and submit teams above.</p>
-            ) : !activeTeam ? (
-              <p className="stm-empty-note">Select a team to see their sports.</p>
-            ) : activeTeam.sportIds.length === 0 ? (
-              <p className="stm-empty-note">No sports assigned to this team.</p>
-            ) : (
-              <ul className="stm-preview-list stm-preview-list--cols">
-                {activeTeam.sportIds.map(s => <li key={s}>{s}</li>)}
-              </ul>
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ════════ MODALS ════════ */}
@@ -1256,6 +1416,16 @@ export default function SportsTeamsManager({ level }) {
             updateTeamRow(pickerTeam.id, { sportIds: ids });
             setPickerTarget(null);
           }}
+        />
+      )}
+
+      {editTeamTarget && (
+        <EditTeamModal
+          team={editTeamTarget}
+          sportsList={sportsList}
+          saving={savingEditTeam}
+          onClose={() => setEditTeamTarget(null)}
+          onSave={saveEditedTeam}
         />
       )}
 

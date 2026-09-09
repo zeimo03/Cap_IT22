@@ -1651,3 +1651,35 @@
     padding: 0;
   }
 }
+/* ── Saved-list headers: a count so it's obvious the list is what's stored ── */
+.stm-preview-count {
+  margin-left: 10px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: #eef1f8;
+  color: #46536b;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+
+/* ── Team avatars in the saved-teams table ── */
+.stm-preview-team-logo,
+.stm-preview-team-initials {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.stm-preview-team-initials {
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
