@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { FiAward, FiAlertTriangle, FiChevronDown, FiChevronLeft, FiChevronRight, FiStar, FiTrendingUp, FiZap, FiClock, FiMapPin } from 'react-icons/fi';
+import { FiAward, FiAlertTriangle, FiChevronLeft, FiChevronRight, FiStar, FiTrendingUp, FiZap, FiClock, FiMapPin } from 'react-icons/fi';
 import './DashboardPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import { getMatchSchedules, getMatchRecords, getSportsTeamsConfig } from '../services/firestoreService';
@@ -391,33 +391,24 @@ function FinishedSportButtons({ sports, value, onChange }) {
   );
 }
 
-function LevelsButton({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handlePick = (level) => { onChange(level); setOpen(false); };
-
+/* Level switcher — moved out of the small header dropdown (easy to miss)
+   and into a segmented tab bar right beside the page title, where all
+   three levels are visible and clickable at once. */
+function LevelTabs({ value, onChange }) {
   return (
-    <div ref={wrapRef} className="lvls-wrap">
-      <button className="lvls-btn" onClick={() => setOpen(p => !p)} aria-haspopup="listbox" aria-expanded={open}>
-        {value}
-        <span className={`lvls-btn__arrow ${open ? 'lvls-btn__arrow--open' : ''}`}><FiChevronDown /></span>
-      </button>
-      <div className={`lvls-dropdown ${open ? 'lvls-dropdown--open' : ''}`} role="listbox">
-        {LEVELS.map((level) => (
-          <button key={level} className="lvls-dropdown__item" onClick={() => handlePick(level)} role="option" aria-selected={value === level}>
-            {level}
-          </button>
-        ))}
-      </div>
+    <div className="dash-lvltabs" role="tablist" aria-label="School level">
+      {LEVELS.map((level) => (
+        <button
+          key={level}
+          type="button"
+          role="tab"
+          aria-selected={value === level}
+          className={`dash-lvltab ${value === level ? 'dash-lvltab--active' : ''}`}
+          onClick={() => onChange(level)}
+        >
+          {level}
+        </button>
+      ))}
     </div>
   );
 }
@@ -578,11 +569,13 @@ export default function DashboardPage() {
     <div className="user-dashboard">
       <header className="dash-header">
         <h1 className="dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
-        <LevelsButton value={levelLabel} onChange={setLevelLabel} />
       </header>
-      <div className="profile-page-intro">
-        <h2 className="profile-page-title">Home</h2>
-        <p className="profile-page-subtitle">Browse for matches informations</p>
+      <div className="profile-page-intro dash-intro-row">
+        <div>
+          <h2 className="profile-page-title">Home</h2>
+          <p className="profile-page-subtitle">Browse for matches informations</p>
+        </div>
+        <LevelTabs value={levelLabel} onChange={setLevelLabel} />
       </div>
       <div className="dash-body">
         {loadError && <p className="dash-empty">{loadError}</p>}

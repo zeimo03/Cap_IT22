@@ -4,15 +4,18 @@
 @import url(https://fonts.googleapis.com/css?family=Lalezar:regular);
 @import url(https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900,100italic,200italic,300italic,italic,500italic,600italic,700italic,800italic,900italic);
 
+/* No transform here on purpose: .stm-wrap wraps every modal in this file,
+   and animation-fill-mode: both keeps the end-keyframe transform applied
+   forever, which turns .stm-wrap into the containing block for any
+   position: fixed descendant — the modal overlay ends up centered on
+   .stm-wrap's full scrollable height instead of the actual viewport. */
 @keyframes stm-fade-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -106,107 +109,6 @@
   gap: 18px;
   flex-wrap: wrap;
   margin-bottom: 16px;
-}
-
-/* ════════════════════════════════════════════
-   CUSTOM NUMBER DROPDOWN  (image 3 design)
-════════════════════════════════════════════ */
-.stm-num-wrap {
-  position: relative;
-}
-
-.stm-num-btn {
-  font-family: "Inter", sans-serif;
-  background: #001529;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 9px 16px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  min-width: 160px;
-  justify-content: space-between;
-  transition: background 0.2s ease, transform 0.12s ease;
-}
-
-.stm-num-btn:hover {
-  background: #022240;
-}
-
-.stm-num-btn:active {
-  transform: scale(0.97);
-}
-
-.stm-num-arrow {
-  font-size: 0.7rem;
-  transition: transform 0.25s ease;
-  flex-shrink: 0;
-}
-
-.stm-num-arrow--open {
-  transform: rotate(180deg);
-}
-
-/* The panel that drops down — matches image 3 */
-.stm-num-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  background: #0a1e35;
-  border-radius: 12px;
-  padding: 10px;
-  min-width: 180px;
-  z-index: 200;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  animation: stm-fade-in 0.18s ease both;
-}
-
-.stm-num-panel__title {
-  font-size: 0.65rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.45);
-  text-transform: uppercase;
-  padding: 4px 8px 10px;
-}
-
-.stm-num-option {
-  display: block;
-  width: 100%;
-  background: #0f2744;
-  color: #fff;
-  border: 1.5px solid rgba(255, 255, 255, 0.12);
-  border-radius: 30px;
-  padding: 10px 16px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-align: center;
-  cursor: pointer;
-  margin-bottom: 6px;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-}
-
-.stm-num-option:last-child {
-  margin-bottom: 0;
-}
-
-.stm-num-option:hover {
-  background: #1a3a5c;
-  border-color: rgba(255, 255, 255, 0.3);
-}
-
-.stm-num-option:active {
-  transform: scale(0.97);
-}
-
-.stm-num-option--active {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.6);
-  color: #fff;
 }
 
 /* ── Link button ── */
@@ -1651,6 +1553,7 @@
     padding: 0;
   }
 }
+
 /* ── Saved-list headers: a count so it's obvious the list is what's stored ── */
 .stm-preview-count {
   margin-left: 10px;

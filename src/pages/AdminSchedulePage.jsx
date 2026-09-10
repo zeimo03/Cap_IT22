@@ -5,8 +5,9 @@ import './AdminSchedulePage.css';
 import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getSportsTeamsConfig, getMatchSchedules, getMatchRecords, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, setLivePlayerCount, setEventRegistrationCounts, getEventKey, getEventLabel, EVENT_TYPES } from '../services/firestoreService';
+import { getSportsTeamsConfig, getMatchSchedules, getMatchRecords, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, deleteScheduleSet, setLivePlayerCount, setEventRegistrationCounts, getEventKey, getEventLabel, EVENT_TYPES, getVenues, getAllMatchSchedules } from '../services/firestoreService';
 import SportsTeamsManager from './SportsTeamsManager';
+import VenuesManager from './VenuesManager';
 
 const LEVELS = [
   { key: 'elementary', label: 'Elementary' },
@@ -14,32 +15,24 @@ const LEVELS = [
   { key: 'college',     label: 'College' },
 ];
 
-/* Levels dropdown — same interaction pattern as the Home Dashboard's LevelsButton */
-function LevelsButton({ levelKey, onChange }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const current = LEVELS.find(l => l.key === levelKey) || LEVELS[1];
-
+/* Level tabs — moved out of the small header dropdown (easy to miss) and
+   into a segmented control that sits right above the page content it
+   scopes, where all three levels are visible and clickable at once. */
+function LevelTabs({ levelKey, onChange }) {
   return (
-    <div ref={wrapRef} className="lvls-wrap">
-      <button className="lvls-btn" onClick={() => setOpen(p => !p)} aria-haspopup="listbox" aria-expanded={open}>
-        {current.label}
-        <span className={`lvls-btn__arrow ${open ? 'lvls-btn__arrow--open' : ''}`}><FaChevronDown /></span>
-      </button>
-      <div className={`lvls-dropdown ${open ? 'lvls-dropdown--open' : ''}`} role="listbox">
-        {LEVELS.map((l) => (
-          <button key={l.key} className="lvls-dropdown__item" onClick={() => { onChange(l.key); setOpen(false); }} role="option" aria-selected={levelKey === l.key}>
-            {l.label}
-          </button>
-        ))}
-      </div>
+    <div className="asp-lvltabs" role="tablist" aria-label="School level">
+      {LEVELS.map((l) => (
+        <button
+          key={l.key}
+          type="button"
+          role="tab"
+          aria-selected={levelKey === l.key}
+          className={`asp-lvltab ${levelKey === l.key ? 'asp-lvltab--active' : ''}`}
+          onClick={() => onChange(l.key)}
+        >
+          {l.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -120,7 +113,11 @@ const TEAM_COLORS = {
   'Red Rhinos':      '#dc2626',
 };
 
-const TABS = ['Registration', 'Sports & Teams', 'Match Schedules Format'];
+const TABS = ['Venues', 'Registration', 'Sports & Teams', 'Match Schedules Format'];
+const VENUES_TAB_INDEX = TABS.indexOf('Venues');
+const REGISTRATION_TAB_INDEX = TABS.indexOf('Registration');
+const SPORTS_TEAMS_TAB_INDEX = TABS.indexOf('Sports & Teams');
+const MATCH_SCHEDULES_TAB_INDEX = TABS.indexOf('Match Schedules Format');
 
 /* ═══════════════════════════════════════════════════════════════════════
    MATCH SCHEDULES FORMAT — everything below (through MatchScheduleFormatSection)
@@ -142,6 +139,59 @@ const FORMATS = [
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const LEVEL_LABELS = { elementary: 'Elementary', highSchool: 'High School', college: 'College' };
+
+/* ═══════════════════════════════════════════
+   AUTO-SCHEDULING — date/time assignment for a freshly generated schedule.
+   All matches in the same round (round-robin) or stage (bracket/double
+   bracket) share one time slot, since they're played on different courts
+   at once; the next round/stage starts SLOT_GAP_MINUTES later. Once a
+   slot would land at/after DAY_CUTOFF_MINUTES, scheduling rolls over to
+   the next calendar day, restarting at the admin's chosen start time.
+   Purely a starting point — every match stays editable afterward via the
+   per-match Edit modal, same as before this existed.
+═══════════════════════════════════════════ */
+const SLOT_GAP_MINUTES = 90;
+const DAY_CUTOFF_MINUTES = 17 * 60; // 5:00 PM
+
+const scheduleGroupKey = (m) => m.stage ?? `round-${m.round}`;
+const timeStrToMinutes = (t) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+const minutesToTimeStr = (mins) => {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+const addDaysToDateStr = (dateStr, days) => {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, mo - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
+function assignAutoSchedule(matches, startDate, startTime) {
+  let currentDate = startDate;
+  let currentMinutes = timeStrToMinutes(startTime);
+  let prevKey = null;
+  let isFirstGroup = true;
+
+  return matches.map((m) => {
+    const key = scheduleGroupKey(m);
+    if (key !== prevKey) {
+      if (!isFirstGroup) {
+        currentMinutes += SLOT_GAP_MINUTES;
+        if (currentMinutes >= DAY_CUTOFF_MINUTES) {
+          currentDate = addDaysToDateStr(currentDate, 1);
+          currentMinutes = timeStrToMinutes(startTime);
+        }
+      }
+      isFirstGroup = false;
+      prevKey = key;
+    }
+    return { ...m, date: currentDate, time: minutesToTimeStr(currentMinutes) };
+  });
+}
 
 /* Was this match produced by the round-robin/bracket generator (as opposed
    to the manual "Add Schedule" form)? Newer records carry an explicit
@@ -647,8 +697,16 @@ function MatchScheduleFormatSection({ level }) {
   const [selFormat,   setSelFormat]   = useState(null); // { id, label }
   const [activeRound, setActiveRound] = useState(0);
 
+  /* Start date/time for auto-scheduling a freshly generated set — the admin
+     picks these before saving, and every match still stays editable
+     afterward via the per-match Edit modal. */
+  const [scheduleStartDate, setScheduleStartDate] = useState('');
+  const [scheduleStartTime, setScheduleStartTime] = useState('');
+
   const [savedSchedules, setSavedSchedules] = useState([]); // persisted matches, this level
   const [matchRecords, setMatchRecords] = useState([]);     // results saved by Moderator, this level
+  const [venues, setVenues] = useState([]);                 // admin-entered venue list (global)
+  const [allSchedules, setAllSchedules] = useState([]);      // matches across EVERY level, for venue conflict checks
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [toast, setToast] = useState(null); // { text } | null
   const [successModal, setSuccessModal] = useState(null); // { sport, category, format, teams, rounds, matches } | null
@@ -677,6 +735,19 @@ function MatchScheduleFormatSection({ level }) {
       } catch (recordError) {
         console.warn('Match records unavailable:', recordError);
         setMatchRecords([]);
+      }
+      /* Venues + every level's schedules — needed to disable an
+         already-booked venue in the Add/Edit Schedule dropdowns. Optional
+         in the same spirit as match records: a failure here shouldn't
+         block the rest of the page, it just means venues show unrestricted. */
+      try {
+        const [v, all] = await Promise.all([getVenues(), getAllMatchSchedules()]);
+        setVenues(v);
+        setAllSchedules(all);
+      } catch (venueError) {
+        console.warn('Venues unavailable:', venueError);
+        setVenues([]);
+        setAllSchedules([]);
       }
     } catch (e) {
       console.error('Failed to load sports/teams/schedules:', e);
@@ -754,12 +825,54 @@ function MatchScheduleFormatSection({ level }) {
 
   const handleReset = () => {
     setSelSport(null); setSelCategory(null); setSelFormat(null); setActiveRound(0);
+    setScheduleStartDate(''); setScheduleStartTime('');
   };
 
   const ready = selSport && selCategory && selFormat && eligibleTeams.length >= 2;
   const isBracket = selFormat?.id === 'bracket';
   const isDoubleBracket = selFormat?.id === 'double-bracket';
   const isDoubleLeg = selFormat?.id === 'double-rr';
+
+  /* ── Regeneration lock ──
+     Once a (sport, category, format) set has been saved, generating
+     again for that exact combination is blocked — the admin must
+     explicitly reset (delete) that set first. This intentionally does
+     NOT key on level, because savedSchedules is already scoped to the
+     current level's own `matchSchedules/{level}` document. */
+  const lockedMatches = ready
+    ? savedSchedules.filter(m => m.sport === selSport.name && m.category === selCategory.label && m.format === selFormat.label)
+    : [];
+  const isLocked = lockedMatches.length > 0;
+  const lockedResultsCount = lockedMatches.filter(m => matchRecords.some(r => recordMatchesSchedule(r, m))).length;
+
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resettingSchedule, setResettingSchedule] = useState(false);
+
+  const handleResetClick = () => {
+    if (isLocked) {
+      setResetConfirmOpen(true);
+    } else {
+      handleReset();
+    }
+  };
+
+  const handleConfirmResetSchedule = async () => {
+    if (!selSport || !selCategory || !selFormat) return;
+    setResettingSchedule(true);
+    try {
+      const remaining = await deleteScheduleSet(level, selSport.name, selCategory.label, selFormat.label);
+      setSavedSchedules(remaining);
+      syncAllSchedulesForLevel(remaining);
+      setResetConfirmOpen(false);
+      setActiveRound(0);
+      setToast({ text: 'Schedule reset — you can now generate a new one.' });
+    } catch (e) {
+      console.error('Failed to reset schedule:', e);
+      setToast({ text: 'Failed to reset schedule — try again.' });
+    } finally {
+      setResettingSchedule(false);
+    }
+  };
 
   const rounds = ready && !isBracket && !isDoubleBracket
     ? generateRounds(eligibleTeams.map(t => t.name), isDoubleLeg)
@@ -782,6 +895,8 @@ function MatchScheduleFormatSection({ level }) {
 
   /* ── Save the generated schedule ── */
   const handleSaveGenerated = async () => {
+    if (!scheduleStartDate || !scheduleStartTime) return;
+
     const buildMatch = (extra) => ({
       id: uid(),
       sport: selSport.name,
@@ -829,10 +944,13 @@ function MatchScheduleFormatSection({ level }) {
       );
     }
 
+    matches = assignAutoSchedule(matches, scheduleStartDate, scheduleStartTime);
+
     setSavingSchedule(true);
     try {
       const merged = await saveGeneratedSchedule(level, matches);
       setSavedSchedules(merged);
+      syncAllSchedulesForLevel(merged);
       setSuccessModal({
         sport: selSport.name,
         category: selCategory.label,
@@ -854,6 +972,33 @@ function MatchScheduleFormatSection({ level }) {
     listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  /* ── Venue availability ──
+     A venue is "occupied" when another match — any sport, any level,
+     since it's the same physical space — already sits at the exact same
+     date + time. `excludeId` lets the Edit modal ignore the match it's
+     currently editing, so re-saving it without changing date/time/venue
+     doesn't lock itself out. Blank date/time means nothing to conflict
+     with yet, so nothing is disabled until both are picked. */
+  const venueOccupied = (venueName, date, time, excludeId) => {
+    if (!venueName || !date || !time) return false;
+    return allSchedules.some(m =>
+      m.id !== excludeId &&
+      (m.location || '') === venueName &&
+      m.date === date &&
+      m.time === time
+    );
+  };
+
+  /* Keeps allSchedules (used for venue conflict checks) in sync with this
+     level's matches right after a save/delete, without a full re-fetch
+     of every level. */
+  const syncAllSchedulesForLevel = (levelMatches) => {
+    setAllSchedules(prev => [
+      ...prev.filter(m => m.level !== level),
+      ...levelMatches.map(m => ({ ...m, level })),
+    ]);
+  };
+
   /* ── Manual "Add Schedule" ── */
   const openAddModal = () => {
     setAddForm({ sport: selSport?.name || '', date: '', time: '', location: '', pairs: [{ teamA: '', teamB: '' }] });
@@ -873,6 +1018,10 @@ function MatchScheduleFormatSection({ level }) {
   const handleConfirmAdd = async () => {
     const validPairs = addForm.pairs.filter(p => p.teamA && p.teamB);
     if (!addForm.sport || !addForm.date || !addForm.time || validPairs.length === 0) return;
+    if (venueOccupied(addForm.location, addForm.date, addForm.time, null)) {
+      setToast({ text: 'That venue is already booked at this date & time — pick another.' });
+      return;
+    }
     const pool = teamsList.filter(t => (t.sportIds || []).includes(addForm.sport));
 
     let merged = savedSchedules;
@@ -896,6 +1045,7 @@ function MatchScheduleFormatSection({ level }) {
       merged = await upsertMatchSchedule(level, match);
     }
     setSavedSchedules(merged);
+    syncAllSchedulesForLevel(merged);
     setAddModalOpen(false);
   };
 
@@ -910,6 +1060,10 @@ function MatchScheduleFormatSection({ level }) {
 
   const handleConfirmEdit = async () => {
     if (!editForm || !editForm.date || !editForm.time || !editForm.teamA || !editForm.teamB) return;
+    if (venueOccupied(editForm.location, editForm.date, editForm.time, editForm.id)) {
+      setToast({ text: 'That venue is already booked at this date & time — pick another.' });
+      return;
+    }
     const updated = {
       ...editForm,
       teamALogo: editPool.find(t => t.name === editForm.teamA)?.logo ?? editForm.teamALogo ?? null,
@@ -917,6 +1071,7 @@ function MatchScheduleFormatSection({ level }) {
     };
     const merged = await upsertMatchSchedule(level, updated);
     setSavedSchedules(merged);
+    syncAllSchedulesForLevel(merged);
     setEditModalOpen(false);
     setEditForm(null);
     setToast({ text: 'Schedule updated successfully.' });
@@ -932,6 +1087,7 @@ function MatchScheduleFormatSection({ level }) {
     try {
       const merged = await deleteMatchSchedule(level, editForm.id);
       setSavedSchedules(merged);
+      syncAllSchedulesForLevel(merged);
       setDeleteConfirmOpen(false);
       setEditModalOpen(false);
       setEditForm(null);
@@ -997,7 +1153,9 @@ function MatchScheduleFormatSection({ level }) {
             onChange={handlePickFormat}
             disabled={!selCategory}
           />
-          <button className="msf-reset-btn" onClick={handleReset}><FaSync /> Reset</button>
+          <button className="msf-reset-btn" onClick={handleResetClick}>
+            {isLocked ? <><FaTrash /> Reset Schedule</> : <><FaSync /> Reset</>}
+          </button>
         </div>
 
         {!ready ? (
@@ -1008,6 +1166,22 @@ function MatchScheduleFormatSection({ level }) {
                 ? 'No sports configured yet — add sports and teams in the Sports & Teams tab first.'
                 : 'Pick a sport, category and format to generate the schedule.'}
           </p>
+        ) : isLocked ? (
+          <div className="msf-result-head">
+            <div>
+              <h3>{selFormat.label}</h3>
+              <p className="msf-muted">
+                A schedule already exists for this sport, category, and format.
+              </p>
+              <p className="msf-form-note" style={{ color: '#a83218', fontWeight: 700 }}>
+                Click "Reset Schedule" above to delete it before generating a new one.
+              </p>
+            </div>
+            <div className="msf-stats">
+              <div className="msf-stat"><span>Teams</span><b>{eligibleTeams.length}</b></div>
+              <div className="msf-stat"><span>Saved matches</span><b>{lockedMatches.length}</b></div>
+            </div>
+          </div>
         ) : (
           <>
             <div className="msf-result-head">
@@ -1147,8 +1321,36 @@ function MatchScheduleFormatSection({ level }) {
               </>
             )}
 
+            <div className="msf-form-row" style={{ marginTop: 20 }}>
+              <div className="msf-form-group">
+                <label>Start Date</label>
+                <input
+                  type="date"
+                  value={scheduleStartDate}
+                  onChange={e => setScheduleStartDate(e.target.value)}
+                />
+              </div>
+              <div className="msf-form-group">
+                <label>Start Time</label>
+                <input
+                  type="time"
+                  value={scheduleStartTime}
+                  onChange={e => setScheduleStartTime(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="msf-form-note">
+              Matches are auto-scheduled from here, 1h30m apart per round/stage (matches in the same
+              round or stage share a slot). You can still change the date, time, or venue of any match
+              afterward from the list below.
+            </p>
+
             <div className="msf-savebar">
-              <button className="msf-btn-primary" disabled={savingSchedule} onClick={handleSaveGenerated}>
+              <button
+                className="msf-btn-primary"
+                disabled={savingSchedule || !scheduleStartDate || !scheduleStartTime}
+                onClick={handleSaveGenerated}
+              >
                 {savingSchedule ? 'Saving…' : 'Save Generated Schedule'}
               </button>
             </div>
@@ -1156,8 +1358,10 @@ function MatchScheduleFormatSection({ level }) {
         )}
       </div>
 
-      {/* ── TOURNAMENT SUMMARY + MATCH SCHEDULE SUMMARY — own card, sits below the round matches, not merged into it ── */}
-      {ready && (
+      {/* ── TOURNAMENT SUMMARY + MATCH SCHEDULE SUMMARY — own card, sits below the round matches, not merged into it ──
+         Hidden while locked: its bracket/rounds are a freshly computed preview, not the actually-saved
+         schedule, so showing it here would misrepresent what's stored until the admin resets. ── */}
+      {ready && !isLocked && (
         <div className="msf-card msf-card--summary">
           <div className="msf-summary-layout">
             <aside className="msf-tsummary">
@@ -1416,6 +1620,39 @@ function MatchScheduleFormatSection({ level }) {
         )}
       </div>
 
+      {/* ── Reset Schedule confirmation — deletes the whole locked (sport, category, format)
+         set at once, unlike the per-match "Delete Schedule" in the Edit modal ── */}
+      {resetConfirmOpen && (
+        <div className="msf-overlay" onClick={() => setResetConfirmOpen(false)}>
+          <div className="msf-confirm-delete" onClick={e => e.stopPropagation()}>
+            <h3>Reset this schedule?</h3>
+            <p>
+              This will permanently delete all <b>{lockedMatches.length}</b> saved match{lockedMatches.length === 1 ? '' : 'es'} for{' '}
+              <b>{selSport?.name} / {selCategory?.label} / {selFormat?.label}</b>. This can't be undone.
+            </p>
+            {lockedResultsCount > 0 && (
+              <p style={{ color: '#a83218', fontWeight: 700 }}>
+                {lockedResultsCount} of these {lockedResultsCount === 1 ? 'match' : 'matches'} already {lockedResultsCount === 1 ? 'has' : 'have'} a
+                recorded result. Deleting them leaves that result — and the rating points it awarded — with nothing to point at.
+              </p>
+            )}
+            <div className="msf-confirm-delete__actions">
+              <button type="button" className="msf-btn-ghost" onClick={() => setResetConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="msf-btn-danger"
+                disabled={resettingSchedule}
+                onClick={handleConfirmResetSchedule}
+              >
+                {resettingSchedule ? 'Resetting…' : 'Reset Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Toast ── */}
       {toast && (
         <div className="msf-toast"><FaCheck /> {toast.text}</div>
@@ -1519,7 +1756,23 @@ function MatchScheduleFormatSection({ level }) {
 
               <div className="msf-form-group">
                 <label>Venue</label>
-                <input type="text" placeholder="Input Venue" value={addForm.location} onChange={e => setAddForm(f => ({ ...f, location: e.target.value }))} />
+                <select
+                  value={addForm.location}
+                  onChange={e => setAddForm(f => ({ ...f, location: e.target.value }))}
+                >
+                  <option value="">Select a venue</option>
+                  {venues.map(v => {
+                    const occupied = venueOccupied(v.name, addForm.date, addForm.time, null);
+                    return (
+                      <option key={v.id} value={v.name} disabled={occupied}>
+                        {v.name}{occupied ? ' (Occupied)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                {venues.length === 0 && (
+                  <p className="msf-form-note">No venues configured yet — add one in the Venues tab.</p>
+                )}
               </div>
 
               <div className="msf-form-actions">
@@ -1602,7 +1855,26 @@ function MatchScheduleFormatSection({ level }) {
 
               <div className="msf-form-group">
                 <label>Venue</label>
-                <input type="text" placeholder="Input Venue" value={editForm.location || ''} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} />
+                <select
+                  value={editForm.location || ''}
+                  onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}
+                >
+                  <option value="">Select a venue</option>
+                  {venues.map(v => {
+                    const occupied = venueOccupied(v.name, editForm.date, editForm.time, editForm.id);
+                    return (
+                      <option key={v.id} value={v.name} disabled={occupied}>
+                        {v.name}{occupied ? ' (Occupied)' : ''}
+                      </option>
+                    );
+                  })}
+                  {editForm.location && !venues.some(v => v.name === editForm.location) && (
+                    <option value={editForm.location}>{editForm.location} (no longer listed)</option>
+                  )}
+                </select>
+                {venues.length === 0 && (
+                  <p className="msf-form-note">No venues configured yet — add one in the Venues tab.</p>
+                )}
               </div>
 
               <div className="msf-form-actions">
@@ -1661,7 +1933,7 @@ export default function AdminSchedulePage() {
   const { isAdmin, authLoading } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(REGISTRATION_TAB_INDEX);
   const [level, setLevel] = useState('highSchool');
 
   // Registration data
@@ -1785,7 +2057,7 @@ const fetchSummary = useCallback(async () => {
   }
 }, []);
 
-  useEffect(() => { if (activeTab === 0) fetchSummary(); }, [activeTab, fetchSummary]);
+  useEffect(() => { if (activeTab === REGISTRATION_TAB_INDEX) fetchSummary(); }, [activeTab, fetchSummary]);
 
   // Summary table + level totals follow the event filter; with no filter
   // they show every event combined, exactly as before.
@@ -1849,7 +2121,6 @@ const fetchSummary = useCallback(async () => {
       {/* Header */}
       <header className="asp-header">
         <h1 className="asp-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
-        <LevelsButton levelKey={level} onChange={setLevel} />
       </header>
 
       {/* Intro */}
@@ -1867,11 +2138,20 @@ const fetchSummary = useCallback(async () => {
         </div>
       </div>
 
+      {/* Level switcher — applies to every tab except Venues (venues are
+          global, shared across every level), so it gets its own full-width
+          row instead of competing for space with the section tabs. */}
+      {activeTab !== VENUES_TAB_INDEX && (
+        <div className="asp-level-row">
+          <LevelTabs levelKey={level} onChange={setLevel} />
+        </div>
+      )}
+
       {/* Body */}
       <div className="asp-body">
 
-        {/* ══ TAB 0 ══ */}
-        {activeTab === 0 && (
+        {/* ══ REGISTRATION TAB ══ */}
+        {activeTab === REGISTRATION_TAB_INDEX && (
           <div className="asp-tab-content">
 
             {/* ── Card 1: Summary ── */}
@@ -2093,8 +2373,8 @@ const fetchSummary = useCallback(async () => {
           </div>
         )}
 
-        {/* ══ TAB 1 ══ */}
-        {activeTab === 1 && (
+        {/* ══ SPORTS & TEAMS TAB ══ */}
+        {activeTab === SPORTS_TEAMS_TAB_INDEX && (
           <div className="asp-tab-content">
             <div className="asp-level-banner">
               <h2>{LEVELS.find(l => l.key === level)?.label.toUpperCase()}</h2>
@@ -2104,9 +2384,14 @@ const fetchSummary = useCallback(async () => {
           </div>
         )}
 
-        {/* ══ TAB 2 ══ */}
-        {activeTab === 2 && (
+        {/* ══ MATCH SCHEDULES FORMAT TAB ══ */}
+        {activeTab === MATCH_SCHEDULES_TAB_INDEX && (
           <MatchScheduleFormatSection level={level} />
+        )}
+
+        {/* ══ VENUES TAB ══ */}
+        {activeTab === VENUES_TAB_INDEX && (
+          <VenuesManager />
         )}
       </div>
 

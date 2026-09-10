@@ -87,100 +87,56 @@
   border-color: rgba(255, 255, 255, 0.6);
 }
 
-/* ── Levels dropdown (same pattern as Dashboard) ── */
-.rk-lvls-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.rk-lvls-btn {
-  font-family: "Inter", sans-serif;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  padding: 5px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  letter-spacing: 0.04em;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-  white-space: nowrap;
-}
-
-.rk-lvls-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.9);
-}
-
-.rk-lvls-arrow {
-  font-family: "Inter", sans-serif;
-  display: inline-block;
-  font-size: 11px;
-  transition: transform 0.25s ease;
-}
-
-.rk-lvls-arrow--open {
-  transform: rotate(180deg);
-}
-
-.rk-lvls-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  background: #001529;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  overflow: hidden;
-  min-width: 150px;
-  z-index: 100;
-  transform-origin: top right;
-  transform: scaleY(0.9) translateY(-8px);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s ease;
-}
-
-.rk-lvls-dropdown--open {
-  transform: scaleY(1) translateY(0);
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.rk-lvls-item {
-  font-family: "Inter", sans-serif;
-  display: block;
-  width: 100%;
-  padding: 11px 18px;
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-  letter-spacing: 0.03em;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.rk-lvls-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.rk-lvls-item+.rk-lvls-item {
-  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
-}
-
 /* ── Page intro ── */
 .rk-page-intro {
   padding: 18px 25px 10px;
   flex-shrink: 0;
   margin-left: -15px;
+}
+
+/* Intro row also carries the level switcher, laid out beside the title. */
+.rk-page-intro--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ── Level tabs — moved out of the small header dropdown (easy to miss)
+   and into a segmented control right beside the page title. ── */
+.rk-lvltabs {
+  display: inline-flex;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  padding: 5px;
+  flex-shrink: 0;
+}
+
+.rk-lvltab {
+  font-family: "Inter", sans-serif;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  border-radius: 10px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.rk-lvltab:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rk-lvltab--active {
+  color: #001529;
+  background: #FCBF19;
 }
 
 .rk-page-title {

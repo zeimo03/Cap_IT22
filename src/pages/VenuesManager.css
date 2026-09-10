@@ -1,0 +1,203 @@
+/* VenuesManager — layout/card styles only. Buttons, cards, overlays,
+   toasts, form groups etc. reuse the `msf-*` classes already defined in
+   AdminSchedulePage.css (this component only ever renders inside
+   AdminSchedulePage, which imports that stylesheet globally). */
+
+.vm-add-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.vm-add-form input {
+  padding: 11px 12px;
+  border: 1px solid #d8dceb;
+  border-radius: 8px;
+  font-size: 13px;
+  min-width: 220px;
+}
+
+.vm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.vm-card {
+  position: relative;
+  background: #fafbfd;
+  border: 1px solid #eef0f5;
+  border-radius: 12px;
+  padding: 18px 16px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.vm-card:hover {
+  border-color: #c7cfe6;
+  box-shadow: 0 6px 18px rgba(0, 21, 41, 0.08);
+}
+
+.vm-card__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #001529;
+  color: #f5a623;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.vm-card__name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #001529;
+  word-break: break-word;
+}
+
+.vm-card__rename-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #001529;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.vm-card__count {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: #5b678a;
+}
+
+.vm-card__actions {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  gap: 6px;
+}
+
+.vm-icon-delete {
+  background: #fdeeea;
+  color: #c0301f;
+  border: none;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+/* ── Venue's booked-schedules modal ── */
+.vm-schedule-modal {
+  background: #fff;
+  width: 100%;
+  max-width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: 14px;
+  padding: 22px 24px;
+  color: #001529;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  animation: msf-fade-up 0.2s ease both;
+
+  /* Thin, rounded scrollbar instead of the browser-default flat one,
+     which reads as a hard edge cutting across the modal's rounded
+     corners once content overflows. */
+  scrollbar-width: thin;
+  scrollbar-color: #c7cfe6 transparent;
+}
+
+.vm-schedule-modal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.vm-schedule-modal::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 14px 0;
+}
+
+.vm-schedule-modal::-webkit-scrollbar-thumb {
+  background: #c7cfe6;
+  border-radius: 8px;
+}
+
+.vm-schedule-modal::-webkit-scrollbar-thumb:hover {
+  background: #a9b4d6;
+}
+
+.vm-schedule-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.vm-schedule-modal__head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #001529;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vm-schedule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vm-schedule-list .msf-matchrow {
+  border-top: none;
+  border-radius: 10px;
+  background: #f3f4f8;
+  transition: background 0.15s ease;
+}
+
+.vm-schedule-list .msf-matchrow:hover {
+  background: #eaecf3;
+}
+
+.vm-teams {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vm-teams__vs {
+  font-size: 30px;
+  font-weight: 800;
+  color: #001529;
+}
+
+.vm-team-logo {
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.vm-team-logo--fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #5b678a;
+  color: #fff;
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.vm-pill-level {
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+}

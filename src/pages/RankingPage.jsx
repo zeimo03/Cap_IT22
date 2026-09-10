@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import './RankingPage.css';
 import { FaSearch, FaCrown, FaMedal } from 'react-icons/fa';
-import { FiChevronDown } from 'react-icons/fi';
 import Contact from '../components/Landing/Contact/Contact';
 import { getSportsTeamsConfig, getTeamRankings, getMatchRecords } from '../services/firestoreService';
 
@@ -146,38 +145,24 @@ function SportTabs({ active, onChange, sports }) {
   );
 }
 
-/* ── Levels dropdown (top-right of header, same pattern as Dashboard) ── */
-function LevelsButton({ selected, onChange }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = React.useRef(null);
-
-  React.useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
+/* ── Level tabs — moved out of the small header dropdown (easy to miss)
+   and into a segmented control right beside the page title, where all
+   three levels are visible and clickable at once. ── */
+function LevelTabs({ selected, onChange }) {
   return (
-    <div ref={wrapRef} className="rk-lvls-wrap">
-      <button className="rk-lvls-btn" onClick={() => setOpen(p => !p)} aria-haspopup="listbox" aria-expanded={open}>
-        {selected}
-        <span className={`rk-lvls-arrow ${open ? 'rk-lvls-arrow--open' : ''}`}><FiChevronDown /></span>
-      </button>
-      <div className={`rk-lvls-dropdown ${open ? 'rk-lvls-dropdown--open' : ''}`} role="listbox">
-        {LEVELS.map(level => (
-          <button
-            key={level}
-            className="rk-lvls-item"
-            onClick={() => { onChange(level); setOpen(false); }}
-            role="option"
-            aria-selected={selected === level}
-          >
-            {level}
-          </button>
-        ))}
-      </div>
+    <div className="rk-lvltabs" role="tablist" aria-label="School level">
+      {LEVELS.map(level => (
+        <button
+          key={level}
+          type="button"
+          role="tab"
+          aria-selected={selected === level}
+          className={`rk-lvltab ${selected === level ? 'rk-lvltab--active' : ''}`}
+          onClick={() => onChange(level)}
+        >
+          {level}
+        </button>
+      ))}
     </div>
   );
 }
@@ -617,7 +602,6 @@ export default function RankingPage() {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <LevelsButton selected={levelLabel} onChange={setLevelLabel} />
         </div>
       </header>
 
@@ -625,9 +609,12 @@ export default function RankingPage() {
       <div className="rk-body">
 
         {/* Page intro */}
-        <div className="rk-page-intro">
-          <h2 className="rk-page-title">Top Rankings</h2>
-          <p className="rk-page-subtitle">Ranked by performance, not by chance. Every game counts. Every rank matters.</p>
+        <div className="rk-page-intro rk-page-intro--row">
+          <div>
+            <h2 className="rk-page-title">Top Rankings</h2>
+            <p className="rk-page-subtitle">Ranked by performance, not by chance. Every game counts. Every rank matters.</p>
+          </div>
+          <LevelTabs selected={levelLabel} onChange={setLevelLabel} />
         </div>
 
         {loadError && <p className="rk-load-error">{loadError}</p>}

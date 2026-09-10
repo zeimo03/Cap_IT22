@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useMemo } from 'react';
 import { AuthContext } from '../components/AuthContext';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -6,7 +6,7 @@ import { getSportsTeamsConfig, getMatchSchedules } from '../services/firestoreSe
 import './SuperAdminPage.css';
 import {
   FaUsers, FaRunning, FaUsersCog, FaCalendarAlt, FaUserCheck, FaClock,
-  FaSync, FaDownload, FaChartPie, FaChevronDown, FaChevronRight, FaRegCalendarAlt,
+  FaSync, FaDownload, FaChartPie, FaChevronRight, FaRegCalendarAlt,
 } from 'react-icons/fa';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -408,40 +408,24 @@ function buildTimeSeries(seriesA, seriesB, days) {
   return buckets.map(({ label, values }) => ({ label, values }));
 }
 
-/* ── Header levels dropdown (same pattern as the admin page) ── */
-function LevelsButton({ levelKey, onChange }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const current = LEVEL_OPTIONS.find(l => l.key === levelKey) || LEVEL_OPTIONS[0];
-
+/* ── Level tabs — moved out of the small header dropdown (easy to miss)
+   and into a segmented control next to the panel title, where all levels
+   are visible and clickable at once. ── */
+function LevelTabs({ levelKey, onChange }) {
   return (
-    <div ref={wrapRef} className="sa-lvls">
-      <button className="sa-lvls__btn" onClick={() => setOpen(p => !p)} aria-haspopup="listbox" aria-expanded={open}>
-        {current.label}
-        <FaChevronDown className={`sa-lvls__arrow${open ? ' sa-lvls__arrow--open' : ''}`} />
-      </button>
-      <div className={`sa-lvls__menu${open ? ' sa-lvls__menu--open' : ''}`} role="listbox">
-        {LEVEL_OPTIONS.map(l => (
-          <button
-            key={l.key}
-            className="sa-lvls__item"
-            role="option"
-            aria-selected={levelKey === l.key}
-            onClick={() => { onChange(l.key); setOpen(false); }}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
+    <div className="sa-lvltabs" role="tablist" aria-label="School level">
+      {LEVEL_OPTIONS.map(l => (
+        <button
+          key={l.key}
+          type="button"
+          role="tab"
+          aria-selected={levelKey === l.key}
+          className={`sa-lvltab ${levelKey === l.key ? 'sa-lvltab--active' : ''}`}
+          onClick={() => onChange(l.key)}
+        >
+          {l.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -669,7 +653,6 @@ export default function SuperAdminPage() {
 
       <header className="sa-header">
         <h1 className="sa-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
-        <LevelsButton levelKey={levelKey} onChange={setLevelKey} />
       </header>
 
       <nav className="sa-crumbs">
@@ -691,6 +674,7 @@ export default function SuperAdminPage() {
               </p>
             </div>
             <div className="sa-panel__actions">
+              <LevelTabs levelKey={levelKey} onChange={setLevelKey} />
               <span className="sa-daterange" title={rangeCaption}>
                 <FaRegCalendarAlt />
                 {rangeCaption}

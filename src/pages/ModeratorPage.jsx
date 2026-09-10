@@ -476,30 +476,26 @@ function computeEditFinalPoints(record, editDraft, isPoints) {
 }
 
 /* ═══════════════════════════════════════════
-   LEVELS BUTTON (top-right header)
+   LEVEL TABS (school-level switcher)
+   Previously a small text button tucked in the top-right corner of the
+   header — moderators kept missing it and got confused why their matches
+   weren't showing. It now lives as a prominent segmented tab bar right
+   above the match content it controls, so the switch is impossible to miss
+   and its effect (the content below changing) is immediately obvious.
 ═══════════════════════════════════════════ */
-function LevelsButton({ levelKey, onChange }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useEffect(() => {
-    const onClick = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, []);
-
-  const current = LEVELS.find((l) => l.key === levelKey) || LEVELS[1];
-
+function LevelTabs({ levelKey, onChange }) {
   return (
-    <div ref={wrapRef} className="mp-lvls-wrap">
-      <button className="mp-lvls-btn" onClick={() => setOpen((p) => !p)} aria-haspopup="listbox" aria-expanded={open}>
-        {current.label}
-        <span className={`mp-lvls-btn__arrow ${open ? 'mp-lvls-btn__arrow--open' : ''}`}><FaChevronDown /></span>
-      </button>
-      <div className={`mp-lvls-dropdown ${open ? 'mp-lvls-dropdown--open' : ''}`} role="listbox">
+    <div className="mp-levelband">
+      <div className="mp-levelband__tabs" role="tablist" aria-label="School level">
         {LEVELS.map((l) => (
-          <button key={l.key} className="mp-lvls-dropdown__item" role="option" aria-selected={levelKey === l.key}
-            onClick={() => { onChange(l.key); setOpen(false); }}>
+          <button
+            key={l.key}
+            type="button"
+            role="tab"
+            aria-selected={levelKey === l.key}
+            className={`mp-levelband__tab ${levelKey === l.key ? 'mp-levelband__tab--active' : ''}`}
+            onClick={() => onChange(l.key)}
+          >
             {l.label}
           </button>
         ))}
@@ -2033,7 +2029,6 @@ export default function ModeratorPage() {
     <div className="mp-page">
       <header className="mp-header">
         <h1 className="mp-header__title">Santa Rita College of Pampanga, Inc</h1>
-        <LevelsButton levelKey={level} onChange={setLevel} />
       </header>
 
       <div className="mp-body">
@@ -2164,10 +2159,7 @@ export default function ModeratorPage() {
         </div>
         <div className="mp-header-divider" />
 
-        <div className="mp-levelband">
-          <div className="mp-levelband__title">{levelLabel}</div>
-          <div className="mp-levelband__bar"><div className="mp-levelband__seg" /></div>
-        </div>
+        <LevelTabs levelKey={level} onChange={setLevel} />
 
         {/* Nothing renders below the level band until a match is chosen —
             the schedule list above is the whole interface at this point.

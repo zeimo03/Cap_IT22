@@ -45,90 +45,6 @@
 }
 
 /* ══════════════════════════════════════════
-   LEVELS BUTTON (top-right)
-   ══════════════════════════════════════════ */
-.mp-lvls-wrap {
-  position: relative;
-}
-
-.mp-lvls-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: 1.5px solid #fff;
-  color: #fff;
-  border-radius: 999px;
-  padding: 6px 16px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.12s ease;
-}
-
-.mp-lvls-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.mp-lvls-btn:active {
-  transform: scale(0.96);
-}
-
-.mp-lvls-btn__arrow {
-  display: flex;
-  transition: transform 0.2s ease;
-  font-size: 0.7rem;
-}
-
-.mp-lvls-btn__arrow--open {
-  transform: rotate(180deg);
-}
-
-.mp-lvls-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-  min-width: 160px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
-  opacity: 0;
-  transform: translateY(-6px) scale(0.98);
-  pointer-events: none;
-  transition: opacity 0.16s ease, transform 0.16s ease;
-  z-index: 40;
-}
-
-.mp-lvls-dropdown--open {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  pointer-events: auto;
-}
-
-.mp-lvls-dropdown__item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 10px 16px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #001529;
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.mp-lvls-dropdown__item:hover {
-  background: #f2f4f8;
-}
-
-.mp-lvls-dropdown__item+.mp-lvls-dropdown__item {
-  border-top: 1px solid #edeff3;
-}
-
-/* ══════════════════════════════════════════
    BODY / SCROLL AREA
    ══════════════════════════════════════════ */
 .mp-body {
@@ -235,40 +151,49 @@
 }
 
 /* ══════════════════════════════════════════
-   LEVEL BANNER (e.g. "HIGH SCHOOL" + segmented bar)
+   LEVEL TABS (e.g. Elementary / High School / College switcher)
    ══════════════════════════════════════════ */
 .mp-levelband {
-  text-align: center;
+  display: flex;
+  justify-content: center;
   margin: 8px 0 22px;
 }
 
-.mp-levelband__title {
+.mp-levelband__tabs {
+  display: inline-flex;
+  gap: 6px;
+  background: #001c33;
+  border: 1.5px solid #23446e;
+  border-radius: 16px;
+  padding: 6px;
+}
+
+.mp-levelband__tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #9fb3d1;
   font-family: 'Lalezar', sans-serif;
-  font-size: 1.5rem;
-  letter-spacing: 0.08em;
-  color: #f5a623;
-  margin: 0 0 10px;
+  font-size: 1.15rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  padding: 10px 24px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
 }
 
-.mp-levelband__bar {
-  position: relative;
-  height: 3px;
-  background: #23446e;
-  border-radius: 2px;
-  width: 100%;
-  max-width: 620px;
-  margin: 0 auto;
+.mp-levelband__tab:hover {
+  color: #fff;
+  background: rgba(245, 166, 35, 0.14);
 }
 
-.mp-levelband__seg {
-  position: absolute;
-  top: -3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 140px;
-  height: 9px;
-  border-radius: 5px;
+.mp-levelband__tab:active {
+  transform: scale(0.96);
+}
+
+.mp-levelband__tab--active {
+  color: #001529;
   background: #f5a623;
   animation: mp-glow 2.4s ease-in-out infinite;
 }

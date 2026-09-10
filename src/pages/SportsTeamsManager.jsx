@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  FaRunning, FaUsers, FaPlus, FaTimes, FaChevronDown,
-  FaEdit, FaCheck, FaEllipsisV, FaSync,
+  FaRunning, FaUsers, FaPlus, FaTimes,
+  FaEdit, FaCheck, FaSync,
 } from 'react-icons/fa';
 import './SportsTeamsManager.css';
 import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../services/firestoreService';
@@ -10,10 +10,10 @@ import { getSportsTeamsConfig, saveSportsConfig, saveTeamsConfig } from '../serv
    CONSTANTS
 ═══════════════════════════════════════════ */
 const FORMAT_OPTIONS = [
-  { id: 'single-time',  label: '1vs1',  sub: '(with only time basis to win {ex. Chess and Swimming 1vs1})' },
-  { id: 'single-solo',  label: '1vs1',  sub: '(with only point basis to win {ex. Taekwondo, Basketball, Badminton, Volleyball, and Tennis})' },
-  { id: 'single-group', label: '1vsMany', sub: '(with only time basis to win {ex. Swimming and Athletics})' },
-  { id: 'team-play',    label: '1vsMany', sub: '(with only point basis to win {ex. Archery})' },
+  { id: 'single-time',  label: '1 vs 1 (Time Basis)',  sub: 'ex. Chess and Swimming' },
+  { id: 'single-solo',  label: '1 vs 1 (Point Basis)',  sub: 'ex. Taekwondo, Basketball, Badminton, Volleyball, and Tennis' },
+  { id: 'single-group', label: '1 vs Many (Time Basis)', sub: 'ex. Swimming and Athletics' },
+  { id: 'team-play',    label: '1 vs Many (Point Basis)', sub: 'ex. Archery' },
 ];
 
 const TEAM_COLORS = ['#b45309','#dc2626','#15803d','#6d28d9','#92400e','#9f1239','#374151','#ea580c'];
@@ -77,46 +77,6 @@ function LogoUpload({ logo, onUpload, onClear, showClearButton = false }) {
         >
           Clear image
         </button>
-      )}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════
-   CUSTOM NUMBER DROPDOWN  (image 3 design)
-   Dark navy panel with pill options
-═══════════════════════════════════════════ */
-function NumDropdown({ value, onChange, label, max = 10 }) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
-
-  useEffect(() => {
-    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  return (
-    <div className="stm-num-wrap" ref={wrapRef}>
-      <button type="button" className="stm-num-btn" onClick={() => setOpen(o => !o)}>
-        {value ? `Number of ${label.toLowerCase().replace('number of ', '')} ${value}` : label}
-        <FaChevronDown className={`stm-num-arrow ${open ? 'stm-num-arrow--open' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="stm-num-panel">
-          <div className="stm-num-panel__title">NUMBER OF {label.toUpperCase().replace('NUMBER OF ', '')} OPTION</div>
-          {Array.from({ length: max }, (_, i) => i + 1).map(n => (
-            <button
-              key={n}
-              type="button"
-              className={`stm-num-option ${value === n ? 'stm-num-option--active' : ''}`}
-              onClick={() => { onChange(n); setOpen(false); }}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
       )}
     </div>
   );
@@ -644,17 +604,6 @@ function TeamSportsPickerModal({ team, sportsList, onClose, onSave }) {
           </div>
         )}
 
-        <p className="stm-selected-label">Selected ({selected.size})</p>
-        <div className="stm-chip-list">
-          {[...selected].map(name => (
-            <div key={name} className="stm-chip">
-              <span>{name}</span>
-              <button type="button" onClick={() => toggle(name)}><FaTimes /></button>
-            </div>
-          ))}
-          {selected.size === 0 && <p className="stm-empty-note">None selected.</p>}
-        </div>
-
         <button className="stm-btn-primary stm-btn-block" onClick={() => onSave([...selected])}>
           Submit
         </button>
@@ -785,6 +734,8 @@ export default function SportsTeamsManager({ level }) {
   });
   const updateSportRow = (id, patch) =>
     setSportsRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  const removeSportRow = (id) =>
+    setSportsRows(prev => prev.filter(r => r.id !== id));
   const resetSportsForm = () => setSportsRows([]);
 
   const submitSports = () => {
@@ -892,14 +843,14 @@ export default function SportsTeamsManager({ level }) {
   };
 
   /* ── Team row helpers ── */
-  const setTeamsCount = (n) => setTeamsRows(prev => {
-    const next = [...prev];
-    while (next.length < n) next.push({ id: uid(), name: '', logo: null, sportIds: [], color: TEAM_COLORS[next.length % TEAM_COLORS.length] });
-    while (next.length > n) next.pop();
-    return next;
-  });
+  const addTeamRow = () => setTeamsRows(prev => [
+    ...prev,
+    { id: uid(), name: '', logo: null, sportIds: [], color: TEAM_COLORS[prev.length % TEAM_COLORS.length] },
+  ]);
   const updateTeamRow = (id, patch) =>
     setTeamsRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  const removeTeamRow = (id) =>
+    setTeamsRows(prev => prev.filter(r => r.id !== id));
 
   const submitTeams = () => {
     if (!teamsRows.some(r => r.name.trim())) { flash('Enter at least one team name.'); return; }
@@ -989,7 +940,6 @@ export default function SportsTeamsManager({ level }) {
         </div>
 
         <div className="stm-form-toprow">
-          <NumDropdown value={sportsRows.length || null} onChange={setSportsCount} label="Number of sport" />
           <button type="button" className="stm-link-btn" onClick={() => setSportsCount(sportsRows.length + 1)}>
             <FaPlus /> Add Row for Sports
           </button>
@@ -1048,10 +998,10 @@ export default function SportsTeamsManager({ level }) {
                       <button
                         type="button"
                         className="stm-dots-btn"
-                        onClick={() => updateSportRow(row.id, { _del: !row._del })}
+                        onClick={() => removeSportRow(row.id)}
                         title="Remove"
                       >
-                        <FaEllipsisV />
+                        <FaTimes />
                       </button>
                     </td>
                   </tr>
@@ -1158,7 +1108,7 @@ export default function SportsTeamsManager({ level }) {
                               {d.groupLabel}
                             </td>
                           )}
-                          <td>{d.name}</td>
+                          <td>{d.name.toUpperCase()}</td>
                           <td>{f ? f.label : '—'}</td>
                           {isFirstOfSport && (
                             <td rowSpan={divisions.length}>{EditDeleteActions}</td>
@@ -1184,8 +1134,7 @@ export default function SportsTeamsManager({ level }) {
         </div>
 
         <div className="stm-form-toprow">
-          <NumDropdown value={teamsRows.length || null} onChange={setTeamsCount} label="Number of team" />
-          <button type="button" className="stm-link-btn" onClick={() => setTeamsCount(teamsRows.length + 1)}>
+          <button type="button" className="stm-link-btn" onClick={addTeamRow}>
             <FaPlus /> Add row for Teams
           </button>
         </div>
@@ -1199,6 +1148,7 @@ export default function SportsTeamsManager({ level }) {
                   <th>Team Name</th>
                   <th>Logo</th>
                   <th>Sports</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -1233,6 +1183,16 @@ export default function SportsTeamsManager({ level }) {
                           <FaPlus />
                         </button>
                       </div>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="stm-dots-btn"
+                        onClick={() => removeTeamRow(row.id)}
+                        title="Remove"
+                      >
+                        <FaTimes />
+                      </button>
                     </td>
                   </tr>
                 ))}
