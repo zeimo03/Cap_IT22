@@ -316,10 +316,11 @@ export async function getMatchSchedules(level) {
  * Persists a freshly generated round-robin / bracket schedule.
  * Called when the admin clicks "Save Generated Schedule".
  * Merges with (rather than replaces) any existing matches for other
- * sport/category/format combinations at this level. The UI blocks
- * generation once a (sport, category, format) set already has saved
- * matches — see MatchScheduleFormatSection's `isLocked` — so this only
- * ever collides with itself when called twice for the exact same set.
+ * sport/category combinations at this level. The UI blocks generation
+ * once a (sport, category) set already has saved matches — regardless
+ * of which format they were generated with — see
+ * MatchScheduleFormatSection's `isLocked` — so this only ever collides
+ * with itself when called twice for the exact same set.
  */
 export async function saveGeneratedSchedule(level, matches) {
   if (!db) throw new Error('Firestore not initialized.');
@@ -328,10 +329,9 @@ export async function saveGeneratedSchedule(level, matches) {
   const existing  = await getMatchSchedules(level);
   const sport      = matches[0]?.sport;
   const category   = matches[0]?.category;
-  const format     = matches[0]?.format;
 
   const merged = [
-    ...existing.filter(m => !(m.sport === sport && m.category === category && m.format === format)),
+    ...existing.filter(m => !(m.sport === sport && m.category === category)),
     ...matches,
   ];
 
@@ -346,16 +346,17 @@ export async function saveGeneratedSchedule(level, matches) {
 
 /**
  * Deletes every match belonging to one generated schedule set — same
- * sport + category + format, at this level — so the admin can generate
- * a new one in its place. Used by the "Reset Schedule" confirmation in
- * Match Schedules Format once a set is locked.
+ * sport + category, at this level, regardless of format — so the admin
+ * can generate a new one (with any format) in its place. Used by the
+ * "Reset Schedule" confirmation in Match Schedules Format once a set
+ * is locked.
  */
-export async function deleteScheduleSet(level, sport, category, format) {
+export async function deleteScheduleSet(level, sport, category) {
   if (!db) throw new Error('Firestore not initialized.');
 
   const existing = await getMatchSchedules(level);
   const remaining = existing.filter(
-    m => !(m.sport === sport && m.category === category && m.format === format)
+    m => !(m.sport === sport && m.category === category)
   );
 
   const configRef = doc(db, 'matchSchedules', level);

@@ -2,7 +2,9 @@ import React, { useState, useContext, useEffect, useCallback, useRef } from 'rea
 import { AuthContext } from '../components/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './AdminSchedulePage.css';
-import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash, FaExclamationTriangle } from 'react-icons/fa';
+import { FaTimes, FaSync, FaSearch, FaUsers, FaUserGraduate, FaChevronDown, FaCheck, FaEdit, FaPlus, FaMapMarkerAlt, FaTrophy, FaTrash, FaExclamationTriangle, FaDownload } from 'react-icons/fa';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getSportsTeamsConfig, getMatchSchedules, getMatchRecords, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, deleteScheduleSet, setLivePlayerCount, setEventRegistrationCounts, getEventKey, getEventLabel, EVENT_TYPES, getVenues, getAllMatchSchedules } from '../services/firestoreService';
@@ -834,13 +836,15 @@ function MatchScheduleFormatSection({ level }) {
   const isDoubleLeg = selFormat?.id === 'double-rr';
 
   /* ── Regeneration lock ──
-     Once a (sport, category, format) set has been saved, generating
-     again for that exact combination is blocked — the admin must
-     explicitly reset (delete) that set first. This intentionally does
-     NOT key on level, because savedSchedules is already scoped to the
-     current level's own `matchSchedules/{level}` document. */
-  const lockedMatches = ready
-    ? savedSchedules.filter(m => m.sport === selSport.name && m.category === selCategory.label && m.format === selFormat.label)
+     Once a schedule has been saved for a (sport, category), generating
+     again for that sport/category is blocked — regardless of which
+     format it was generated with — the admin must explicitly reset
+     (delete) that set first before picking any format again. This
+     intentionally does NOT key on level, because savedSchedules is
+     already scoped to the current level's own `matchSchedules/{level}`
+     document. */
+  const lockedMatches = (selSport && selCategory)
+    ? savedSchedules.filter(m => m.sport === selSport.name && m.category === selCategory.label)
     : [];
   const isLocked = lockedMatches.length > 0;
   const lockedResultsCount = lockedMatches.filter(m => matchRecords.some(r => recordMatchesSchedule(r, m))).length;
@@ -857,10 +861,10 @@ function MatchScheduleFormatSection({ level }) {
   };
 
   const handleConfirmResetSchedule = async () => {
-    if (!selSport || !selCategory || !selFormat) return;
+    if (!selSport || !selCategory) return;
     setResettingSchedule(true);
     try {
-      const remaining = await deleteScheduleSet(level, selSport.name, selCategory.label, selFormat.label);
+      const remaining = await deleteScheduleSet(level, selSport.name, selCategory.label);
       setSavedSchedules(remaining);
       syncAllSchedulesForLevel(remaining);
       setResetConfirmOpen(false);
@@ -1000,11 +1004,6 @@ function MatchScheduleFormatSection({ level }) {
   };
 
   /* ── Manual "Add Schedule" ── */
-  const openAddModal = () => {
-    setAddForm({ sport: selSport?.name || '', date: '', time: '', location: '', pairs: [{ teamA: '', teamB: '' }] });
-    setAddModalOpen(true);
-  };
-
   const handleAddTeamRow = () => {
     setAddForm(f => ({ ...f, pairs: [...f.pairs, { teamA: '', teamB: '' }] }));
   };
@@ -1100,20 +1099,95 @@ function MatchScheduleFormatSection({ level }) {
     }
   };
 
-  /* ── Grouped list view (by date) ──
-     Anything saved without a date yet (every match that just came out of
-     the generator) is surfaced separately up top instead of being
-     silently dropped, so it's always reachable via Edit to add the
-     date/time/venue. */
+  /* ── Grouped list view (by sport, then by date) ──
+     Each sport gets its own table so, e.g., Badminton and Tennis fixtures
+     never run together in one long list. Within a sport, anything saved
+     without a date yet (every match that just came out of the generator)
+     is surfaced separately up top instead of being silently dropped, so
+     it's always reachable via Edit to add the date/time/venue. */
   const recordForMatch = (match) => matchRecords.find(r => recordMatchesSchedule(r, match)) || null;
 
-  const undatedMatches = savedSchedules.filter(m => !m.date);
-  const groupedByDate = savedSchedules
-    .filter(m => m.date)
-    .reduce((acc, m) => {
-      (acc[m.date] = acc[m.date] || []).push(m);
+  const sportSlug = (s) => (s || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const scheduleSportOrder = sportsList.map(s => s.name);
+  const sportSections = Object.entries(
+    savedSchedules.reduce((acc, m) => {
+      const key = m.sport || 'Other';
+      (acc[key] = acc[key] || []).push(m);
       return acc;
-    }, {});
+    }, {})
+  )
+    .sort(([a], [b]) => {
+      const ia = scheduleSportOrder.indexOf(a);
+      const ib = scheduleSportOrder.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    })
+    .map(([sport, matches]) => ({
+      sport,
+      count: matches.length,
+      undated: matches.filter(m => !m.date),
+      groupedByDate: matches.filter(m => m.date).reduce((acc, m) => {
+        (acc[m.date] = acc[m.date] || []).push(m);
+        return acc;
+      }, {}),
+    }));
+
+  /* ── Download the visible schedule list as a PDF ──
+     Mirrors the on-screen grouping (sport → date), one table per sport,
+     so the printout matches what the admin is looking at. */
+  const handleDownloadPdf = () => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text('SANTA RITA COLLEGE OF PAMPANGA, INC', pageWidth / 2, 40, { align: 'center' });
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Match Schedule — ${LEVEL_LABELS[level] || level}`, pageWidth / 2, 58, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setTextColor(110);
+    doc.text(`Generated ${new Date().toLocaleString()}`, pageWidth / 2, 72, { align: 'center' });
+    doc.setTextColor(0);
+
+    let cursorY = 90;
+    sportSections.forEach(({ sport, undated, groupedByDate }) => {
+      const rows = [];
+      undated.forEach(m => rows.push(['TBD', 'TBD', m.teamA, m.teamB, m.location || '—']));
+      Object.entries(groupedByDate)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .forEach(([date, matches]) => {
+          const dateLabel = new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+          matches.forEach(m => rows.push([dateLabel, m.time || '—', m.teamA, m.teamB, m.location || '—']));
+        });
+
+      if (rows.length === 0) return;
+
+      autoTable(doc, {
+        startY: cursorY,
+        head: [[sport, '', '', '', '']],
+        body: [],
+        theme: 'plain',
+        styles: { fontSize: 11, fontStyle: 'bold' },
+        margin: { left: 40, right: 40 },
+      });
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY,
+        head: [['Date', 'Time', 'Team A', 'Team B', 'Venue']],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [15, 32, 66] },
+        styles: { fontSize: 9, cellPadding: 5 },
+        margin: { left: 40, right: 40 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 24;
+    });
+
+    doc.save(`match-schedule-${level}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
 
   if (loading) return <div className="msf-loading">Loading sports & teams…</div>;
 
@@ -1151,30 +1225,22 @@ function MatchScheduleFormatSection({ level }) {
             placeholder="Select format"
             options={FORMATS.map(f => ({ value: f.id, label: f.label, raw: f }))}
             onChange={handlePickFormat}
-            disabled={!selCategory}
+            disabled={!selCategory || isLocked}
           />
           <button className="msf-reset-btn" onClick={handleResetClick}>
             {isLocked ? <><FaTrash /> Reset Schedule</> : <><FaSync /> Reset</>}
           </button>
         </div>
 
-        {!ready ? (
-          <p className="msf-empty">
-            {selSport && eligibleTeams.length < 2
-              ? `Only ${eligibleTeams.length} team(s) assigned to ${selSport.name} — add at least 2 in Sports & Teams.`
-              : sportsList.length === 0
-                ? 'No sports configured yet — add sports and teams in the Sports & Teams tab first.'
-                : 'Pick a sport, category and format to generate the schedule.'}
-          </p>
-        ) : isLocked ? (
+        {isLocked ? (
           <div className="msf-result-head">
             <div>
-              <h3>{selFormat.label}</h3>
+              <h3>{selCategory.label}</h3>
               <p className="msf-muted">
-                A schedule already exists for this sport, category, and format.
+                A schedule already exists for this sport and category ({lockedMatches[0]?.format || 'saved'}).
               </p>
               <p className="msf-form-note" style={{ color: '#a83218', fontWeight: 700 }}>
-                Click "Reset Schedule" above to delete it before generating a new one.
+                Click "Reset Schedule" above to delete it before generating a new one in a different format.
               </p>
             </div>
             <div className="msf-stats">
@@ -1182,6 +1248,14 @@ function MatchScheduleFormatSection({ level }) {
               <div className="msf-stat"><span>Saved matches</span><b>{lockedMatches.length}</b></div>
             </div>
           </div>
+        ) : !ready ? (
+          <p className="msf-empty">
+            {selSport && eligibleTeams.length < 2
+              ? `Only ${eligibleTeams.length} team(s) assigned to ${selSport.name} — add at least 2 in Sports & Teams.`
+              : sportsList.length === 0
+                ? 'No sports configured yet — add sports and teams in the Sports & Teams tab first.'
+                : 'Pick a sport, category and format to generate the schedule.'}
+          </p>
         ) : (
           <>
             <div className="msf-result-head">
@@ -1567,60 +1641,90 @@ function MatchScheduleFormatSection({ level }) {
             <h2>Match schedules</h2>
             <p className="msf-muted">Upcoming matches across every team and sport</p>
           </div>
-          <button className="msf-btn-primary" onClick={openAddModal}><FaPlus /> Add schedule</button>
+          <button
+            className="msf-btn-primary"
+            onClick={handleDownloadPdf}
+            disabled={sportSections.length === 0}
+          >
+            <FaDownload /> Download PDF
+          </button>
         </div>
 
-        {undatedMatches.length === 0 && Object.keys(groupedByDate).length === 0 ? (
+        {sportSections.length === 0 ? (
           <p className="msf-empty">No matches yet. Generate a schedule above, or add one manually.</p>
         ) : (
-          <>
-            {undatedMatches.length > 0 && (
-              <div className="msf-daygroup msf-daygroup--undated">
-                <div className="msf-daygroup__head msf-daygroup__head--undated">
-                  <FaExclamationTriangle /> Needs date &amp; venue ({undatedMatches.length})
-                </div>
-                {undatedMatches.map(m => (
-                  <div key={m.id} className="msf-matchrow">
-                    <div className="msf-matchrow__time msf-matchrow__time--muted">TBD</div>
-                    <div className="msf-matchrow__mid">
-                      <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
-                    </div>
-                    <span className="msf-pill-sport">{m.sport}</span>
-                    <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {Object.entries(groupedByDate).map(([date, matches]) => (
-              <div key={date} className="msf-daygroup">
-                <div className="msf-daygroup__head">{new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-                {matches.map(m => {
-                  const record = recordForMatch(m);
-                  const winner = recordWinnerName(record);
-                  return (
-                    <div key={m.id} className="msf-matchrow">
-                      <div className="msf-matchrow__time">{m.time}</div>
-                      <div className="msf-matchrow__mid">
-                        <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
-                        {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
-                        {record && (
-                          <div className="msf-matchrow__loc" style={{ color: '#14713a', fontWeight: 700 }}>
-                            <FaTrophy /> {winner ? `${winner} won — result recorded` : 'Draw — result recorded'}
-                          </div>
-                        )}
+          <div className="msf-list-layout">
+            <nav className="msf-sportnav" aria-label="Jump to sport">
+              {sportSections.map(({ sport, count }) => (
+                <a
+                  key={sport}
+                  href={`#sport-${sportSlug(sport)}`}
+                  className="msf-sportnav__item"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById(`sport-${sportSlug(sport)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  <span>{sport}</span>
+                  <span className="msf-sportnav__count">{count}</span>
+                </a>
+              ))}
+            </nav>
+
+            <div className="msf-sporttables">
+              {sportSections.map(({ sport, undated, groupedByDate }) => (
+                <div key={sport} id={`sport-${sportSlug(sport)}`} className="msf-sporttable">
+                  <h3 className="msf-sporttable__title">{sport}</h3>
+
+                  {undated.length > 0 && (
+                    <div className="msf-daygroup msf-daygroup--undated">
+                      <div className="msf-daygroup__head msf-daygroup__head--undated">
+                        <FaExclamationTriangle /> Needs date &amp; venue ({undated.length})
                       </div>
-                      <span className="msf-pill-sport">{m.sport}</span>
-                      <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
+                      {undated.map(m => (
+                        <div key={m.id} className="msf-matchrow">
+                          <div className="msf-matchrow__time msf-matchrow__time--muted">TBD</div>
+                          <div className="msf-matchrow__mid">
+                            <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
+                          </div>
+                          <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
-          </>
+                  )}
+
+                  {Object.entries(groupedByDate).map(([date, matches]) => (
+                    <div key={date} className="msf-daygroup">
+                      <div className="msf-daygroup__head">{new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                      {matches.map(m => {
+                        const record = recordForMatch(m);
+                        const winner = recordWinnerName(record);
+                        return (
+                          <div key={m.id} className="msf-matchrow">
+                            <div className="msf-matchrow__time">{m.time}</div>
+                            <div className="msf-matchrow__mid">
+                              <div className="msf-matchrow__teams">{m.teamA} vs {m.teamB}</div>
+                              {m.location && <div className="msf-matchrow__loc"><FaMapMarkerAlt /> {m.location}</div>}
+                              {record && (
+                                <div className="msf-matchrow__loc" style={{ color: '#14713a', fontWeight: 700 }}>
+                                  <FaTrophy /> {winner ? `${winner} won — result recorded` : 'Draw — result recorded'}
+                                </div>
+                              )}
+                            </div>
+                            <button className="msf-icon-edit" onClick={() => openEditModal(m)}><FaEdit /></button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* ── Reset Schedule confirmation — deletes the whole locked (sport, category, format)
+      {/* ── Reset Schedule confirmation — deletes the whole locked (sport, category)
          set at once, unlike the per-match "Delete Schedule" in the Edit modal ── */}
       {resetConfirmOpen && (
         <div className="msf-overlay" onClick={() => setResetConfirmOpen(false)}>
@@ -1628,7 +1732,7 @@ function MatchScheduleFormatSection({ level }) {
             <h3>Reset this schedule?</h3>
             <p>
               This will permanently delete all <b>{lockedMatches.length}</b> saved match{lockedMatches.length === 1 ? '' : 'es'} for{' '}
-              <b>{selSport?.name} / {selCategory?.label} / {selFormat?.label}</b>. This can't be undone.
+              <b>{selSport?.name} / {selCategory?.label}</b> ({lockedMatches[0]?.format}). This can't be undone.
             </p>
             {lockedResultsCount > 0 && (
               <p style={{ color: '#a83218', fontWeight: 700 }}>
