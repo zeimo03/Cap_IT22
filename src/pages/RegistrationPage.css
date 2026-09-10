@@ -542,12 +542,12 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .reg-row--2 {
-    grid-template-columns: 1fr;
-  }
-
   .reg-row--4 {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .reg-row--2 {
+    grid-template-columns: 1fr;
   }
 
   .reg-uploads-row {
