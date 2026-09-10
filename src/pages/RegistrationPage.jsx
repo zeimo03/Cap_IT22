@@ -1,4 +1,4 @@
-import React, { useState, useRef, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useContext, useEffect, useCallback, useMemo } from 'react';
 import { AuthContext } from '../components/AuthContext';
 import {
   createRegistration,
@@ -6,6 +6,16 @@ import {
   getEventRegistrationCounts,
   EVENT_TYPES,
 } from '../services/firestoreService';
+import {
+  getAllRegions,
+  getRegionByCode,
+  getProvincesByRegion,
+  getProvinceByCode,
+  getMunicipalitiesByProvince,
+  getMunicipalityByCode,
+  getBarangaysByMunicipality,
+  getBarangayByCode,
+} from '@aivangogh/ph-address';
 import './RegistrationPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import {
@@ -53,6 +63,24 @@ const INITIAL = {
   message: '',
 };
 
+// Address is built from these PSGC picks (see @aivangogh/ph-address) plus a
+// free-text street line, then joined into the single `form.address` string
+// that Firestore/AdminSchedulePage already expect — see composedAddress below.
+const ADDR_INITIAL = {
+  regionCode: '', provinceCode: '', municipalityCode: '', barangayCode: '', street: '',
+};
+
+// PSGC region records use `name`/`designation` inconsistently for the
+// "official" vs. "common" name (e.g. name: 'Region III', designation:
+// 'Central Luzon', but also name: 'BICOL REGION', designation: 'REGION V') —
+// show both so the region is findable either way.
+function formatRegionLabel(region) {
+  if (!region) return '';
+  return region.designation && region.designation !== region.name
+    ? `${region.name} (${region.designation})`
+    : region.name;
+}
+
 const CONTACT_ITEMS = [
   { icon: FaMapMarkerAlt, text: 'San Jose, Santa Rita Pampanga, Philippines', href: 'https://www.google.com/maps/place/Santa+Rita+College/@14.9989285,120.6178094,18.6z' },
   { icon: FaPhoneAlt,     text: '(045) 900 0557',                href: 'tel:+0459000557' },
@@ -64,6 +92,7 @@ export default function RegistrationPage() {
 
   const { currentUser } = useContext(AuthContext);
   const [form, setForm] = useState(INITIAL);
+  const [addr, setAddr] = useState(ADDR_INITIAL);
   const [photo, setPhoto]         = useState(null);
   const [waiver, setWaiver]       = useState(null);
   const [submitted, setSubmitted] = useState(false);
@@ -119,6 +148,81 @@ export default function RegistrationPage() {
     });
   };
 
+  // ── Address: cascading PSGC region -> province -> city/municipality ->
+  // barangay, plus a free-text street line. All lookups are synchronous and
+  // in-memory (no network/loading state needed, unlike the sport/team config
+  // fetch below).
+  const regionOptions = useMemo(() => getAllRegions(), []);
+
+  const provinceOptions = useMemo(
+    () => (addr.regionCode ? getProvincesByRegion(addr.regionCode) : []),
+    [addr.regionCode]
+  );
+
+  // NCR and a few other regions have no provinces at all — their cities sit
+  // directly under the region, filed under the region's own PSGC code as if
+  // it were the "province". Detected (rather than hardcoded) so it holds for
+  // any such region, not just NCR.
+  const noProvincesForRegion = Boolean(addr.regionCode) && provinceOptions.length === 0;
+  const provinceCodeForLookup = noProvincesForRegion ? addr.regionCode : addr.provinceCode;
+
+  const municipalityOptions = useMemo(
+    () => (provinceCodeForLookup ? getMunicipalitiesByProvince(provinceCodeForLookup) : []),
+    [provinceCodeForLookup]
+  );
+
+  const barangayOptions = useMemo(
+    () => (addr.municipalityCode ? getBarangaysByMunicipality(addr.municipalityCode) : []),
+    [addr.municipalityCode]
+  );
+
+  const composedAddress = useMemo(() => {
+    const region       = addr.regionCode ? getRegionByCode(addr.regionCode) : null;
+    const province      = !noProvincesForRegion && addr.provinceCode ? getProvinceByCode(addr.provinceCode) : null;
+    const municipality  = addr.municipalityCode ? getMunicipalityByCode(addr.municipalityCode) : null;
+    const barangay       = addr.barangayCode ? getBarangayByCode(addr.barangayCode) : null;
+
+    return [
+      addr.street.trim(),
+      barangay ? `Brgy. ${barangay.name}` : '',
+      municipality ? municipality.name : '',
+      province ? province.name : '',
+      region ? formatRegionLabel(region) : '',
+    ].filter(Boolean).join(', ');
+  }, [addr, noProvincesForRegion]);
+
+  // Keep form.address (what actually gets saved) in sync with the picks
+  // above — createRegistration/firestoreService only know about a single
+  // `address` string, same as before this feature existed.
+  useEffect(() => {
+    setForm(prev => (prev.address === composedAddress ? prev : { ...prev, address: composedAddress }));
+  }, [composedAddress]);
+
+  const clearAddrError = (key) => setErrors(prev => {
+    if (!prev[key]) return prev;
+    const next = { ...prev };
+    delete next[key];
+    return next;
+  });
+
+  const onRegionChange = (e) => {
+    setAddr(prev => ({ ...prev, regionCode: e.target.value, provinceCode: '', municipalityCode: '', barangayCode: '' }));
+    clearAddrError('region');
+  };
+  const onProvinceChange = (e) => {
+    setAddr(prev => ({ ...prev, provinceCode: e.target.value, municipalityCode: '', barangayCode: '' }));
+    clearAddrError('province');
+  };
+  const onMunicipalityChange = (e) => {
+    setAddr(prev => ({ ...prev, municipalityCode: e.target.value, barangayCode: '' }));
+    clearAddrError('municipality');
+  };
+  const onBarangayChange = (e) => {
+    setAddr(prev => ({ ...prev, barangayCode: e.target.value }));
+    clearAddrError('barangay');
+  };
+  const onStreetChange = (e) => setAddr(prev => ({ ...prev, street: e.target.value }));
+
   const schoolLevel = getSchoolLevel(form.gradeLevel);
 
   useEffect(() => {
@@ -172,6 +276,7 @@ export default function RegistrationPage() {
 
   const handleReset = () => {
     setForm(INITIAL);
+    setAddr(ADDR_INITIAL);
     setPhoto(null);
     setWaiver(null);
     setSubmitted(false);
@@ -190,7 +295,11 @@ export default function RegistrationPage() {
     else if (Number(form.age) <= 0)   errs.age              = 'Enter a valid age';
     if (!form.gender)                 errs.gender           = 'Please select a gender';
     if (!form.contactNumber.trim())   errs.contactNumber    = 'Contact number is required';
-    if (!form.address.trim())         errs.address          = 'Address is required';
+    if (!addr.regionCode)             errs.region           = 'Please select a region';
+    if (!noProvincesForRegion && !addr.provinceCode)
+                                       errs.province         = 'Please select a province';
+    if (!addr.municipalityCode)       errs.municipality     = 'Please select a city / municipality';
+    if (!addr.barangayCode)           errs.barangay         = 'Please select a barangay';
     if (!form.emergencyContact.trim())errs.emergencyContact = 'Emergency contact is required';
     if (!form.gradeLevel)             errs.gradeLevel       = 'Please select a grade / year level';
     if (!form.section)                errs.section          = 'Please select a section';
@@ -401,11 +510,75 @@ export default function RegistrationPage() {
               </Field>
             </div>
 
-            {/* Row 3: Address / Emergency */}
+            {/* Row 3: Address — Region / Province / City-Municipality / Barangay */}
+            <div className="reg-row reg-row--4">
+              <Field label="Region" required error={errors.region}>
+                <select className="reg-select" value={addr.regionCode} onChange={onRegionChange} required>
+                  <option value="">Select Region</option>
+                  {regionOptions.map(r => (
+                    <option key={r.psgcCode} value={r.psgcCode}>{formatRegionLabel(r)}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Province" required={!noProvincesForRegion} error={errors.province}>
+                <select
+                  className="reg-select"
+                  value={noProvincesForRegion ? '' : addr.provinceCode}
+                  onChange={onProvinceChange}
+                  disabled={!addr.regionCode || noProvincesForRegion}
+                  required={!noProvincesForRegion}
+                >
+                  <option value="">
+                    {!addr.regionCode
+                      ? 'Select Region first'
+                      : noProvincesForRegion
+                        ? 'N/A for this region'
+                        : 'Select Province'}
+                  </option>
+                  {provinceOptions.map(p => (
+                    <option key={p.psgcCode} value={p.psgcCode}>{p.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="City / Municipality" required error={errors.municipality}>
+                <select
+                  className="reg-select"
+                  value={addr.municipalityCode}
+                  onChange={onMunicipalityChange}
+                  disabled={!provinceCodeForLookup}
+                  required
+                >
+                  <option value="">
+                    {!provinceCodeForLookup ? 'Select Province first' : 'Select City / Municipality'}
+                  </option>
+                  {municipalityOptions.map(m => (
+                    <option key={m.psgcCode} value={m.psgcCode}>{m.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Barangay" required error={errors.barangay}>
+                <select
+                  className="reg-select"
+                  value={addr.barangayCode}
+                  onChange={onBarangayChange}
+                  disabled={!addr.municipalityCode}
+                  required
+                >
+                  <option value="">
+                    {!addr.municipalityCode ? 'Select City / Municipality first' : 'Select Barangay'}
+                  </option>
+                  {barangayOptions.map(b => (
+                    <option key={b.psgcCode} value={b.psgcCode}>{b.name}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            {/* Row 3b: Street line / Emergency Contact */}
             <div className="reg-row reg-row--2">
-              <Field label="Address" required error={errors.address}>
-                <input className="reg-input" placeholder="Complete Address"
-                  value={form.address} onChange={set('address')} required />
+              <Field label="House No. / Street / Unit">
+                <input className="reg-input" placeholder="e.g. 123 Rizal St., Purok 2 (optional)"
+                  value={addr.street} onChange={onStreetChange} />
               </Field>
               <Field label="Emergency Contact" required error={errors.emergencyContact}>
                 <input className="reg-input" placeholder="Name-63+**********"

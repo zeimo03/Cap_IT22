@@ -173,6 +173,10 @@
   grid-template-columns: 1fr;
 }
 
+.reg-row--4 {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+}
+
 /* ── Field ── */
 .reg-field {
   display: flex;
@@ -542,6 +546,10 @@
     grid-template-columns: 1fr;
   }
 
+  .reg-row--4 {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .reg-uploads-row {
     grid-template-columns: 1fr 1fr;
   }
@@ -549,6 +557,10 @@
 
 @media (max-width: 400px) {
   .reg-row--3eq {
+    grid-template-columns: 1fr;
+  }
+
+  .reg-row--4 {
     grid-template-columns: 1fr;
   }
 
