@@ -42,20 +42,11 @@
   line-height: 1;
 }
 
-/* ── Search bar — its own row above the page title, kept out of the
-   header so the header matches every other page's title-only header. ── */
-.rk-search-row {
-  display: flex;
-  justify-content: flex-end;
-  padding: 16px 25px 0;
-  margin-left: -15px;
-  flex-shrink: 0;
-}
-
 .rk-search-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .rk-search-icon {
@@ -96,13 +87,22 @@
   margin-left: -15px;
 }
 
-/* Intro row also carries the level switcher, laid out beside the title. */
-.rk-page-intro--row {
+/* Intro row also carries the search bar, laid out beside the title. */
+.rk-top-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+/* Level tabs sit on their own row below the title/search. */
+.rk-lvltabs-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 25px 10px;
+  margin-left: -15px;
+  flex-shrink: 0;
 }
 
 /* ── Level tabs — moved out of the small header dropdown (easy to miss)
@@ -429,18 +429,19 @@
 
 /* ── Responsive ── */
 @media (max-width: 560px) {
-  .rk-search-row {
-    padding: 14px 16px 0;
-    margin-left: 0;
-  }
-
   .rk-search-input,
   .rk-search-input:focus {
     width: 100%;
   }
 
   .rk-search-wrap {
-    flex: 1;
+    flex: 1 1 100%;
+  }
+
+  .rk-lvltabs-row {
+    padding: 0 16px 8px;
+    margin-left: 0;
+    justify-content: flex-start;
   }
 
   .rk-row,
@@ -466,7 +467,7 @@
     margin-left: 0;
   }
 
-  .rk-page-intro--row {
+  .rk-top-row {
     flex-direction: column;
     align-items: flex-start;
   }

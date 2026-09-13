@@ -576,8 +576,12 @@ export default function RankingPage() {
       {/* ── Scrollable body ── */}
       <div className="rk-body">
 
-        {/* Search — its own row above the page title, separate from the header */}
-        <div className="rk-search-row">
+        {/* Page intro — title/subtitle share the search bar's row */}
+        <div className="rk-page-intro rk-top-row">
+          <div>
+            <h2 className="rk-page-title">Top Rankings</h2>
+            <p className="rk-page-subtitle">Ranked by performance, not by chance. Every game counts. Every rank matters.</p>
+          </div>
           <div className="rk-search-wrap">
             <FaSearch className="rk-search-icon" />
             <input
@@ -590,12 +594,7 @@ export default function RankingPage() {
           </div>
         </div>
 
-        {/* Page intro */}
-        <div className="rk-page-intro rk-page-intro--row">
-          <div>
-            <h2 className="rk-page-title">Top Rankings</h2>
-            <p className="rk-page-subtitle">Ranked by performance, not by chance. Every game counts. Every rank matters.</p>
-          </div>
+        <div className="rk-lvltabs-row">
           <LevelTabs
             levels={LEVELS}
             value={levelLabel}
