@@ -223,39 +223,58 @@ export default function VenuesManager() {
       </div>
 
       {/* ── Venue's booked schedules ── */}
-      {scheduleModalVenue && (
-        <div className="msf-overlay" onClick={() => setScheduleModalVenue(null)}>
-          <div className="vm-schedule-modal" onClick={e => e.stopPropagation()}>
-            <div className="vm-schedule-modal__head">
-              <h3><FaMapMarkerAlt /> {scheduleModalVenue.name}</h3>
-              <button className="msf-icon-edit" onClick={() => setScheduleModalVenue(null)}><FaTimes /></button>
-            </div>
+      {scheduleModalVenue && (() => {
+        const bookedMatches = schedulesForVenue(scheduleModalVenue);
+        return (
+          <div className="msf-overlay" onClick={() => setScheduleModalVenue(null)}>
+            <div className="vm-schedule-modal" onClick={e => e.stopPropagation()}>
+              <div className="vm-schedule-modal__head">
+                <div className="vm-schedule-modal__title">
+                  <div className="vm-schedule-modal__icon"><FaMapMarkerAlt /></div>
+                  <div>
+                    <h3>{scheduleModalVenue.name}</h3>
+                    <p className="vm-schedule-modal__subtitle">
+                      {bookedMatches.length} scheduled match{bookedMatches.length === 1 ? '' : 'es'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="vm-schedule-modal__close"
+                  title="Close"
+                  onClick={() => setScheduleModalVenue(null)}
+                >
+                  <FaTimes />
+                </button>
+              </div>
 
-            {schedulesForVenue(scheduleModalVenue).length === 0 ? (
-              <p className="msf-empty">No matches booked at this venue yet.</p>
-            ) : (
-              <div className="vm-schedule-list">
-                {schedulesForVenue(scheduleModalVenue).map(m => (
-                  <div key={`${m.level}-${m.id}`} className="msf-matchrow">
-                    <div className="msf-matchrow__time">
-                      {m.date ? `${m.date}${m.time ? ` · ${m.time}` : ''}` : 'TBD'}
-                    </div>
-                    <div className="msf-matchrow__mid">
-                      <div className="msf-matchrow__teams vm-teams">
+              {bookedMatches.length === 0 ? (
+                <p className="msf-empty">No matches booked at this venue yet.</p>
+              ) : (
+                <div className="vm-schedule-list">
+                  {bookedMatches.map(m => (
+                    <div key={`${m.level}-${m.id}`} className="vm-matchcard">
+                      <div className="vm-matchcard__top">
+                        <span className="vm-matchcard__date">
+                          {m.date ? `${m.date}${m.time ? ` · ${m.time}` : ''}` : 'Date TBD'}
+                        </span>
+                        <div className="vm-matchcard__pills">
+                          <span className="msf-pill-sport">{m.sport}</span>
+                          <span className="vm-pill-level">{LEVEL_LABELS[m.level] || m.level}</span>
+                        </div>
+                      </div>
+                      <div className="vm-teams vm-matchcard__teams">
                         <TeamBadge name={m.teamA} logo={m.teamALogo} />
                         <span className="vm-teams__vs">vs</span>
                         <TeamBadge name={m.teamB} logo={m.teamBLogo} />
                       </div>
                     </div>
-                    <span className="msf-pill-sport">{m.sport}</span>
-                    <span className="vm-pill-level">{LEVEL_LABELS[m.level] || m.level}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Delete venue confirmation ── */}
       {confirmDeleteVenue && (

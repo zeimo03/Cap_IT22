@@ -7,7 +7,10 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background-color: #001529;
   color: #fff;
   font-family: 'Inter', sans-serif;
@@ -106,9 +109,11 @@
   transition: all 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-tab:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.5);
+}
 }
 
 .asp-tab--active {
@@ -121,9 +126,7 @@
    SCROLLABLE BODY
    ══════════════════════════════════════════ */
 .asp-body {
-  flex: 1;
   padding: 16px 25px 32px;
-  overflow-y: auto;
   box-sizing: border-box;
 }
 
@@ -277,9 +280,11 @@
   transition: all 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-refresh-btn:hover:not(:disabled) {
   background: #e2e8f0;
   color: #001529;
+}
 }
 
 .asp-refresh-btn:disabled {
@@ -362,9 +367,14 @@
   transition: border-color 0.2s;
 }
 
-.asp-filter-pill:hover,
 .asp-filter-pill:focus {
   border-color: #001529;
+}
+
+@media (hover: hover) and (pointer: fine) {
+.asp-filter-pill:hover {
+  border-color: #001529;
+}
 }
 
 .asp-clear-btn {
@@ -383,8 +393,10 @@
   transition: all 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-clear-btn:hover {
   background: #fecaca;
+}
 }
 
 .asp-results-count {
@@ -434,8 +446,10 @@
   border-bottom: none;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-table tbody tr:hover {
   background: #f5f8ff;
+}
 }
 
 .asp-table td {
@@ -578,10 +592,12 @@
   transition: all 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-btn-view:hover {
   background: #15803d;
   color: #fff;
   border-color: #15803d;
+}
 }
 
 /* ══════════════════════════════════════════
@@ -654,9 +670,11 @@
   white-space: nowrap;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-btn-create:hover {
   background: #0a2a50;
   transform: translateY(-1px);
+}
 }
 
 .asp-empty-state {
@@ -744,9 +762,11 @@
   color: #1d4ed8;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-btn-edit:hover {
   background: #1d4ed8;
   color: #fff;
+}
 }
 
 .asp-btn-delete {
@@ -754,9 +774,11 @@
   color: #b91c1c;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-btn-delete:hover {
   background: #b91c1c;
   color: #fff;
+}
 }
 
 /* ══════════════════════════════════════════
@@ -838,9 +860,11 @@
   transition: all 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-modal__close:hover {
   background: #e2e8f0;
   color: #001529;
+}
 }
 
 .asp-modal__body {
@@ -936,8 +960,10 @@
   color: #64748b;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-btn-cancel:hover {
   background: #e2e8f0;
+}
 }
 
 .asp-btn-submit {
@@ -945,9 +971,11 @@
   color: #fff;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-btn-submit:hover {
   background: #0a2a50;
   transform: translateY(-1px);
+}
 }
 
 .asp-btn-submit:disabled {
@@ -994,6 +1022,85 @@
   .asp-results-count {
     margin-left: 0;
   }
+
+  /* Intro row, section tabs and level tabs were sized for desktop, so
+     on a phone they either ran off the edge (clipped instead of
+     wrapping) or ended up right/center-aligned instead of flush left
+     like the rest of the app. They're also the one part of the page
+     that stays on screen while .asp-body scrolls underneath, so on a
+     short phone screen every extra row they take is a row of actual
+     content pushed out of view — shrink them instead of letting them
+     wrap into 3-4 tall rows. */
+  .asp-intro {
+    align-items: flex-start;
+    padding: 14px 16px 8px;
+    gap: 10px;
+  }
+
+  .asp-intro__title {
+    font-size: 1.25rem;
+  }
+
+  .asp-intro__sub {
+    font-size: 0.78rem;
+  }
+
+  .asp-tabs--header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    justify-content: flex-start;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .asp-tab {
+    padding: 7px 10px;
+    font-size: 0.72rem;
+    text-align: center;
+  }
+
+  .asp-level-row {
+    padding: 0 16px 10px;
+  }
+
+  .asp-lvltabs {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .asp-lvltab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .asp-card {
+    padding: 16px 14px;
+  }
+
+  .asp-card__toprow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .asp-card__toprow-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .asp-total-box--wide {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    padding: 8px 12px;
+    gap: 12px;
+  }
+
+  .asp-total-div {
+    display: none;
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -1027,9 +1134,11 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-lvltab:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
+}
 }
 
 .asp-lvltab--active {
@@ -1516,8 +1625,10 @@
   margin-bottom: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .msf-select__opt:hover {
   background: #06346a;
+}
 }
 
 .msf-select__opt--active {
@@ -1760,8 +1871,10 @@
   gap: 6px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .msf-btn-primary:hover {
   background: #022240;
+}
 }
 
 .msf-btn-primary:disabled {
@@ -2448,8 +2561,10 @@
   transition: background 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .msf-sportnav__item:hover {
   background: #eef0fb;
+}
 }
 
 .msf-sportnav__count {
@@ -2459,6 +2574,26 @@
   font-weight: 800;
   padding: 2px 8px;
   border-radius: 10px;
+}
+
+/* Below this width .msf-list-layout wraps: the nav stacks above the
+   tables instead of sitting beside them. Sticky only makes sense as a
+   side rail — stacked on top, it would pin itself over the schedule
+   rows as the page scrolls and hide them. Turn it into a plain
+   horizontally-scrollable strip instead. */
+@media (max-width: 768px) {
+  .msf-sportnav {
+    position: static;
+    top: auto;
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .msf-sportnav__item {
+    flex-shrink: 0;
+  }
 }
 
 .msf-sporttables {
@@ -2508,9 +2643,11 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .msf-btn-delete-schedule:hover {
   background: #fdeeea;
   border-color: #e88a79;
+}
 }
 
 /* ── Nested "Delete this schedule?" confirmation overlay ── */
@@ -2564,8 +2701,10 @@
   cursor: pointer;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .msf-btn-danger:hover {
   background: #b91c1c;
+}
 }
 
 .msf-btn-danger:disabled {
@@ -2618,8 +2757,10 @@
   transition: border-color 0.15s, background 0.15s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .asp-event-chip:hover {
   border-color: #001529;
+}
 }
 
 .asp-event-chip--active {
@@ -2660,4 +2801,170 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
   vertical-align: middle;
+}
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. ── */
+@media (max-width: 768px) {
+  body .asp-header {
+    padding-left: 64px;
+  }
+}
+
+/* ══════════════════════════════════════════
+   TABLES → STACKED CARDS ON MOBILE
+   The Registration Summary and Student Registration Details tables were
+   plain HTML tables with no mobile handling at all — just a horizontal-
+   scroll wrapper, with .asp-table--students td forcing white-space: nowrap
+   on top of that. Below this width each <tr> becomes its own white card
+   with "label: value" rows instead, using the data-label attributes now
+   on every <td> (see AdminSchedulePage.jsx) for the CSS-generated labels.
+   ══════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .asp-table-wrap {
+    overflow-x: visible;
+  }
+
+  .asp-table {
+    display: block;
+    width: 100%;
+    border: none;
+  }
+
+  .asp-table thead {
+    display: none;
+  }
+
+  .asp-table tbody {
+    display: block;
+  }
+
+  .asp-table tbody tr {
+    display: block;
+    border: 1px solid #e2e9f2;
+    border-bottom: 1px solid #e2e9f2;
+    border-radius: 10px;
+    padding: 4px 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .asp-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .asp-table td,
+  .asp-table--students td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: auto;
+    min-width: 0;
+    padding: 7px 0;
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .asp-table:not(.asp-table--students) th:not(:first-child),
+  .asp-table:not(.asp-table--students) td:not(:first-child),
+  .asp-table--students td:nth-child(3),
+  .asp-table--students td:nth-child(4),
+  .asp-table--students td:nth-child(5),
+  .asp-table--students td:nth-child(6) {
+    text-align: right;
+  }
+
+  .asp-table td:last-child {
+    border-bottom: none;
+  }
+
+  .asp-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #5a6a7a;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* Registration summary — the sport name reads as the card's title. */
+  .asp-table:not(.asp-table--students) .asp-td--sport {
+    justify-content: flex-start;
+    border-bottom: 1px solid #e2e9f2;
+    margin-bottom: 2px;
+    padding-bottom: 9px;
+  }
+
+  .asp-table:not(.asp-table--students) .asp-td--sport::before {
+    display: none;
+  }
+
+  /* Student table — the row index is redundant once it's a card; the
+     name (with avatar) becomes the title instead. */
+  .asp-table--students .asp-td--num {
+    display: none;
+  }
+
+  .asp-table--students .asp-td--name {
+    min-width: 0;
+    justify-content: flex-start;
+    border-bottom: 1px solid #e2e9f2;
+    margin-bottom: 2px;
+    padding-bottom: 9px;
+  }
+
+  .asp-table--students .asp-td--name::before {
+    display: none;
+  }
+
+  .asp-table--students td:has(.asp-btn-view) {
+    justify-content: center;
+    padding-top: 10px;
+  }
+
+  .asp-table--students td:has(.asp-btn-view)::before {
+    display: none;
+  }
+
+  .asp-table--students .asp-btn-view {
+    width: 100%;
+  }
+}
+
+/* ══════════════════════════════════════════
+   BRACKET SUMMARY TABLES — MOBILE SCROLL FALLBACK
+   .msf-bsummary uses rowSpan to merge the Stage cell across every match
+   in that stage (across 4 separate table instances — upper/lower
+   bracket, grand final, single bracket), which has no clean equivalent
+   as a stacked card without duplicating that rowSpan logic 4x over. This
+   is also a less-visited admin screen (the schedule-generator preview,
+   not something browsed day to day), so rather than a full card rebuild
+   it gets a proper horizontal-scroll fallback with a readable min-width,
+   instead of just squeezing illegibly like it did with no mobile
+   handling at all.
+   ══════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .msf-summary__table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .msf-bsummary {
+    min-width: 460px;
+    font-size: 11px;
+  }
+
+  .msf-bsummary thead th {
+    padding: 7px 10px;
+    font-size: 9px;
+  }
+
+  .msf-bsummary tbody td {
+    padding: 7px 10px;
+  }
 }

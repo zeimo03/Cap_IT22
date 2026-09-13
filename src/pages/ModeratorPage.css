@@ -50,6 +50,7 @@
 .mp-body {
   flex: 1;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 20px 25px 60px;
 }
 
@@ -106,8 +107,10 @@
   transition: border-color 0.15s ease, transform 0.12s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-sport-trigger:hover {
   border-color: #f5a623;
+}
 }
 
 .mp-sport-trigger:active {
@@ -135,9 +138,11 @@
   width: fit-content;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-sport-trigger--pill:hover {
   filter: brightness(0.97);
   border-color: transparent;
+}
 }
 
 .mp-sport-trigger--pill .mp-sport-trigger__arrow {
@@ -183,9 +188,11 @@
   transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-levelband__tab:hover {
   color: #fff;
   background: rgba(245, 166, 35, 0.14);
+}
 }
 
 .mp-levelband__tab:active {
@@ -248,9 +255,11 @@
   transition: background 0.15s, color 0.15s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-finished-panel__unlock:hover {
   background: #f5a623;
   color: #0e1f3d;
+}
 }
 
 .mp-finished-panel__list {
@@ -274,9 +283,11 @@
   transition: border-color 0.15s, transform 0.1s, background 0.15s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-finished-card:hover {
   border-color: #f5a623;
   transform: translateY(-1px);
+}
 }
 
 .mp-finished-card--active {
@@ -422,8 +433,10 @@
   margin-top: 8px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-dd-option:hover {
   background: #e3ecff;
+}
 }
 
 .mp-dd-option:active {
@@ -459,8 +472,10 @@
   border-top: 1px solid #dbe4f7;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-dd-panel--teams .mp-dd-option:hover {
   background: #eef3ff;
+}
 }
 
 /* ══════════════════════════════════════════
@@ -533,8 +548,10 @@
   white-space: nowrap;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-schedule-hint__edit-link:hover {
   filter: brightness(1.2);
+}
 }
 
 .mp-matchup {
@@ -708,35 +725,18 @@
   letter-spacing: normal;
 }
 
-.mp-info-btn:hover .mp-tooltip,
 .mp-info-btn:focus .mp-tooltip {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   pointer-events: auto;
 }
 
-
-.mp-info-btn--drop .mp-tooltip {
-  bottom: auto;
-  top: calc(100% + 10px);
-  transform: translateX(-50%) translateY(-4px);
-}
-
-.mp-info-btn--drop:hover .mp-tooltip,
-.mp-info-btn--drop:focus .mp-tooltip {
+@media (hover: hover) and (pointer: fine) {
+.mp-info-btn:hover .mp-tooltip {
+  opacity: 1;
   transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
 }
-
-
-.mp-info-btn--drop .mp-tooltip {
-  bottom: auto;
-  top: calc(100% + 10px);
-  transform: translateX(-50%) translateY(-4px);
-}
-
-.mp-info-btn--drop:hover .mp-tooltip,
-.mp-info-btn--drop:focus .mp-tooltip {
-  transform: translateX(-50%) translateY(0);
 }
 
 
@@ -746,9 +746,48 @@
   transform: translateX(-50%) translateY(-4px);
 }
 
-.mp-info-btn--drop:hover .mp-tooltip,
 .mp-info-btn--drop:focus .mp-tooltip {
   transform: translateX(-50%) translateY(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+.mp-info-btn--drop:hover .mp-tooltip {
+  transform: translateX(-50%) translateY(0);
+}
+}
+
+
+.mp-info-btn--drop .mp-tooltip {
+  bottom: auto;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.mp-info-btn--drop:focus .mp-tooltip {
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+.mp-info-btn--drop:hover .mp-tooltip {
+  transform: translateX(-50%) translateY(0);
+}
+}
+
+
+.mp-info-btn--drop .mp-tooltip {
+  bottom: auto;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.mp-info-btn--drop:focus .mp-tooltip {
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+.mp-info-btn--drop:hover .mp-tooltip {
+  transform: translateX(-50%) translateY(0);
+}
 }
 
 .mp-tooltip__cap {
@@ -789,10 +828,16 @@
   position: relative;
 }
 
-.mp-select-trigger:hover,
 .mp-text-input:focus {
   border-color: #6d8fe0;
   outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+.mp-select-trigger:hover {
+  border-color: #6d8fe0;
+  outline: none;
+}
 }
 
 .mp-select-trigger--placeholder {
@@ -906,8 +951,10 @@ input.mp-text-input:disabled {
   white-space: nowrap;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--navy:hover:not(:disabled) {
   filter: brightness(1.15);
+}
 }
 
 /* comeback checkbox — only rendered for the auto-detected winner's panel */
@@ -1034,8 +1081,10 @@ input.mp-text-input:disabled {
   border-radius: 10px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--update:hover:not(:disabled) {
   filter: brightness(1.2);
+}
 }
 
 .mp-btn--reset {
@@ -1052,9 +1101,11 @@ input.mp-text-input:disabled {
   border-radius: 10px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--reset:hover {
   background: #e2e7f2;
   border-color: #a8b3cf;
+}
 }
 
 .mp-btn--reset svg {
@@ -1330,16 +1381,20 @@ input.mp-text-input:disabled {
   letter-spacing: 0.03em;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--reset-solid:hover {
   filter: brightness(1.2);
+}
 }
 
 .mp-reset-modal {
   max-width: 380px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--cancel:hover {
   background: #e2e7f2;
+}
 }
 
 .mp-btn--confirm {
@@ -1356,8 +1411,10 @@ input.mp-text-input:disabled {
   gap: 8px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--confirm:hover:not(:disabled) {
   filter: brightness(1.08);
+}
 }
 
 /* success / invalid modals */
@@ -1511,8 +1568,10 @@ input.mp-text-input:disabled {
   letter-spacing: 0.03em;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--white:hover {
   background: #f3f5f9;
+}
 }
 
 .mp-btn--navy-solid {
@@ -1525,8 +1584,10 @@ input.mp-text-input:disabled {
   letter-spacing: 0.03em;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--navy-solid:hover {
   filter: brightness(1.2);
+}
 }
 
 .mp-btn--danger-solid {
@@ -1539,8 +1600,10 @@ input.mp-text-input:disabled {
   letter-spacing: 0.03em;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--danger-solid:hover {
   filter: brightness(1.15);
+}
 }
 
 /* violations modal */
@@ -1651,8 +1714,10 @@ input.mp-text-input:disabled {
   transition: transform 0.12s ease, filter 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-viol-add:hover {
   filter: brightness(1.2);
+}
 }
 
 .mp-viol-add:active {
@@ -1730,8 +1795,10 @@ input.mp-text-input:disabled {
   padding: 4px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-viol-remove:hover {
   opacity: 0.7;
+}
 }
 
 .mp-viol-actions {
@@ -1749,8 +1816,10 @@ input.mp-text-input:disabled {
   letter-spacing: 0.02em;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--gray:hover {
   background: #d9dfec;
+}
 }
 
 .mp-btn--submit {
@@ -1762,8 +1831,10 @@ input.mp-text-input:disabled {
   letter-spacing: 0.02em;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-btn--submit:hover {
   filter: brightness(1.2);
+}
 }
 
 .mp-modal-close-x {
@@ -1778,8 +1849,10 @@ input.mp-text-input:disabled {
   padding: 4px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-modal-close-x:hover {
   color: #0b2447;
+}
 }
 
 /* ══════════════════════════════════════════
@@ -1888,8 +1961,10 @@ input.mp-text-input:disabled {
   transition: background 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-table tbody tr:hover {
   background: #eef1f8;
+}
 }
 
 .mp-table tbody tr:last-child td {
@@ -1916,8 +1991,10 @@ input.mp-text-input:disabled {
   transition: background 0.12s ease, transform 0.12s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-table__edit-btn:hover {
   background: #e3ecff;
+}
 }
 
 .mp-table__edit-btn:active {
@@ -2023,8 +2100,10 @@ input.mp-text-input:disabled {
   cursor: pointer;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-edit-form__save:hover {
   filter: brightness(1.15);
+}
 }
 
 .mp-edit-form__cancel {
@@ -2039,8 +2118,10 @@ input.mp-text-input:disabled {
   cursor: pointer;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-edit-form__cancel:hover {
   background: #b7bfd4;
+}
 }
 
 /* misc */
@@ -2098,8 +2179,10 @@ input.mp-text-input:disabled {
   transition: background 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-format-close:hover {
   background: rgba(255, 255, 255, 0.12);
+}
 }
 
 .mp-format-title {
@@ -2136,9 +2219,11 @@ input.mp-text-input:disabled {
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-format-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+}
 }
 
 .mp-format-card--active {
@@ -2205,8 +2290,10 @@ input.mp-text-input:disabled {
   transition: filter 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-format-card__btn:hover {
   filter: brightness(1.07);
+}
 }
 
 /* format chip in the page intro */
@@ -2252,8 +2339,10 @@ input.mp-text-input:disabled {
   transition: background 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-format-chip__btn:hover {
   background: rgba(255, 255, 255, 0.18);
+}
 }
 
 .mp-card--empty {
@@ -2338,8 +2427,10 @@ input.mp-text-input:disabled {
   transition: background 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .mp-team-panel__remove:hover {
   background: #f7d7cf;
+}
 }
 
 /* ── Standing (win / lose radios) ── */
@@ -2908,5 +2999,116 @@ input.mp-text-input:disabled {
 
   .mp-matchup {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. ── */
+@media (max-width: 768px) {
+  body .mp-header {
+    padding-left: 64px;
+  }
+}
+
+/* ══════════════════════════════════════════
+   MATCH RECORDS TABLE → STACKED CARDS ON MOBILE
+   .mp-table had a hard-coded min-width: 640px, so on a phone it was
+   always a horizontally-scrolling table rather than something readable
+   at a glance. Below this width each row becomes its own card, using
+   the data-label attributes now on every <td> (see ModeratorPage.jsx)
+   for the CSS-generated field labels. The inline edit row (.mp-edit-row,
+   a single colSpan cell holding its own form) and the empty-state row
+   are left as plain blocks rather than being split into label/value rows.
+   ══════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .mp-table-wrap {
+    overflow-x: visible;
+  }
+
+  .mp-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .mp-table thead {
+    display: none;
+  }
+
+  .mp-table tbody {
+    display: block;
+  }
+
+  .mp-table tbody tr {
+    display: block;
+    border: 1px solid #e4e8f1;
+    border-radius: 10px;
+    padding: 4px 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .mp-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .mp-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 0;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .mp-table td::before {
+    content: attr(data-label);
+    font-weight: 800;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #6c7a94;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* Sports column reads as the card's title */
+  .mp-table td:first-child {
+    justify-content: flex-start;
+    border-bottom: 1px solid #e4e8f1;
+    margin-bottom: 2px;
+    padding-bottom: 9px;
+  }
+
+  .mp-table td:first-child::before {
+    display: none;
+  }
+
+  .mp-table td:has(.mp-table__edit-btn) {
+    justify-content: center;
+    padding-top: 9px;
+  }
+
+  .mp-table td:has(.mp-table__edit-btn)::before {
+    display: none;
+  }
+
+  /* Empty state and the inline edit form stay single blocks, not
+     label/value rows. */
+  .mp-table tr.mp-edit-row td,
+  .mp-table td.mp-table__empty {
+    display: block;
+    text-align: left;
+  }
+
+  .mp-table td.mp-table__empty {
+    text-align: center;
+  }
+
+  .mp-table tr.mp-edit-row td::before,
+  .mp-table td.mp-table__empty::before {
+    display: none;
   }
 }

@@ -42,14 +42,16 @@
   line-height: 1;
 }
 
-.rk-header-right {
+/* ── Search bar — its own row above the page title, kept out of the
+   header so the header matches every other page's title-only header. ── */
+.rk-search-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  padding: 16px 25px 0;
+  margin-left: -15px;
   flex-shrink: 0;
 }
 
-/* ── Search bar ── */
 .rk-search-wrap {
   position: relative;
   display: flex;
@@ -129,9 +131,11 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .rk-lvltab:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
+}
 }
 
 .rk-lvltab--active {
@@ -159,6 +163,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0 14px 20px;
   width: 100%;
   box-sizing: border-box;
@@ -242,8 +247,10 @@
   cursor: pointer;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .rk-division-select:hover {
   background: rgba(255, 255, 255, 0.14);
+}
 }
 
 .rk-division-select option {
@@ -265,9 +272,11 @@
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .rk-sport-tab:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
+}
 }
 
 .rk-sport-tab--active {
@@ -420,21 +429,9 @@
 
 /* ── Responsive ── */
 @media (max-width: 560px) {
-  .rk-dash-header {
-    flex-wrap: wrap;
-    height: auto;
-    padding: 10px 16px;
-    gap: 10px;
-  }
-
-  .rk-dash-header__title {
-    font-size: 15px;
-    white-space: normal;
-  }
-
-  .rk-header-right {
-    width: 100%;
-    justify-content: space-between;
+  .rk-search-row {
+    padding: 14px 16px 0;
+    margin-left: 0;
   }
 
   .rk-search-input,
@@ -459,5 +456,112 @@
 
   .rk-cell-team {
     font-size: 10.5px;
+  }
+
+  /* Intro row + level tabs were sized for desktop (fixed padding, no
+     wrap on the tabs), so "College" ran off the right edge and got
+     clipped by .rk-body's overflow-x: hidden instead of wrapping. */
+  .rk-page-intro {
+    padding: 14px 16px 8px;
+    margin-left: 0;
+  }
+
+  .rk-page-intro--row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rk-lvltabs {
+    flex-wrap: wrap;
+  }
+
+  .rk-lvltab {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+}
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. ── */
+@media (max-width: 768px) {
+  body .rk-dash-header {
+    padding: 0 16px;
+    padding-left: 64px;
+  }
+}
+
+/* ══════════════════════════════════════════
+   RANKING TABLES → STACKED CARDS ON MOBILE
+   .rk-row is a 5-7 column CSS grid (rank/logo/team/rating/win-loss, or
+   rank/logo/team/gold/silver/bronze/total for the medal tally) — the
+   existing 560px query only compressed those columns further, which
+   stayed cramped. Below this width each row becomes a card instead:
+   rank + logo + team name form one header line, and every stat cell
+   (.rk-cell-num, now carrying a data-label — see RankingPage.jsx) drops
+   onto its own full-width label/value line underneath.
+   ══════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .rk-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+
+  /* Declared after .rk-row so its display: none wins the tie (both are
+     single-class selectors of equal specificity, and the head row
+     carries both classes) instead of being overridden back to flex. */
+  .rk-row--head {
+    display: none;
+  }
+
+  .rk-table-wrap .rk-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .rk-cell {
+    padding: 0;
+  }
+
+  .rk-cell-rank {
+    order: 1;
+    min-width: 20px;
+  }
+
+  .rk-cell-logo {
+    order: 2;
+    justify-content: flex-start;
+  }
+
+  .rk-cell-team {
+    order: 3;
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .rk-cell-num {
+    order: 4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding-top: 8px;
+    margin-top: 6px;
+    border-top: 1px solid #eef1f8;
+    text-align: right;
+  }
+
+  .rk-cell-num::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #5a6a7a;
   }
 }

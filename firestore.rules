@@ -1,0 +1,64 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function staffEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isStaff() {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/admins/$(staffEmail())) ||
+        exists(/databases/$(database)/documents/moderators/$(staffEmail())) ||
+        exists(/databases/$(database)/documents/superadmins/$(staffEmail()))
+      );
+    }
+
+    // ── User profiles ──────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read: if isStaff();
+    }
+
+    // ── Staff allowlists (doc id = lowercase email) ────────────
+    // Read-only from the client: AuthContext/sign-up need to look these
+    // up, but only the console/admin SDK should ever write to them.
+    match /admins/{email}      { allow read: if signedIn(); }
+    match /moderators/{email}  { allow read: if signedIn(); }
+    match /superadmins/{email} { allow read: if signedIn(); }
+
+    // ── Player registrations ───────────────────────────────────
+    // Students may create their own registration but never read the
+    // collection back (it holds addresses/emergency contacts). Staff
+    // manage everything from AdminSchedulePage.
+    match /registrations/{regId} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if isStaff();
+    }
+
+    // ── Public aggregate counters ───────────────────────────────
+    // Mirrors event/player counts so the public landing page and the
+    // registration form can read them without touching `registrations`.
+    match /siteCounters/{docId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // ── Config docs managed by staff, read by any signed-in user ─
+    match /sportsTeamsConfig/{level} { allow read: if signedIn(); allow write: if isStaff(); }
+    match /matchSchedules/{level}    { allow read: if signedIn(); allow write: if isStaff(); }
+    match /venuesConfig/{docId}      { allow read: if signedIn(); allow write: if isStaff(); }
+    match /matchRecords/{level}      { allow read: if signedIn(); allow write: if isStaff(); }
+
+    // Team rankings are shown publicly (RankingPage), staff-managed.
+    match /teamRankings/{level} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+  }
+}

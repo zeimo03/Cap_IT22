@@ -34,9 +34,11 @@
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .vm-card:hover {
   border-color: #c7cfe6;
   box-shadow: 0 6px 18px rgba(0, 21, 41, 0.08);
+}
 }
 
 .vm-card__icon {
@@ -126,42 +128,122 @@
   border-radius: 8px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .vm-schedule-modal::-webkit-scrollbar-thumb:hover {
   background: #a9b4d6;
+}
 }
 
 .vm-schedule-modal__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 14px;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #eef0f5;
 }
 
-.vm-schedule-modal__head h3 {
+.vm-schedule-modal__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.vm-schedule-modal__icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #001529;
+  color: #f5a623;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+.vm-schedule-modal__title h3 {
   margin: 0;
   font-size: 17px;
   font-weight: 800;
   color: #001529;
+  word-break: break-word;
+}
+
+.vm-schedule-modal__subtitle {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b678a;
+}
+
+.vm-schedule-modal__close {
+  flex-shrink: 0;
+  background: #f3f4f8;
+  color: #5b678a;
+  border: none;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+.vm-schedule-modal__close:hover {
+  background: #fdeeea;
+  color: #c0301f;
+}
 }
 
 .vm-schedule-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 16px;
 }
 
-.vm-schedule-list .msf-matchrow {
-  border-top: none;
+.vm-matchcard {
   border-radius: 10px;
   background: #f3f4f8;
+  padding: 12px 14px;
   transition: background 0.15s ease;
 }
 
-.vm-schedule-list .msf-matchrow:hover {
+@media (hover: hover) and (pointer: fine) {
+.vm-matchcard:hover {
   background: #eaecf3;
+}
+}
+
+.vm-matchcard__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.vm-matchcard__date {
+  font-size: 12px;
+  font-weight: 800;
+  color: #001529;
+}
+
+.vm-matchcard__pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vm-matchcard__teams {
+  justify-content: center;
 }
 
 .vm-teams {
@@ -171,9 +253,9 @@
 }
 
 .vm-teams__vs {
-  font-size: 30px;
+  font-size: 20px;
   font-weight: 800;
-  color: #001529;
+  color: #8593ad;
 }
 
 .vm-team-logo {

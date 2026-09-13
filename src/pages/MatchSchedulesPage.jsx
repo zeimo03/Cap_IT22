@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import './MatchSchedulesPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import { FaSearch, FaTrophy } from 'react-icons/fa';
-import { FiChevronDown } from 'react-icons/fi';
 import { getMatchSchedules, getMatchRecords } from '../services/firestoreService';
+import LevelTabs from '../components/LevelTabs';
 
 /* ═══════════════════════════════════════════════════════════
    This page is fully data-driven: every match shown here comes
@@ -206,9 +206,9 @@ function ScheduleDayTable({ day, matches, resultFor }) {
         </div>
         {matches.map((m) => (
           <div className="ms-row" role="row" key={m.id}>
-            <div className="ms-cell ms-cell-time" role="cell">{formatTime(m.time)}</div>
-            <div className="ms-cell ms-cell-sport" role="cell">{categoryOf(m).label}</div>
-            <div className="ms-cell ms-cell-venue" role="cell">{m.location || '—'}</div>
+            <div className="ms-cell ms-cell-time" role="cell" data-label="Time">{formatTime(m.time)}</div>
+            <div className="ms-cell ms-cell-sport" role="cell" data-label="Sport">{categoryOf(m).label}</div>
+            <div className="ms-cell ms-cell-venue" role="cell" data-label="Venue">{m.location || '—'}</div>
             <div className="ms-cell ms-cell-team ms-cell-team--body" role="cell">
               {(() => {
                 const record = resultFor ? resultFor(m) : null;
@@ -241,8 +241,8 @@ function ScheduleDayTable({ day, matches, resultFor }) {
 }
 
 export default function MatchSchedulesPage() {
-  const [level, setLevel] = useState(LEVELS[0]);
-  const [levelOpen, setLevelOpen] = useState(false);
+  const [levelKey, setLevelKey] = useState(LEVELS[0].key);
+  const level = LEVELS.find(l => l.key === levelKey) || LEVELS[0];
   const [category, setCategory] = useState(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -428,30 +428,14 @@ export default function MatchSchedulesPage() {
       <div className="ms-body">
 
         {/* Level filter */}
-        <div className="ms-lvls-wrap">
-          <button
-            className="ms-lvls-btn"
-            onClick={() => setLevelOpen(p => !p)}
-            aria-haspopup="listbox"
-            aria-expanded={levelOpen}
-          >
-            {level.label}
-            <FiChevronDown className={`ms-lvls-arrow ${levelOpen ? 'ms-lvls-arrow--open' : ''}`} />
-          </button>
-          <div className={`ms-lvls-dropdown ${levelOpen ? 'ms-lvls-dropdown--open' : ''}`} role="listbox">
-            {LEVELS.map(l => (
-              <button
-                key={l.key}
-                className="ms-lvls-item"
-                onClick={() => { setLevel(l); setLevelOpen(false); }}
-                role="option"
-                aria-selected={level.key === l.key}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <LevelTabs
+          levels={LEVELS}
+          value={levelKey}
+          onChange={setLevelKey}
+          containerClassName="ms-lvltabs"
+          tabClassName="ms-lvltab"
+          activeClassName="ms-lvltab--active"
+        />
 
         {loading ? (
           <p className="ms-state-note">Loading schedules…</p>

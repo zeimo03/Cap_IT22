@@ -71,6 +71,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0 14px 20px;
   width: 100%;
   box-sizing: border-box;
@@ -85,74 +86,42 @@
   border-radius: 2px;
 }
 
-/* ── Level filter dropdown ── */
-.ms-lvls-wrap {
-  position: relative;
-  display: inline-block;
+/* ── Level filter — segmented tab bar (matches RankingPage/DashboardPage) ── */
+.ms-lvltabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  padding: 5px;
   margin: 12px 0 4px;
 }
 
-.ms-lvls-btn {
+.ms-lvltab {
   font-family: "Inter", sans-serif;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  border-radius: 20px;
-  padding: 7px 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  border-radius: 10px;
+  padding: 7px 14px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.03em;
   cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
-.ms-lvls-arrow {
-  transition: transform 0.2s;
-  font-size: 13px;
-}
-
-.ms-lvls-arrow--open {
-  transform: rotate(180deg);
-}
-
-.ms-lvls-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 160px;
-  background: #0A1D52;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  overflow: hidden;
-  z-index: 20;
-  display: none;
-  flex-direction: column;
-}
-
-.ms-lvls-dropdown--open {
-  display: flex;
-}
-
-.ms-lvls-item {
-  font-family: "Inter", sans-serif;
-  background: transparent;
-  border: none;
+@media (hover: hover) and (pointer: fine) {
+.ms-lvltab:hover {
   color: #fff;
-  text-align: left;
-  padding: 10px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
+  background: rgba(255, 255, 255, 0.1);
+}
 }
 
-.ms-lvls-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.ms-lvls-item+.ms-lvls-item {
-  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+.ms-lvltab--active {
+  color: #001529;
+  background: #FCBF19;
 }
 
 /* ── Page-level empty / loading state ── */
@@ -198,9 +167,11 @@
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .ms-category-tab:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
+}
 }
 
 .ms-category-tab--active {
@@ -672,7 +643,7 @@
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .ms-dash-header {
+  body .ms-dash-header {
     padding: 0 16px;
   }
 
@@ -839,4 +810,68 @@
 
 .ms-team-pill__name--tbd {
   color: #aaa;
+}
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. ── */
+@media (max-width: 768px) {
+  body .ms-dash-header {
+    padding-left: 64px;
+  }
+}
+
+/* ══════════════════════════════════════════
+   SCHEDULE TABLE → STACKED CARDS ON MOBILE
+   .ms-row is a 4-column grid (time/sport/venue/team) — the 768px query
+   above only re-proportioned those columns, which still crammed 4
+   fields into ~340px. Below this width each match becomes a card: the
+   team matchup (already its own stacked line) is the title, and
+   time/sport/venue (now carrying data-label — see MatchSchedulesPage.jsx)
+   drop onto their own label/value lines underneath.
+   ══════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .ms-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: none;
+    border-bottom: 1px solid rgba(0, 21, 41, 0.1);
+    padding: 14px 4px;
+  }
+
+  /* Declared after .ms-row so its display: none wins the tie (both are
+     single-class selectors of equal specificity, and the head row
+     carries both classes) instead of being overridden back to flex. */
+  .ms-row--head {
+    display: none;
+  }
+
+  .ms-table-wrap .ms-row:last-child {
+    border-bottom: none;
+  }
+
+  .ms-cell-team {
+    order: 1;
+  }
+
+  .ms-cell-time,
+  .ms-cell-sport,
+  .ms-cell-venue {
+    order: 2;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ms-cell-time::before,
+  .ms-cell-sport::before,
+  .ms-cell-venue::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #6c7a94;
+  }
 }

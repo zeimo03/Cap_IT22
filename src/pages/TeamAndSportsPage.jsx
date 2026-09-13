@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import './TeamAndSportsPage.css';
 import Contact from '../components/Landing/Contact/Contact';
 import { getSportsTeamsConfig } from '../services/firestoreService';
+import LevelTabs from '../components/LevelTabs';
 
 /* ── Level dropdown options → Firestore level keys ── */
 const LEVELS = [
@@ -63,8 +64,8 @@ function TeamCard({ team, index }) {
 }
 
 export default function TeamsAndSportsPage() {
-  const [level, setLevel] = useState(LEVELS[0]);
-  const [levelOpen, setLevelOpen] = useState(false);
+  const [levelKey, setLevelKey] = useState(LEVELS[0].key);
+  const level = LEVELS.find(l => l.key === levelKey) || LEVELS[0];
   const [loading, setLoading] = useState(true);
   const [teamsByLevel, setTeamsByLevel] = useState({ elementary: [], highSchool: [], college: [] });
   const contactRef = React.useRef(null);
@@ -150,31 +151,15 @@ export default function TeamsAndSportsPage() {
             <span className="ts-stat">{totalSports} SPORT{totalSports === 1 ? '' : 'S'}</span>
           </div>
 
-          {/* Levels dropdown */}
-          <div className="ts-lvls-wrap">
-            <button
-              className="ts-lvls-btn"
-              onClick={() => setLevelOpen(p => !p)}
-              aria-haspopup="listbox"
-              aria-expanded={levelOpen}
-            >
-              {level.label}
-              <span className={`ts-lvls-arrow ${levelOpen ? 'ts-lvls-arrow--open' : ''}`}>▾</span>
-            </button>
-            <div className={`ts-lvls-dropdown ${levelOpen ? 'ts-lvls-dropdown--open' : ''}`} role="listbox">
-              {LEVELS.map(l => (
-                <button
-                  key={l.key}
-                  className="ts-lvls-item"
-                  onClick={() => { setLevel(l); setLevelOpen(false); }}
-                  role="option"
-                  aria-selected={level.key === l.key}
-                >
-                  {l.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Level filter */}
+          <LevelTabs
+            levels={LEVELS}
+            value={levelKey}
+            onChange={setLevelKey}
+            containerClassName="ts-lvltabs"
+            tabClassName="ts-lvltab"
+            activeClassName="ts-lvltab--active"
+          />
         </div>
 
         {/* Section title */}

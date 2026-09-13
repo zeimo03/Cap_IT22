@@ -127,8 +127,10 @@
   transition: color 0.2s ease, transform 0.12s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-link-btn:hover {
   color: #f5a623;
+}
 }
 
 .stm-link-btn:active {
@@ -225,9 +227,11 @@
   background: #f7f9fc;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-logo-upload:hover {
   border-color: #001529;
   background: #eef3fa;
+}
 }
 
 .stm-logo-img {
@@ -269,9 +273,11 @@
   transition: color 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-logo-clear-btn:hover {
   color: #a00;
   text-decoration: underline;
+}
 }
 
 .stm-cat-count-cell {
@@ -304,9 +310,11 @@
   transition: background 0.2s ease, transform 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-plus-btn:hover {
   background: #f5a623;
   color: #001529;
+}
 }
 
 .stm-plus-btn:active {
@@ -324,9 +332,11 @@
   transition: color 0.15s ease, background 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-dots-btn:hover {
   color: #001529;
   background: #f5f6f8;
+}
 }
 
 /* ── Form actions ── */
@@ -352,8 +362,10 @@
   transition: background 0.2s ease, transform 0.12s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-btn-ghost:hover {
   background: #f5f6f8;
+}
 }
 
 .stm-btn-ghost:active {
@@ -378,10 +390,12 @@
   transition: background 0.2s ease, transform 0.12s ease, box-shadow 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-btn-primary:hover {
   background: #f5a623;
   color: #001529;
   box-shadow: 0 4px 14px rgba(245, 166, 35, .4);
+}
 }
 
 .stm-btn-primary:active {
@@ -414,9 +428,11 @@
   transition: background 0.2s ease, transform 0.12s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-btn-secondary:hover {
   background: #f5a623;
   color: #001529;
+}
 }
 
 .stm-btn-secondary:active {
@@ -506,10 +522,12 @@
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-preview-team-delete:hover:not(:disabled) {
   background: #fdeaea;
   border-color: #dc2626;
   color: #dc2626;
+}
 }
 
 .stm-preview-team-delete:disabled {
@@ -634,16 +652,20 @@
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-preview-edit-btn:hover {
   background: #e8f0f9;
   border-color: #1d4ed8;
   color: #1d4ed8;
 }
+}
 
+@media (hover: hover) and (pointer: fine) {
 .stm-preview-delete-btn:hover {
   background: #fdeaea;
   border-color: #dc2626;
   color: #dc2626;
+}
 }
 
 .stm-modal--delete {
@@ -712,8 +734,10 @@
   transition: background 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-btn-danger:hover:not(:disabled) {
   background: #b91c1c;
+}
 }
 
 .stm-btn-danger:disabled {
@@ -819,8 +843,10 @@
   border-radius: 8px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-modal--category::-webkit-scrollbar-thumb:hover {
   background: #9aa9bd;
+}
 }
 
 .stm-modal__head {
@@ -861,8 +887,10 @@
   transition: background 0.2s ease, transform 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-icon-btn:hover {
   background: #c0392b;
+}
 }
 
 .stm-icon-btn:active {
@@ -929,9 +957,11 @@
   transition: background 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-catmod-stepper button:hover {
   background: #f5a623;
   color: #001529;
+}
 }
 
 .stm-catmod-stepper button:active {
@@ -1070,9 +1100,11 @@
   transition: background 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-div-choose-btn:hover {
   background: #f5a623;
   color: #001529;
+}
 }
 
 .stm-div-fmt-chip {
@@ -1091,8 +1123,10 @@
   transition: background 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-div-fmt-chip:hover {
   background: #f5f6f8;
+}
 }
 
 .stm-div-fmt-chip__label {
@@ -1135,9 +1169,11 @@
   transition: color 0.15s ease, background 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-add-div-btn:hover {
   color: #f5a623;
   background: #fafbfc;
+}
 }
 
 /* Category modal bottom actions */
@@ -1176,8 +1212,10 @@
   user-select: none;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-format-row:hover {
   background: #f7f9fc;
+}
 }
 
 .stm-format-row--active {
@@ -1356,8 +1394,10 @@
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-picker-item:hover {
   background: #022240;
+}
 }
 
 .stm-picker-item:active {
@@ -1449,8 +1489,10 @@
   transition: color 0.15s ease, transform 0.1s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-chip button:hover {
   color: #c0392b;
+}
 }
 
 .stm-chip button:active {
@@ -1475,8 +1517,10 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .stm-team-conf-row:hover {
   background: #f7f9fc;
+}
 }
 
 .stm-team-conf-row--active {
@@ -1585,4 +1629,166 @@
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.03em;
+}
+/* ══════════════════════════════════════════
+   PREVIEW TABLES → STACKED CARDS ON MOBILE
+   .stm-preview-table had no mobile handling at all — just horizontal
+   scroll. The Sports Preview table also uses rowSpan to merge its
+   Sport/Category/Action cells across divisions, which has no equivalent
+   once a row becomes its own block-level card (a naive display:block
+   transform would just drop those cells from every row after the
+   first) — so it gets its own .stm-preview-cards block (built from the
+   same sportsList in SportsTeamsManager.jsx) instead of a CSS-only
+   transform of the table. The Teams Preview table has no rowSpan, so it
+   uses the plain table→card technique already used on the other pages.
+   ══════════════════════════════════════════ */
+.stm-preview-cards {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .stm-table-wrap--sports-preview {
+    display: none;
+  }
+
+  .stm-preview-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .stm-preview-card {
+    background: #fff;
+    border: 1px solid #e2e9f2;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .stm-preview-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #eef1f8;
+  }
+
+  .stm-preview-card__title {
+    font-family: "Inter", sans-serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: #001529;
+  }
+
+  .stm-preview-card__group {
+    margin-bottom: 8px;
+  }
+
+  .stm-preview-card__group:last-child {
+    margin-bottom: 0;
+  }
+
+  .stm-preview-card__group-label {
+    display: block;
+    font-family: "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 0.72rem;
+    color: #33455c;
+    margin-bottom: 4px;
+  }
+
+  .stm-preview-card__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.82rem;
+    padding: 3px 0 3px 10px;
+    color: #33455c;
+  }
+
+  .stm-preview-card__format {
+    color: #667788;
+    font-weight: 600;
+  }
+
+  /* Teams Preview table — no rowSpan, so the plain table→card transform
+     works directly, using the data-label attributes now on every <td>
+     (see SportsTeamsManager.jsx). */
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table {
+    display: block;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table thead {
+    display: none;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table tbody {
+    display: block;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table tbody tr {
+    display: block;
+    border: 1px solid #e2e9f2;
+    border-radius: 10px;
+    padding: 4px 12px;
+    margin-bottom: 10px;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table td:last-child {
+    border-bottom: none;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #5a6a7a;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table .stm-preview-table__sport {
+    justify-content: flex-start;
+    border-bottom: 1px solid #e2e9f2;
+    margin-bottom: 2px;
+    padding-bottom: 9px;
+    white-space: normal;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table .stm-preview-table__sport::before {
+    display: none;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table td[data-label="Logo"] {
+    justify-content: flex-start;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table td[data-label="Logo"]::before {
+    display: none;
+  }
+
+  .stm-table-wrap:not(.stm-table-wrap--sports-preview) .stm-preview-table .stm-preview-list--cols {
+    grid-template-columns: 1fr;
+  }
 }

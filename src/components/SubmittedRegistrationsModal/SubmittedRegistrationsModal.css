@@ -101,9 +101,11 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .sr-close-btn:hover {
   background: #f0f4fa;
   color: #001529;
+}
 }
 
 /* ── List ── */

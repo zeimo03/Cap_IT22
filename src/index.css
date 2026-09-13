@@ -3,6 +3,10 @@
   padding: 0;
   box-sizing: border-box;
   font-family: system-ui, -apple-system, sans-serif;
+  /* Chrome/Android paints its own gray flash on every tap by default,
+     on top of whatever :hover/:active feedback a button already has —
+     part of what made taps feel "stuck" on a highlighted state. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -13,6 +17,7 @@ body {
 .dashboard-container {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   overflow: hidden;
   background-color: #001529;

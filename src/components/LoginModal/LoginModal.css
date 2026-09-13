@@ -50,6 +50,7 @@
   width: 100%;
   max-width: 480px;
   max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 2.25rem 2.25rem;
@@ -87,9 +88,11 @@
   border-radius: 50%;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .auth-modal-close:hover {
   background: rgba(10, 29, 82, 0.1);
   transform: rotate(90deg);
+}
 }
 
 /* Logo */
@@ -155,8 +158,10 @@
   transition: border-color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .auth-radio-label input[type="radio"]:hover {
   border-color: #0A1D52;
+}
 }
 
 .auth-radio-label input[type="radio"]:checked {
@@ -266,8 +271,10 @@
   justify-content: center;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .password-toggle:hover {
   color: #1a3a6e;
+}
 }
 
 /* Buttons */
@@ -291,10 +298,12 @@
   animation: fadeInUp 0.5s ease-out 0.3s backwards;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .auth-btn-primary:hover {
   background: #1a3a6e;
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(10, 29, 82, 0.2);
+}
 }
 
 .auth-btn-primary:active {
@@ -316,9 +325,11 @@
   padding: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .auth-link:hover,
 .auth-link-action:hover {
   color: #FCBF19;
+}
 }
 
 /* Footer */

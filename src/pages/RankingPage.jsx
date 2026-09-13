@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import './RankingPage.css';
 import { FaSearch, FaCrown, FaMedal } from 'react-icons/fa';
 import Contact from '../components/Landing/Contact/Contact';
+import LevelTabs from '../components/LevelTabs';
 import { getSportsTeamsConfig, getTeamRankings, getMatchRecords } from '../services/firestoreService';
 
 /* ── Sport filter tabs (shared by both tables) ──
@@ -145,27 +146,6 @@ function SportTabs({ active, onChange, sports }) {
   );
 }
 
-/* ── Level tabs — moved out of the small header dropdown (easy to miss)
-   and into a segmented control right beside the page title, where all
-   three levels are visible and clickable at once. ── */
-function LevelTabs({ selected, onChange }) {
-  return (
-    <div className="rk-lvltabs" role="tablist" aria-label="School level">
-      {LEVELS.map(level => (
-        <button
-          key={level}
-          type="button"
-          role="tab"
-          aria-selected={selected === level}
-          className={`rk-lvltab ${selected === level ? 'rk-lvltab--active' : ''}`}
-          onClick={() => onChange(level)}
-        >
-          {level}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /* ── Potential Champion table ── */
 function ChampionTable({ data }) {
@@ -205,7 +185,7 @@ function ChampionTable({ data }) {
             </div>
             <div className="rk-cell rk-cell-logo" role="cell"><TeamLogo team={t.team} color={t.color} logo={t.logo} /></div>
             <div className="rk-cell rk-cell-team" role="cell">{t.team}</div>
-            <div className="rk-cell rk-cell-num" role="cell">
+            <div className="rk-cell rk-cell-num" role="cell" data-label="Rating">
               {t.rating}
               {t.carriedOver && (
                 <span
@@ -216,7 +196,7 @@ function ChampionTable({ data }) {
                 </span>
               )}
             </div>
-            <div className="rk-cell rk-cell-num" role="cell">{t.wins}-{t.losses}</div>
+            <div className="rk-cell rk-cell-num" role="cell" data-label="Win-Loss">{t.wins}-{t.losses}</div>
           </div>
         );
       })}
@@ -252,10 +232,10 @@ function MedalTable({ data }) {
             <div className="rk-cell rk-cell-rank" role="cell">{rank}</div>
             <div className="rk-cell rk-cell-logo" role="cell"><TeamLogo team={t.team} color={t.color} logo={t.logo} /></div>
             <div className="rk-cell rk-cell-team" role="cell">{t.team}</div>
-            <div className="rk-cell rk-cell-num" role="cell">{t.gold}</div>
-            <div className="rk-cell rk-cell-num" role="cell">{t.silver}</div>
-            <div className="rk-cell rk-cell-num" role="cell">{t.bronze}</div>
-            <div className="rk-cell rk-cell-num rk-cell-total" role="cell">{t.total}</div>
+            <div className="rk-cell rk-cell-num" role="cell" data-label="Gold">{t.gold}</div>
+            <div className="rk-cell rk-cell-num" role="cell" data-label="Silver">{t.silver}</div>
+            <div className="rk-cell rk-cell-num" role="cell" data-label="Bronze">{t.bronze}</div>
+            <div className="rk-cell rk-cell-num rk-cell-total" role="cell" data-label="Total">{t.total}</div>
           </div>
         );
       })}
@@ -591,7 +571,13 @@ export default function RankingPage() {
       {/* ── Top header ── */}
       <header className="rk-dash-header">
         <h1 className="rk-dash-header__title">SANTA RITA COLLEGE OF PAMPANGA, INC</h1>
-        <div className="rk-header-right">
+      </header>
+
+      {/* ── Scrollable body ── */}
+      <div className="rk-body">
+
+        {/* Search — its own row above the page title, separate from the header */}
+        <div className="rk-search-row">
           <div className="rk-search-wrap">
             <FaSearch className="rk-search-icon" />
             <input
@@ -603,10 +589,6 @@ export default function RankingPage() {
             />
           </div>
         </div>
-      </header>
-
-      {/* ── Scrollable body ── */}
-      <div className="rk-body">
 
         {/* Page intro */}
         <div className="rk-page-intro rk-page-intro--row">
@@ -614,7 +596,14 @@ export default function RankingPage() {
             <h2 className="rk-page-title">Top Rankings</h2>
             <p className="rk-page-subtitle">Ranked by performance, not by chance. Every game counts. Every rank matters.</p>
           </div>
-          <LevelTabs selected={levelLabel} onChange={setLevelLabel} />
+          <LevelTabs
+            levels={LEVELS}
+            value={levelLabel}
+            onChange={setLevelLabel}
+            containerClassName="rk-lvltabs"
+            tabClassName="rk-lvltab"
+            activeClassName="rk-lvltab--active"
+          />
         </div>
 
         {loadError && <p className="rk-load-error">{loadError}</p>}

@@ -4,6 +4,7 @@
   flex-direction: column;
   width: 60px;
   height: 100vh;
+  height: 100dvh;
   background-color: #0A1D52;
   flex-shrink: 0;
   position: relative;
@@ -98,9 +99,11 @@
   overflow: visible;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .sidebar-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
 }
 
 .sidebar-btn::after {
@@ -125,10 +128,12 @@
   pointer-events: none;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .sidebar-btn:hover::after {
   opacity: 1;
   visibility: visible;
   transform: translateY(-50%) translateX(0);
+}
 }
 
 .sidebar-btn.active {
@@ -148,6 +153,7 @@
   left: 60px;
   width: 220px;
   height: 100vh;
+  height: 100dvh;
   background: #fff;
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.18);
   transform: translateX(-110%);
@@ -190,8 +196,10 @@
   transition: background 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .panel-login-btn:hover {
   background: #1a3a6e;
+}
 }
 
 .panel-nav {
@@ -214,8 +222,10 @@
   transition: background 0.18s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .panel-nav-item:hover {
   background: #f0f4fa;
+}
 }
 
 .panel-nav-item.active {
@@ -233,4 +243,54 @@
   inset: 0;
   z-index: 150;
   background: transparent;
+}
+
+/* ── Mobile: the whole navy icon rail collapses away — not just its
+   buttons — leaving only a floating hamburger pinned to the corner.
+   Tapping it opens .sidebar-panel (the labeled slide-out nav), which
+   already has every link the rail did, so there's nothing lost.
+   Taking .sidebar out of flow (position: fixed) also means
+   .authenticated-main no longer has a 60px-wide sibling to share
+   space with, so the page content gets the full screen width. ── */
+@media (max-width: 768px) {
+  .sidebar-extra {
+    display: none;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    padding: 0.5rem;
+    background: transparent;
+    /* Without its own compositing layer, some mobile browsers repaint
+       this fixed element a frame or two behind an inner scrollable
+       container's (.asp-body, .reg-body, .dash-body, …) momentum
+       scroll, so it visibly drifts down before snapping back to the
+       corner. Promoting it to the GPU layer keeps it locked in place. */
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* Hover tooltips don't make sense on touch — they were left stuck
+     open over the page header after a tap. */
+  .sidebar-btn::after {
+    display: none;
+  }
+
+  /* The hamburger has no background to sit on anymore, so its icon
+     color is what has to carry the contrast: light bars against the
+     navy page behind it while closed, but once it morphs into the X
+     it's sitting over .sidebar-panel's white background instead — so
+     it needs to switch to a dark color right when it opens, or it
+     just disappears into the white panel. */
+  .sidebar-btn.menu-btn:has(.menu-icon.open) {
+    color: #0A1D52;
+  }
+
+  .sidebar-panel {
+    left: 0;
+  }
 }

@@ -69,6 +69,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0 14px 20px;
   width: 100%;
   box-sizing: border-box;
@@ -92,6 +93,7 @@
   padding: 20px 24px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 24px;
   margin-bottom: 14px;
   box-sizing: border-box;
@@ -113,6 +115,13 @@
   letter-spacing: 0.02em;
   font-family: 'Inter', system-ui, sans-serif;
   text-transform: uppercase;
+  /* displayName falls back to the account email when no name is set
+     yet (see ProfilePage.jsx) — an email has no spaces to wrap at, so
+     without this a long one forces the box wider than the card and
+     the overflow gets silently clipped by .profile-body's
+     overflow-x: hidden instead of wrapping onto a second line. */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .profile-student-number {
@@ -184,6 +193,24 @@
   font-size: 13px;
   font-weight: 800;
   color: #001529;
+}
+
+/* Below this width there's no longer room for the name column, the
+   1px vertical divider, and the 200px-minimum detail column side by
+   side — .profile-identity-card now wraps them instead of squeezing
+   the name text into overlapping the detail column next to it. Once
+   wrapped, the detail column takes the full row and swaps the
+   vertical divider for a horizontal rule above it. */
+@media (max-width: 700px) {
+  .profile-identity-right {
+    min-width: 100%;
+    border-top: 1px solid #dde4ef;
+    padding-top: 14px;
+  }
+
+  .profile-identity-divider {
+    display: none;
+  }
 }
 
 /* ══════════════════════════════════════════
@@ -334,8 +361,10 @@
   transition: opacity 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .profile-card-action:hover {
   opacity: 0.8;
+}
 }
 
 .profile-card-action--change {
@@ -430,9 +459,11 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .profile-stat-card--clickable:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 21, 41, 0.12);
+}
 }
 
 .profile-stat-card--clickable:active {

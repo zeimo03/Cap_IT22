@@ -3,6 +3,7 @@ import { AuthContext } from '../components/AuthContext';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getSportsTeamsConfig, getMatchSchedules } from '../services/firestoreService';
+import LevelTabs from '../components/LevelTabs';
 import './SuperAdminPage.css';
 import {
   FaUsers, FaRunning, FaUsersCog, FaCalendarAlt, FaUserCheck, FaClock,
@@ -408,27 +409,6 @@ function buildTimeSeries(seriesA, seriesB, days) {
   return buckets.map(({ label, values }) => ({ label, values }));
 }
 
-/* ── Level tabs — moved out of the small header dropdown (easy to miss)
-   and into a segmented control next to the panel title, where all levels
-   are visible and clickable at once. ── */
-function LevelTabs({ levelKey, onChange }) {
-  return (
-    <div className="sa-lvltabs" role="tablist" aria-label="School level">
-      {LEVEL_OPTIONS.map(l => (
-        <button
-          key={l.key}
-          type="button"
-          role="tab"
-          aria-selected={levelKey === l.key}
-          className={`sa-lvltab ${levelKey === l.key ? 'sa-lvltab--active' : ''}`}
-          onClick={() => onChange(l.key)}
-        >
-          {l.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /* ── Page ────────────────────────────────────────────────────── */
 
@@ -674,7 +654,14 @@ export default function SuperAdminPage() {
               </p>
             </div>
             <div className="sa-panel__actions">
-              <LevelTabs levelKey={levelKey} onChange={setLevelKey} />
+              <LevelTabs
+                levels={LEVEL_OPTIONS}
+                value={levelKey}
+                onChange={setLevelKey}
+                containerClassName="sa-lvltabs"
+                tabClassName="sa-lvltab"
+                activeClassName="sa-lvltab--active"
+              />
               <span className="sa-daterange" title={rangeCaption}>
                 <FaRegCalendarAlt />
                 {rangeCaption}
@@ -777,10 +764,10 @@ export default function SuperAdminPage() {
                   <tbody>
                     {recent.map(row => (
                       <tr key={row.id}>
-                        <td className="sa-td--name">{row.name}</td>
-                        <td><span className={`sa-role sa-role--${row.role}`}>{row.role}</span></td>
-                        <td>{row.level}</td>
-                        <td className="sa-td--date">{formatDateTime(row.created)}</td>
+                        <td className="sa-td--name" data-label="User">{row.name}</td>
+                        <td data-label="Role"><span className={`sa-role sa-role--${row.role}`}>{row.role}</span></td>
+                        <td data-label="Level">{row.level}</td>
+                        <td className="sa-td--date" data-label="Registered On">{formatDateTime(row.created)}</td>
                       </tr>
                     ))}
                   </tbody>

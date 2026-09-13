@@ -293,7 +293,9 @@ export default function RegistrationPage() {
     if (!form.teamName)               errs.teamName         = 'Please select a team';
     if (!form.sport)                  errs.sport            = 'Please select a sport / event';
     if (!form.position)               errs.position         = 'Please select a position';
-    if (!waiver)                      errs.waiver           = 'Waiver / consent form is required';
+    // Waiver upload is temporarily optional: Firebase Storage isn't
+    // provisioned on the project yet (requires the Blaze plan), so there's
+    // nowhere to save the file. Re-add this check once Storage is enabled.
     return errs;
   };
 
@@ -635,14 +637,14 @@ export default function RegistrationPage() {
                 </label>
               </Field>
 
-              <Field label="Upload Waiver / Consent Form" required error={errors.waiver}>
+              <Field label="Upload Waiver / Consent Form" error={errors.waiver}>
                 <label className="reg-upload-box">
                   <input type="file" accept=".pdf,.doc,.docx,image/*" ref={waiverRef} onChange={handleFile(setWaiver, 'waiver')} />
                   <div className="reg-upload-icon">📄</div>
                   <span className="reg-upload-caption">Click to upload waiver</span>
                   {waiver
                     ? <span className="reg-upload-preview">{waiver.name}</span>
-                    : <span className="reg-upload-sub">PDF, DOC, max 5 MB</span>
+                    : <span className="reg-upload-sub">PDF, DOC, max 5 MB (optional for now)</span>
                   }
                 </label>
               </Field>

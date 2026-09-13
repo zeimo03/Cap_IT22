@@ -82,6 +82,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0 14px 20px;
   width: 100%;
   box-sizing: border-box;
@@ -331,9 +332,11 @@
   transition: background 0.15s, border-color 0.15s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .reg-upload-box:hover .reg-upload-icon {
   background: #e8eef5;
   border-color: #001529;
+}
 }
 
 .reg-upload-caption {
@@ -435,8 +438,10 @@
   transition: opacity 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .reg-btn-reset:hover {
   opacity: 0.8;
+}
 }
 
 /* Save button — matches profile-card-action--change style */
@@ -457,8 +462,10 @@
   transition: opacity 0.2s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .reg-btn-save:hover {
   opacity: 0.8;
+}
 }
 
 /* ══════════════════════════════════════════
@@ -510,15 +517,17 @@
   font-weight: 600;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .reg-contact-bar__links a:hover {
   text-decoration: underline;
+}
 }
 
 /* ══════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════ */
 @media (max-width: 600px) {
-  .reg-dash-header {
+  body .reg-dash-header {
     padding: 0 16px;
   }
 
@@ -668,5 +677,13 @@
   .reg-event-chip {
     flex: 1;
     min-width: 0;
+  }
+}
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. ── */
+@media (max-width: 768px) {
+  body .reg-dash-header {
+    padding-left: 64px;
   }
 }

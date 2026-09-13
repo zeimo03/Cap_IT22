@@ -103,9 +103,11 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .ej-close-btn:hover {
   background: #f0f4fa;
   color: #001529;
+}
 }
 
 /* ── Event list ── */

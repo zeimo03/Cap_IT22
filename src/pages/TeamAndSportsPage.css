@@ -68,6 +68,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0 14px 20px;
   width: 100%;
   box-sizing: border-box;
@@ -109,93 +110,43 @@
   font-size: 13px;
 }
 
-/* ── Levels dropdown (mirrors DashboardPage lvls) ── */
-.ts-lvls-wrap {
-  position: relative;
+/* ── Level filter — segmented tab bar (matches RankingPage/DashboardPage) ── */
+.ts-lvltabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  padding: 5px;
   flex-shrink: 0;
 }
 
-.ts-lvls-btn {
+.ts-lvltab {
   font-family: "Inter", sans-serif;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  padding: 5px 16px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  letter-spacing: 0.04em;
-  transition: background 0.2s, border-color 0.2s;
-  white-space: nowrap;
-}
-
-.ts-lvls-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.9);
-}
-
-.ts-lvls-arrow {
-  font-family: "Inter", sans-serif;
-  display: inline-block;
-  font-size: 11px;
-  transition: transform 0.25s ease;
-}
-
-.ts-lvls-arrow--open {
-  transform: rotate(180deg);
-}
-
-.ts-lvls-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  background: #001529;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  overflow: hidden;
-  min-width: 150px;
-  z-index: 100;
-  transform-origin: top right;
-  transform: scaleY(0.9) translateY(-8px);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s ease;
-}
-
-.ts-lvls-dropdown--open {
-  transform: scaleY(1) translateY(0);
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.ts-lvls-item {
-  font-family: "Inter", sans-serif;
-  display: block;
-  width: 100%;
-  padding: 11px 18px;
   background: transparent;
   border: none;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
+  color: rgba(255, 255, 255, 0.65);
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.03em;
-  transition: background 0.2s;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
-.ts-lvls-item:hover {
+@media (hover: hover) and (pointer: fine) {
+.ts-lvltab:hover {
+  color: #fff;
   background: rgba(255, 255, 255, 0.1);
 }
+}
 
-.ts-lvls-item+.ts-lvls-item {
-  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+.ts-lvltab--active {
+  color: #001529;
+  background: #FCBF19;
 }
 
 /* ── Section title ── */
@@ -312,6 +263,11 @@
 .ts-card-info {
   flex: 1;
   min-width: 0;
+  /* .ts-card-sport-count is position: absolute over this same top-right
+     corner and reserves no space of its own, so a long team name (e.g.
+     "BASA AIR BASE NATIONAL HIGH SCHOOL") runs straight under the
+     "N SPORTS" badge without this clearance. */
+  padding-right: 78px;
 }
 
 .ts-card-name {
@@ -365,14 +321,16 @@
   transition: background 0.15s, border-color 0.15s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .ts-sport-tag:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.7);
 }
+}
 
 /* ── Responsive ── */
 @media (max-width: 480px) {
-  .ts-dash-header {
+  body .ts-dash-header {
     padding: 0 16px;
   }
 
@@ -395,5 +353,18 @@
   .ts-team-logo {
     width: 56px;
     height: 56px;
+  }
+}
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. ── */
+@media (max-width: 768px) {
+  body .ts-dash-header {
+    padding-left: 64px;
+  }
+
+  .ts-subheader {
+    flex-wrap: wrap;
+    gap: 10px;
   }
 }

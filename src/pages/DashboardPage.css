@@ -80,9 +80,11 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .dash-lvltab:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
+}
 }
 
 .dash-lvltab--active {
@@ -95,6 +97,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   width: 100%;
 }
 
@@ -161,9 +164,11 @@
   transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .arrow-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(-1px);
+}
 }
 
 .dash-section--upcoming .section-title {
@@ -176,8 +181,10 @@
   color: #001529;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .dash-section--upcoming .arrow-btn:hover {
   background: rgba(0, 21, 41, 0.14);
+}
 }
 
 .scroll-row {
@@ -475,12 +482,18 @@
   transition: opacity 0.2s ease;
 }
 
-.upcoming-card:hover .uc-hover-info,
 .upcoming-card:focus-within .uc-hover-info,
-.ongoing-card:hover .uc-hover-info,
 .ongoing-card:focus-within .uc-hover-info {
   opacity: 1;
   pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+.upcoming-card:hover .uc-hover-info,
+.ongoing-card:hover .uc-hover-info {
+  opacity: 1;
+  pointer-events: auto;
+}
 }
 
 .uc-hover-info__teams {
@@ -534,8 +547,10 @@
   color: #fff;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .dash-section--finished .arrow-btn:hover {
   background: rgba(255, 255, 255, 0.2);
+}
 }
 
 /* Outer container clips cards that slide off-screen */
@@ -696,4 +711,87 @@
 
 .fc-stat-icon {
   font-size: 11px;
+}
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — the level tabs and intro row were sized for desktop
+   (fixed padding, no wrap on the tabs themselves), so on a phone
+   "College" ran past the edge of the screen and got clipped by
+   .user-dashboard's overflow: hidden instead of wrapping. Match cards
+   also had no min-width, so flex:1 squeezed all of them down to an
+   unreadably tiny size instead of scrolling.
+   ══════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .user-dashboard .dash-header {
+    padding: 0 16px;
+  }
+
+  .user-dashboard .profile-page-intro {
+    padding: 14px 16px 8px;
+  }
+
+  .dash-intro-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dash-lvltabs {
+    flex-wrap: wrap;
+  }
+
+  .dash-lvltab {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  .dash-section {
+    padding: 12px 10px 8px;
+  }
+
+  .upcoming-card,
+  .ongoing-card {
+    min-width: 260px;
+    height: auto;
+  }
+
+  /* .team-banner--uc/--oc are a fixed ~330px tall on desktop, sized for
+     a card several times wider than the mobile floor above — at that
+     width each banner (half of .uc-banners/.oc-banners, minus the gap)
+     is only ~110px wide, so the same fixed height turned it into a tall
+     skinny tower instead of a card-proportioned box. Its base min-width
+     (8.59375rem, ~137px) is also wider than that ~110px slot — a flex
+     item won't shrink past its own min-width, so with two side by side
+     the row demanded more space than the card had and the right-hand
+     banner just got clipped by the card's overflow: hidden. */
+  .team-banner {
+    min-height: 90px;
+    min-width: 0;
+  }
+
+  .team-banner--uc {
+    margin-top: 0.5rem;
+    height: 110px;
+  }
+
+  .team-banner--oc {
+    height: 110px;
+  }
+
+  .dash-section--upcoming {
+    height: auto;
+  }
+}
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. The `body` prefix bumps specificity past
+   .user-dashboard .dash-header above (and ProfilePage.css's own
+   .profile-page .dash-header, which reuses this same header) — both are
+   2-class selectors that would otherwise win this tug-of-war over a
+   plain .dash-header rule regardless of which file loads last. ── */
+@media (max-width: 768px) {
+  body .dash-header,
+  body .user-dashboard .dash-header,
+  body .profile-page .dash-header {
+    padding-left: 64px;
+  }
 }

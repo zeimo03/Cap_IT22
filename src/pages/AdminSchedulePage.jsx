@@ -10,6 +10,7 @@ import { db } from '../firebase';
 import { getSportsTeamsConfig, getMatchSchedules, getMatchRecords, saveGeneratedSchedule, upsertMatchSchedule, deleteMatchSchedule, deleteScheduleSet, setLivePlayerCount, setEventRegistrationCounts, getEventKey, getEventLabel, EVENT_TYPES, getVenues, getAllMatchSchedules } from '../services/firestoreService';
 import SportsTeamsManager from './SportsTeamsManager';
 import VenuesManager from './VenuesManager';
+import LevelTabs from '../components/LevelTabs';
 
 const LEVELS = [
   { key: 'elementary', label: 'Elementary' },
@@ -17,27 +18,6 @@ const LEVELS = [
   { key: 'college',     label: 'College' },
 ];
 
-/* Level tabs — moved out of the small header dropdown (easy to miss) and
-   into a segmented control that sits right above the page content it
-   scopes, where all three levels are visible and clickable at once. */
-function LevelTabs({ levelKey, onChange }) {
-  return (
-    <div className="asp-lvltabs" role="tablist" aria-label="School level">
-      {LEVELS.map((l) => (
-        <button
-          key={l.key}
-          type="button"
-          role="tab"
-          aria-selected={levelKey === l.key}
-          className={`asp-lvltab ${levelKey === l.key ? 'asp-lvltab--active' : ''}`}
-          onClick={() => onChange(l.key)}
-        >
-          {l.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /* ─── Grade-level bucketing ───────────────────────── */
 const ELEMENTARY_GRADES = new Set(['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6']);
@@ -115,7 +95,7 @@ const TEAM_COLORS = {
   'Red Rhinos':      '#dc2626',
 };
 
-const TABS = ['Venues', 'Registration', 'Sports & Teams', 'Match Schedules Format'];
+const TABS = ['Registration', 'Venues', 'Sports & Teams', 'Match Schedules Format'];
 const VENUES_TAB_INDEX = TABS.indexOf('Venues');
 const REGISTRATION_TAB_INDEX = TABS.indexOf('Registration');
 const SPORTS_TEAMS_TAB_INDEX = TABS.indexOf('Sports & Teams');
@@ -2242,12 +2222,21 @@ const fetchSummary = useCallback(async () => {
         </div>
       </div>
 
-      {/* Level switcher — applies to every tab except Venues (venues are
-          global, shared across every level), so it gets its own full-width
-          row instead of competing for space with the section tabs. */}
-      {activeTab !== VENUES_TAB_INDEX && (
+      {/* Level switcher — applies to Sports & Teams and Match Schedules
+          Format only. Venues are global (shared across every level), and
+          Registration's summary/table already break Elementary/High
+          School/College out as their own columns, so `level` has nothing
+          to filter on either of those tabs. */}
+      {activeTab !== VENUES_TAB_INDEX && activeTab !== REGISTRATION_TAB_INDEX && (
         <div className="asp-level-row">
-          <LevelTabs levelKey={level} onChange={setLevel} />
+          <LevelTabs
+            levels={LEVELS}
+            value={level}
+            onChange={setLevel}
+            containerClassName="asp-lvltabs"
+            tabClassName="asp-lvltab"
+            activeClassName="asp-lvltab--active"
+          />
         </div>
       )}
 
@@ -2358,10 +2347,10 @@ const fetchSummary = useCallback(async () => {
                     <tbody>
                       {visibleSummaryRows.map(row => (
                         <tr key={`${row.sport}-${row.gender}`}>
-                          <td className="asp-td--sport">{row.sport.toUpperCase()} {row.gender.toUpperCase()}</td>
-                          <td>{fmt(row, 'elementary')}</td>
-                          <td>{fmt(row, 'highSchool')}</td>
-                          <td>{fmt(row, 'college')}</td>
+                          <td className="asp-td--sport" data-label="Sports">{row.sport.toUpperCase()} {row.gender.toUpperCase()}</td>
+                          <td data-label="Elementary">{fmt(row, 'elementary')}</td>
+                          <td data-label="High School">{fmt(row, 'highSchool')}</td>
+                          <td data-label="College">{fmt(row, 'college')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2445,8 +2434,8 @@ const fetchSummary = useCallback(async () => {
                     <tbody>
                       {filteredStudents.map((reg, idx) => (
                         <tr key={reg.id || idx}>
-                          <td className="asp-td--num">{idx + 1}</td>
-                          <td className="asp-td--name">
+                          <td className="asp-td--num" data-label="#">{idx + 1}</td>
+                          <td className="asp-td--name" data-label="Name">
                             <span className="asp-avatar">
                               {(reg.fullName || 'U').charAt(0).toUpperCase()}
                             </span>
@@ -2454,16 +2443,16 @@ const fetchSummary = useCallback(async () => {
                               {reg.fullName || <em className="asp-placeholder">Last Name, First Name, Middle Name</em>}
                             </span>
                           </td>
-                          <td>
+                          <td data-label="Gender">
                             <span className={`asp-gender-badge asp-gender--${(reg.gender || 'unknown').toLowerCase()}`}>
                               {reg.gender || '—'}
                             </span>
                           </td>
-                          <td>{reg.gradeLevel || '—'}</td>
-                          <td>{reg.section || '—'}</td>
-                          <td className="asp-td--sport">{reg.sport || '—'}</td>
-                          <td>{reg.event || '—'}</td>
-                          <td>
+                          <td data-label="Grade/Year">{reg.gradeLevel || '—'}</td>
+                          <td data-label="Section">{reg.section || '—'}</td>
+                          <td className="asp-td--sport" data-label="Sport">{reg.sport || '—'}</td>
+                          <td data-label="Event">{reg.event || '—'}</td>
+                          <td data-label="Action">
                             <button className="asp-btn-view" onClick={() => setSelectedStudent(reg)}>View</button>
                           </td>
                         </tr>

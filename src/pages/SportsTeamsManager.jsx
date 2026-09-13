@@ -1032,7 +1032,7 @@ export default function SportsTeamsManager({ level }) {
         {sportsList.length === 0 ? (
           <p className="stm-empty-note">No sports saved yet.</p>
         ) : (
-          <div className="stm-table-wrap">
+          <div className="stm-table-wrap stm-table-wrap--sports-preview">
             <table className="stm-table stm-preview-table">
               <thead>
                 <tr>
@@ -1119,6 +1119,61 @@ export default function SportsTeamsManager({ level }) {
                   })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Mobile-only card view — the table above uses rowSpan to merge
+            the Sport/Category/Action cells across their divisions, which
+            has no equivalent once a row becomes its own stacked card (a
+            div-per-<tr> transform would just drop those cells from every
+            row after the first). Rendered from the same sportsList, shown
+            instead of the table below stm-preview-mobile-breakpoint. */}
+        {sportsList.length > 0 && (
+          <div className="stm-preview-cards">
+            {[...sportsList]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(sport => {
+                const divisions = flatDivisions(sport);
+                const categories = [];
+                divisions.forEach(d => {
+                  let group = categories.find(c => c.label === d.groupLabel);
+                  if (!group) { group = { label: d.groupLabel, items: [] }; categories.push(group); }
+                  group.items.push(d);
+                });
+                return (
+                  <div className="stm-preview-card" key={sport.id}>
+                    <div className="stm-preview-card__head">
+                      <span className="stm-preview-card__title">{sport.name.toUpperCase()}</span>
+                      <div className="stm-preview-table__actions">
+                        <button type="button" className="stm-preview-edit-btn" title="Edit sport" onClick={() => setEditSportTarget(sport)}>
+                          <FaEdit />
+                        </button>
+                        <button type="button" className="stm-preview-delete-btn" title="Delete sport" onClick={() => setDeleteSportTarget(sport)}>
+                          <FaTimes />
+                        </button>
+                      </div>
+                    </div>
+                    {divisions.length === 0 ? (
+                      <p className="stm-empty-note">No categories set.</p>
+                    ) : (
+                      categories.map(group => (
+                        <div className="stm-preview-card__group" key={group.label}>
+                          <span className="stm-preview-card__group-label">{group.label}</span>
+                          {group.items.map((d, i) => {
+                            const f = FORMAT_OPTIONS.find(o => o.id === d.format);
+                            return (
+                              <div className="stm-preview-card__row" key={d.id || i}>
+                                <span>{d.name.toUpperCase()}</span>
+                                <span className="stm-preview-card__format">{f ? f.label : '—'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>
@@ -1240,7 +1295,7 @@ export default function SportsTeamsManager({ level }) {
                   .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
                   .map(team => (
                     <tr key={team.id}>
-                      <td>
+                      <td data-label="Logo">
                         {team.logo
                           ? <img src={team.logo} alt="" className="stm-preview-team-logo" />
                           : (
@@ -1249,8 +1304,8 @@ export default function SportsTeamsManager({ level }) {
                             </span>
                           )}
                       </td>
-                      <td className="stm-preview-table__sport">{(team.name || '').toUpperCase()}</td>
-                      <td>
+                      <td className="stm-preview-table__sport" data-label="Team">{(team.name || '').toUpperCase()}</td>
+                      <td data-label="Sports">
                         {(team.sportIds || []).length === 0 ? (
                           <span className="stm-empty-note">No sports assigned.</span>
                         ) : (
@@ -1259,7 +1314,7 @@ export default function SportsTeamsManager({ level }) {
                           </ul>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Action">
                         <div className="stm-preview-table__actions">
                           <button
                             type="button"

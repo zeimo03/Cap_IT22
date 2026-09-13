@@ -68,9 +68,11 @@
   transition: background 0.18s ease, color 0.18s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .sa-lvltab:hover {
   color: #16337a;
   background: #e2e8f0;
+}
 }
 
 .sa-lvltab--active {
@@ -106,6 +108,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 0 18px 22px;
   box-sizing: border-box;
 }
@@ -194,9 +197,14 @@
   outline: none;
 }
 
-.sa-select:hover,
 .sa-select:focus {
   border-color: #16337a;
+}
+
+@media (hover: hover) and (pointer: fine) {
+.sa-select:hover {
+  border-color: #16337a;
+}
 }
 
 .sa-icon-btn {
@@ -214,9 +222,11 @@
   transition: border-color 0.15s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .sa-icon-btn:hover:not(:disabled) {
   border-color: #16337a;
   color: #16337a;
+}
 }
 
 .sa-icon-btn:disabled {
@@ -241,8 +251,10 @@
   transition: filter 0.15s;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .sa-export:hover:not(:disabled) {
   filter: brightness(1.15);
+}
 }
 
 .sa-export:disabled {
@@ -642,5 +654,77 @@
   .sa-donut__svg {
     max-width: 150px;
     margin: 0 auto;
+  }
+}
+/* ── Mobile: leaves room for the floating hamburger button (Sidebar.css
+   takes the icon rail out of flow below 768px), which would otherwise
+   sit on top of this title. ── */
+@media (max-width: 768px) {
+  body .sa-header {
+    padding-left: 64px;
+  }
+}
+
+/* ══════════════════════════════════════════
+   RECENT REGISTRATIONS TABLE → STACKED CARDS ON MOBILE
+   .sa-table had no mobile handling beyond horizontal scroll. Below this
+   width each row becomes a card, using the data-label attributes now on
+   every <td> (see SuperAdminPage.jsx) for the CSS-generated labels.
+   ══════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .sa-table-wrap {
+    overflow-x: visible;
+  }
+
+  .sa-table {
+    display: block;
+  }
+
+  .sa-table thead {
+    display: none;
+  }
+
+  .sa-table tbody {
+    display: block;
+  }
+
+  .sa-table tbody tr {
+    display: block;
+    border: 1px solid #e6ecf4;
+    border-radius: 10px;
+    padding: 4px 12px;
+    margin-bottom: 8px;
+  }
+
+  .sa-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .sa-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    white-space: normal;
+  }
+
+  .sa-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  .sa-table .sa-td--name {
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 2px;
+    padding-bottom: 9px;
+  }
+
+  .sa-table .sa-td--name::before {
+    display: none;
   }
 }

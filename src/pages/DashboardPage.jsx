@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { FiAward, FiAlertTriangle, FiChevronLeft, FiChevronRight, FiStar, FiTrendingUp, FiZap, FiClock, FiMapPin } from 'react-icons/fi';
 import './DashboardPage.css';
 import Contact from '../components/Landing/Contact/Contact';
+import LevelTabs from '../components/LevelTabs';
 import { getMatchSchedules, getMatchRecords, getSportsTeamsConfig } from '../services/firestoreService';
 
 /* ═══════════════════════════════════════════
@@ -391,27 +392,6 @@ function FinishedSportButtons({ sports, value, onChange }) {
   );
 }
 
-/* Level switcher — moved out of the small header dropdown (easy to miss)
-   and into a segmented tab bar right beside the page title, where all
-   three levels are visible and clickable at once. */
-function LevelTabs({ value, onChange }) {
-  return (
-    <div className="dash-lvltabs" role="tablist" aria-label="School level">
-      {LEVELS.map((level) => (
-        <button
-          key={level}
-          type="button"
-          role="tab"
-          aria-selected={value === level}
-          className={`dash-lvltab ${value === level ? 'dash-lvltab--active' : ''}`}
-          onClick={() => onChange(level)}
-        >
-          {level}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function DashboardPage() {
   const contactFooterRef = useRef(null);
@@ -575,7 +555,14 @@ export default function DashboardPage() {
           <h2 className="profile-page-title">Home</h2>
           <p className="profile-page-subtitle">Browse for matches informations</p>
         </div>
-        <LevelTabs value={levelLabel} onChange={setLevelLabel} />
+        <LevelTabs
+          levels={LEVELS}
+          value={levelLabel}
+          onChange={setLevelLabel}
+          containerClassName="dash-lvltabs"
+          tabClassName="dash-lvltab"
+          activeClassName="dash-lvltab--active"
+        />
       </div>
       <div className="dash-body">
         {loadError && <p className="dash-empty">{loadError}</p>}

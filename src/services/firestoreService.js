@@ -138,13 +138,24 @@ export async function findStaffAllowlistEntry(email, role) {
    Returns the public download URL.
    Returns null silently if no file provided
    (uploads are optional for the student).
+
+   Cloud Storage isn't provisioned on the Firebase project yet (it
+   requires the Blaze billing plan), so an upload attempt right now
+   would throw and take the whole registration down with it. Catch
+   that and store null instead — once Storage is turned on, uploads
+   will start succeeding here with no code changes needed.
 ───────────────────────────────────────────── */
 async function uploadFile(file, storagePath) {
   if (!file) return null;
-  const storage = getStorage();
-  const fileRef = ref(storage, storagePath);
-  await uploadBytes(fileRef, file);
-  return getDownloadURL(fileRef);
+  try {
+    const storage = getStorage();
+    const fileRef = ref(storage, storagePath);
+    await uploadBytes(fileRef, file);
+    return await getDownloadURL(fileRef);
+  } catch (error) {
+    console.warn(`File upload skipped (Firebase Storage not set up yet): ${storagePath}`, error);
+    return null;
+  }
 }
 
 /* ─────────────────────────────────────────────

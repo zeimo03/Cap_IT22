@@ -14,6 +14,7 @@ import {
   getTeamRankings,
   saveTeamRankings,
 } from '../services/firestoreService';
+import LevelTabs from '../components/LevelTabs';
 
 /* ═══════════════════════════════════════════
    CONSTANTS
@@ -60,6 +61,19 @@ const FORMAT_CHOICES = [
 
 function formatById(id) {
   return FORMAT_CHOICES.find((f) => f.id === id) || null;
+}
+
+/* Maps a division's format (set by the admin in Sports & Teams) straight
+   onto the matching sports-format choice, so the moderator isn't asked to
+   re-pick something already decided for that division. */
+const DIVISION_FORMAT_TO_CHOICE = {
+  'single-time': '1v1-time',
+  'single-solo': '1v1-points',
+  'single-group': 'many-time',
+  'team-play': 'many-points',
+};
+function choiceIdForDivisionFormat(format) {
+  return DIVISION_FORMAT_TO_CHOICE[format] || null;
 }
 function formatHeadline(choice) {
   if (!choice) return '';
@@ -306,11 +320,10 @@ function categoriesMatch(scheduleCategory, activeCategory) {
 
 const ASSUMED_MATCH_MINUTES = 120;
 
-/* Where a fixture sits against the clock. The moderator's list shows every
-   scheduled matchup, not only the ones the clock says are over: generated
-   bracket/round matches often have no date yet (team vs team only), and a
-   game can end early. Status is a label and a sort order here, never a
-   gate on what can be recorded. */
+/* Where a fixture sits against the clock. The moderator only records
+   finished games — see matchHasFinished below, which is the actual gate
+   on recordableMatches. This status is only a label/sort order for the
+   matches that already passed that gate. */
 const MATCH_STATUS_LABEL = {
   finished: 'Finished',
   ongoing: 'Ongoing',
@@ -475,34 +488,6 @@ function computeEditFinalPoints(record, editDraft, isPoints) {
   };
 }
 
-/* ═══════════════════════════════════════════
-   LEVEL TABS (school-level switcher)
-   Previously a small text button tucked in the top-right corner of the
-   header — moderators kept missing it and got confused why their matches
-   weren't showing. It now lives as a prominent segmented tab bar right
-   above the match content it controls, so the switch is impossible to miss
-   and its effect (the content below changing) is immediately obvious.
-═══════════════════════════════════════════ */
-function LevelTabs({ levelKey, onChange }) {
-  return (
-    <div className="mp-levelband">
-      <div className="mp-levelband__tabs" role="tablist" aria-label="School level">
-        {LEVELS.map((l) => (
-          <button
-            key={l.key}
-            type="button"
-            role="tab"
-            aria-selected={levelKey === l.key}
-            className={`mp-levelband__tab ${levelKey === l.key ? 'mp-levelband__tab--active' : ''}`}
-            onClick={() => onChange(l.key)}
-          >
-            {l.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════════
    GENERIC OPTION DROPDOWN
@@ -1508,10 +1493,9 @@ export default function ModeratorPage() {
   /* Chosen after a match was clicked, so the fixture's two teams are
      carried into the new panels. A 1-vs-many format keeps them as the
      first two entries and leaves the rest blank to fill in. */
-  function handleChooseFormat(id) {
+  function applyFormat(id, fixture) {
     const f = formatById(id);
-    if (!f) return;
-    const fixture = formatPickerFor;
+    if (!f) return false;
     const seeded = fixture ? [teamIdByName(fixture.teamA), teamIdByName(fixture.teamB)] : [];
 
     setFormatId(id);
@@ -1523,6 +1507,11 @@ export default function ModeratorPage() {
     setLockedRecord(null);
     setEditingRecord(null);
     if (!fixture) setLockedMatch(null); // manual entry: nothing to lock to
+    return true;
+  }
+
+  function handleChooseFormat(id) {
+    applyFormat(id, formatPickerFor);
   }
 
   function handleResetClick() {
@@ -1599,13 +1588,24 @@ export default function ModeratorPage() {
      click the match and the sport, division, and both teams fill
      themselves in. Ordering: not-yet-recorded first, then finished →
      ongoing → undated → upcoming, newest first inside each group. */
+  // Every scheduled matchup with both teams filled in, finished or not.
+  // Used only to tell "nothing scheduled" apart from "scheduled but none
+  // finished yet" in the empty-state message below.
+  const scheduledMatches = useMemo(
+    () => schedules.filter((s) => s.teamA && s.teamB),
+    [schedules],
+  );
+
+  // The moderator's job is to input finished games, so only those are
+  // pickable here — matchHasFinished already treats admin-generated
+  // bracket rows (no fixed date/time) as always eligible.
   const recordableMatches = useMemo(() => {
     const startOf = (s) => {
       const d = new Date(`${s.date}T${s.time || '00:00'}`);
       return Number.isNaN(d.getTime()) ? 0 : d.getTime();
     };
-    return schedules
-      .filter((s) => s.teamA && s.teamB)
+    return scheduledMatches
+      .filter((s) => matchHasFinished(s))
       .map((s) => ({ ...s, status: matchStatus(s) }))
       .sort((a, b) => {
         const aDone = isMatchRecorded(a) ? 1 : 0;
@@ -1615,7 +1615,7 @@ export default function ModeratorPage() {
         if (byStatus !== 0) return byStatus;
         return startOf(b) - startOf(a);
       });
-  }, [schedules, isMatchRecorded]);
+  }, [scheduledMatches, isMatchRecorded]);
 
   /* ── ratings & live computation ── */
   const scopeKey = activeSport ? rankingScopeKey(activeSport.sportName, activeSport.category) : null;
@@ -1735,13 +1735,22 @@ export default function ModeratorPage() {
 
   /* Point the sport/division pickers at whatever the chosen fixture says,
      so ratings are read from (and written back to) the right scope. */
+  /* Looks up a fixture's own division synchronously (state set via
+     selectScopeFromSchedule isn't readable until the next render). */
+  function findDivisionForSchedule(s) {
+    const sport = effectiveSports.find((x) => norm(x.name) === norm(s.sport));
+    if (!sport) return null;
+    const divs = buildDivisionOptionsForSport(sport);
+    return divs.find((d) => categoriesMatch(d.category, s.category))
+      || divs.find((d) => categoriesMatch(s.category, d.category))
+      || null;
+  }
+
   function selectScopeFromSchedule(s) {
     const sport = effectiveSports.find((x) => norm(x.name) === norm(s.sport));
     if (!sport) return;
     setSportId(sport.id);
-    const divs = buildDivisionOptionsForSport(sport);
-    const div = divs.find((d) => categoriesMatch(d.category, s.category))
-      || divs.find((d) => categoriesMatch(s.category, d.category));
+    const div = findDivisionForSchedule(s);
     setDivisionKey(div ? div.key : '');
   }
 
@@ -1765,9 +1774,16 @@ export default function ModeratorPage() {
       return;
     }
 
-    /* Not recorded yet → ask how it was played. The teams are carried over
-       once a format is picked, and the computation runs from there. */
+    /* Not recorded yet. If the admin already set a format for this
+       fixture's division in Sports & Teams, use it straight away instead
+       of asking the moderator to re-pick something already decided.
+       Falls back to the "how was this played?" picker only when the
+       division has no format configured. */
     setEditingRecord(null);
+    const div = findDivisionForSchedule(s);
+    const autoId = div?.format ? choiceIdForDivisionFormat(div.format) : null;
+    if (autoId && applyFormat(autoId, s)) return;
+
     setEntries([
       { ...mkEntry(), teamId: teamIdByName(s.teamA) },
       { ...mkEntry(), teamId: teamIdByName(s.teamB) },
@@ -2063,14 +2079,19 @@ export default function ModeratorPage() {
                   className="mp-finished-panel__sub"
                   style={{ margin: '2px 0 0', fontSize: '0.72rem', opacity: 0.7, fontWeight: 500 }}
                 >
-                  Every scheduled matchup, in any sport or division. Pick one and its sport, division, and both teams fill in automatically.
+                  Every finished matchup, in any sport or division. Pick one and its sport, division, and both teams fill in automatically.
                 </p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <button
                   type="button"
                   className="mp-finished-panel__unlock"
-                  onClick={() => { setFormatPickerFor(null); setFormatPickerOpen(true); }}
+                  onClick={() => {
+                    const autoId = activeSport?.format ? choiceIdForDivisionFormat(activeSport.format) : null;
+                    if (autoId && applyFormat(autoId, null)) return;
+                    setFormatPickerFor(null);
+                    setFormatPickerOpen(true);
+                  }}
                 >
                   <FaPlus /> No fixture
                 </button>
@@ -2159,7 +2180,15 @@ export default function ModeratorPage() {
         </div>
         <div className="mp-header-divider" />
 
-        <LevelTabs levelKey={level} onChange={setLevel} />
+        <LevelTabs
+          levels={LEVELS}
+          value={level}
+          onChange={setLevel}
+          containerClassName="mp-levelband__tabs"
+          tabClassName="mp-levelband__tab"
+          activeClassName="mp-levelband__tab--active"
+          wrapperClassName="mp-levelband"
+        />
 
         {/* Nothing renders below the level band until a match is chosen —
             the schedule list above is the whole interface at this point.
@@ -2168,14 +2197,23 @@ export default function ModeratorPage() {
         {!formatChoice ? (
           recordableMatches.length === 0 && (
             <div className="mp-card mp-card--empty">
-              <h3 className="mp-card__title">No matches scheduled yet</h3>
+              <h3 className="mp-card__title">
+                {scheduledMatches.length === 0 ? 'No matches scheduled yet' : 'No finished matches yet'}
+              </h3>
               <p className="mp-card__sub">
-                Once an admin saves a schedule for this level it appears here, ready to record.
+                {scheduledMatches.length === 0
+                  ? 'Once an admin saves a schedule for this level it appears here, ready to record.'
+                  : "Matches on the schedule show up here once they're finished."}
               </p>
               <button
                 type="button"
                 className="mp-btn mp-btn--update"
-                onClick={() => { setFormatPickerFor(null); setFormatPickerOpen(true); }}
+                onClick={() => {
+                  const autoId = activeSport?.format ? choiceIdForDivisionFormat(activeSport.format) : null;
+                  if (autoId && applyFormat(autoId, null)) return;
+                  setFormatPickerFor(null);
+                  setFormatPickerOpen(true);
+                }}
               >
                 Record without a fixture
               </button>
@@ -2344,16 +2382,16 @@ export default function ModeratorPage() {
                   if (rowIsMulti) {
                     return (
                       <tr key={r.id} className={flashId === r.id ? 'mp-row-flash' : ''}>
-                        <td>{displayCategory(r.label || r.sportName || '').toUpperCase()} <span className="mp-tag-multi">1 vs many</span></td>
-                        <td>{r.participants.map((p) => p.name).join(' · ')}</td>
-                        <td>{r.participants.map((p) => p.totalViolations).join('-')}</td>
-                        <td>
+                        <td data-label="Sports">{displayCategory(r.label || r.sportName || '').toUpperCase()} <span className="mp-tag-multi">1 vs many</span></td>
+                        <td data-label="Team">{r.participants.map((p) => p.name).join(' · ')}</td>
+                        <td data-label="Violation">{r.participants.map((p) => p.totalViolations).join('-')}</td>
+                        <td data-label="Duration / Score">
                           {rowIsPoints
                             ? r.participants.map((p) => `${p.points}`).join(' - ') + ' pts'
                             : r.participants.map((p) => minutesToDurationString(p.minutes)).join(' - ')}
                         </td>
-                        <td className="mp-table__points">{r.participants.map((p) => fmtPts(p.finalPoints)).join(' - ')}</td>
-                        <td>
+                        <td className="mp-table__points" data-label="Final Points">{r.participants.map((p) => fmtPts(p.finalPoints)).join(' - ')}</td>
+                        <td data-label="Edit">
                           <button className="mp-table__edit-btn" onClick={() => loadRecordIntoForm(r)} aria-label="Edit"><FaEdit /></button>
                         </td>
                       </tr>
@@ -2398,12 +2436,12 @@ export default function ModeratorPage() {
                     </tr>
                   ) : (
                     <tr key={r.id} className={flashId === r.id ? 'mp-row-flash' : ''}>
-                      <td>{displayCategory(r.label || r.sportName || '').toUpperCase()}</td>
-                      <td>{r.teamA.name} vs {r.teamB.name}</td>
-                      <td>{(r.teamA.totalViolations || r.teamB.totalViolations) ? `${r.teamA.totalViolations}-${r.teamB.totalViolations}` : '--'}</td>
-                      <td>{rowIsPoints ? (r.teamA.points != null ? `${r.teamA.points} - ${r.teamB.points} pts` : '--') : (r.teamA.minutes != null ? `${minutesToDurationString(r.teamA.minutes)} - ${minutesToDurationString(r.teamB.minutes)}` : '--')}</td>
-                      <td className="mp-table__points">{fmtPts(r.teamA.finalPoints)} - {fmtPts(r.teamB.finalPoints)}</td>
-                      <td><button className="mp-table__edit-btn" onClick={() => startEdit(r)} aria-label="Edit"><FaEdit /></button></td>
+                      <td data-label="Sports">{displayCategory(r.label || r.sportName || '').toUpperCase()}</td>
+                      <td data-label="Team">{r.teamA.name} vs {r.teamB.name}</td>
+                      <td data-label="Violation">{(r.teamA.totalViolations || r.teamB.totalViolations) ? `${r.teamA.totalViolations}-${r.teamB.totalViolations}` : '--'}</td>
+                      <td data-label="Duration / Score">{rowIsPoints ? (r.teamA.points != null ? `${r.teamA.points} - ${r.teamB.points} pts` : '--') : (r.teamA.minutes != null ? `${minutesToDurationString(r.teamA.minutes)} - ${minutesToDurationString(r.teamB.minutes)}` : '--')}</td>
+                      <td className="mp-table__points" data-label="Final Points">{fmtPts(r.teamA.finalPoints)} - {fmtPts(r.teamB.finalPoints)}</td>
+                      <td data-label="Edit"><button className="mp-table__edit-btn" onClick={() => startEdit(r)} aria-label="Edit"><FaEdit /></button></td>
                     </tr>
                   );
                 })}
